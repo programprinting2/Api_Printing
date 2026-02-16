@@ -1,0 +1,4 @@
+.venv/
+FileSumber
+__pycache__/
+*.pyc

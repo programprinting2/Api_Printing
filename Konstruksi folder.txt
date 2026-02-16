@@ -1,0 +1,10 @@
+PrintingAgent/
+│
+├── agent.py
+├── config.py
+├── executor.py
+├── tasks/
+│   ├── __init__.py
+│   ├── merge_pdf.py
+│   └── list_files.py
+└── requirements.txt

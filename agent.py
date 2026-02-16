@@ -5,6 +5,15 @@ import tempfile
 import os
 import sys
 import datetime
+import io
+import subprocess
+
+try:
+    from PIL import Image
+
+    PIL_AVAILABLE = True
+except Exception:
+    PIL_AVAILABLE = False
 
 # In-memory list of exposed paths (no security restrictions per user request)
 EXPOSED_PATHS = []
@@ -12,7 +21,7 @@ EXPOSED_PATHS = []
 app = Flask(__name__)
 
 # Simple base directory for the lightweight file explorer (change as needed)
-BASE_DIR = r"F:\\Pesanan"
+BASE_DIR = r"F:\\PESANAN\2026"
 
 
 def safe_join(base, path):
@@ -22,448 +31,119 @@ def safe_join(base, path):
     return full_path
 
 
-# ROOT (simple status)
-@app.route("/")
-def root():
-    return "Printing Agent Running"
-
-
 @app.route("/ui")
-def ui():
+def ui_main():
     return render_template_string(
-        """
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Printing Agent</title>
-        <style>
-            body{font-family:Segoe UI,Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;color:#fff}
-            .container{max-width:900px;margin:0 auto}
-            .header{text-align:center;margin-bottom:30px}
-            .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
-            .feature-card{background:#fff;color:#333;padding:30px;border-radius:12px;text-align:center;text-decoration:none}
-            .feature-card .feature-icon{font-size:40px;margin-bottom:12px}
-            .feature-title{font-weight:700;margin-bottom:8px}
-            .feature-desc{color:#666;font-size:13px;margin-bottom:12px}
-            .feature-btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🖨️ Printing Agent</h1>
-                <p>Solusi cerdas untuk kebutuhan printing digital Anda</p>
+        r"""
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Printing Agent - Menu</title>
+            <style>
+                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:30px;color:#fff}
+                .card{background:#fff;color:#222;border-radius:10px;padding:20px;max-width:700px;margin:0 auto}
+                .title{font-size:22px;margin-bottom:6px}
+                .menu{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+                .btn{background:#667eea;color:#fff;border:none;padding:12px 16px;border-radius:8px;cursor:pointer;text-align:left}
+                .menu a{text-decoration:none}
+                .small{color:#666;font-size:13px;margin-bottom:8px}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="title">Printing Agent</div>
+                <div class="small">Menu Utama — pilih fitur</div>
+                <div class="menu">
+                    <a href="/ui/file-explorer"><button class="btn">🗂 File Explorer</button></a>
+                    <a href="/ui/image-tools"><button class="btn">🖼 Image Tools</button></a>
+                    <a href="/ui/read-info-form"><button class="btn">🖼 Image Info</button></a>
+                    <a href="/ui/merge"><button class="btn">📄 Merge PDF</button></a>
+                    <a href="/ui/read-pdf-info-form"><button class="btn">🔎 PDF Info</button></a>
+                </div>
             </div>
-            <div class="features-grid">
-                <a href="/ui/merge-form" class="feature-card">
-                    <div class="feature-icon">📄</div>
-                    <div class="feature-title">Merge PDF</div>
-                    <div class="feature-desc">Gabungkan dua atau lebih file PDF menjadi satu dokumen</div>
-                    <button class="feature-btn">Mulai</button>
-                </a>
-                <a href="/ui/read-info-form" class="feature-card">
-                    <div class="feature-icon">🖼️</div>
-                    <div class="feature-title">Image Info</div>
-                    <div class="feature-desc">Lihat informasi lengkap tentang file gambar Anda</div>
-                    <button class="feature-btn">Mulai</button>
-                </a>
-                <a href="/ui/read-pdf-info-form" class="feature-card">
-                    <div class="feature-icon">📋</div>
-                    <div class="feature-title">PDF Info</div>
-                    <div class="feature-desc">Cek jumlah halaman dan preview file PDF</div>
-                    <button class="feature-btn">Mulai</button>
-                </a>
-                <a href="/ui/file-explorer" class="feature-card">
-                    <div class="feature-icon">🗂️</div>
-                    <div class="feature-title">File Explorer</div>
-                    <div class="feature-desc">Jelajahi file dan folder pada server</div>
-                    <button class="feature-btn">Buka</button>
-                </a>
-            </div>
-        </div>
-    </body>
-    """
+            </body>
+            </html>
+            """
     )
 
 
-@app.route("/ui/merge-form")
-def merge_form():
+@app.route("/ui/merge", methods=["GET"])
+def ui_merge_page():
     return render_template_string(
-        """
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Merge PDF - Printing Agent</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                padding: 20px;
-            }
-            
-            .container {
-                max-width: 1000px;
-                margin: 0 auto;
-            }
-            
-            .header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 30px;
-            }
-            
-            .header h1 {
-                color: white;
-                font-size: 28px;
-            }
-            
-            .back-btn {
-                background: rgba(255,255,255,0.2);
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                cursor: pointer;
-                font-size: 14px;
-                transition: all 0.3s;
-            }
-            
-            .back-btn:hover {
-                background: rgba(255,255,255,0.3);
-            }
-            
-            .card {
-                background: white;
-                border-radius: 10px;
-                padding: 30px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            }
-            
-            .card h2 {
-                color: #333;
-                margin-bottom: 25px;
-                font-size: 20px;
-            }
-            
-            .form-group {
-                margin-bottom: 25px;
-            }
-            
-            .form-group label {
-                display: block;
-                color: #333;
-                font-weight: 600;
-                margin-bottom: 10px;
-                font-size: 14px;
-            }
-            
-            .file-input-wrapper {
-                position: relative;
-                display: inline-block;
-                width: 100%;
-            }
-            
-            .file-input-wrapper input[type="file"] {
-                display: none;
-            }
-            
-            .file-input-label {
-                display: block;
-                width: 100%;
-                padding: 20px;
-                border: 2px dashed #667eea;
-                border-radius: 8px;
-                text-align: center;
-                cursor: pointer;
-                transition: all 0.3s;
-                background: #f8f9ff;
-            }
-            
-            .file-input-label:hover {
-                border-color: #764ba2;
-                background: #f0f2ff;
-            }
-            
-            .file-input-label span {
-                color: #667eea;
-                font-size: 13px;
-            }
-            
-            .file-name {
-                margin-top: 8px;
-                padding: 8px;
-                background: #f0f2ff;
-                border-radius: 5px;
-                color: #667eea;
-                font-size: 12px;
-                text-align: center;
-            }
-            
-            .text-input {
-                width: 100%;
-                padding: 12px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-                transition: all 0.3s;
-            }
-            
-            .text-input:focus {
-                outline: none;
-                border-color: #667eea;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            }
-            
-            .button-group {
-                display: flex;
-                gap: 15px;
-                margin-top: 30px;
-            }
-            
-            .btn {
-                flex-grow: 1;
-                padding: 12px 20px;
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.3s;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .btn-primary {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-            }
-            
-            .btn-primary:hover {
-                opacity: 0.9;
-                transform: translateY(-2px);
-            }
-            
-            .loading {
-                display: none;
-                text-align: center;
-                padding: 20px;
-                color: #667eea;
-            }
-            
-            .spinner {
-                border: 3px solid #f3f3f3;
-                border-top: 3px solid #667eea;
-                border-radius: 50%;
-                width: 30px;
-                height: 30px;
-                animation: spin 1s linear infinite;
-                margin: 0 auto 10px;
-            }
-            
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-            
-            .success-message {
-                background: #efe;
-                color: #3c3;
-                padding: 15px;
-                border-radius: 8px;
-                margin-top: 15px;
-                text-align: center;
-                display: none;
-            }
-            
-            .success-message.show {
-                display: block;
-            }
-            
-            .error-message {
-                background: #fee;
-                color: #c33;
-                padding: 15px;
-                border-radius: 8px;
-                margin-top: 15px;
-                text-align: center;
-                display: none;
-            }
-            
-            .error-message.show {
-                display: block;
-            }
-            
-            @media (max-width: 768px) {
-                .header {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    margin-bottom: 20px;
-                }
-                
-                .button-group {
-                    flex-direction: column;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>Merge PDF</h1>
-                <a href="/ui"><button class="back-btn">← Kembali</button></a>
-            </div>
-            
+        r"""
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Merge PDF - Printing Agent</title>
+            <style>
+                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:20px;color:#fff}
+                .card{background:#fff;color:#222;border-radius:8px;padding:18px;max-width:820px;margin:0 auto}
+                .form-group{margin-bottom:12px}
+                .file-input-wrapper{display:flex;align-items:center;gap:8px}
+                .file-input-label{background:#f0f0f0;padding:8px 12px;border-radius:6px;cursor:pointer}
+                .btn{background:#667eea;color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
+            </style>
+        </head>
+        <body>
             <div class="card">
-                <h2>Gabungkan File PDF</h2>
+                <h2>Merge PDF</h2>
                 <form id="mergeForm">
                     <div class="form-group">
                         <label>File PDF Pertama</label>
                         <div class="file-input-wrapper">
                             <input type="file" id="file1" accept=".pdf" required>
-                            <label for="file1" class="file-input-label">
-                                <span>📄 Pilih file PDF atau drag & drop</span>
-                            </label>
-                            <div class="file-name" id="fileName1" style="display: none;"></div>
+                            <div id="fileName1" style="margin-left:8px;color:#666;display:none"></div>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label>File PDF Kedua</label>
                         <div class="file-input-wrapper">
                             <input type="file" id="file2" accept=".pdf" required>
-                            <label for="file2" class="file-input-label">
-                                <span>📄 Pilih file PDF atau drag & drop</span>
-                            </label>
-                            <div class="file-name" id="fileName2" style="display: none;"></div>
+                            <div id="fileName2" style="margin-left:8px;color:#666;display:none"></div>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label for="output">Nama File Output</label>
-                        <input type="text" id="output" class="text-input" placeholder="merged.pdf" value="merged.pdf" required>
+                        <input type="text" id="output" value="merged.pdf" required style="padding:8px;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ddd">
                     </div>
-                    
-                    <div class="loading" id="loading">
-                        <div class="spinner"></div>
-                        <p>Memproses PDF...</p>
-                    </div>
-                    
-                    <div class="success-message" id="successMsg">
-                        ✓ File berhasil digabungkan! File tersimpan di folder temp.
-                    </div>
-                    
-                    <div class="error-message" id="errorMsg"></div>
-                    
-                    <div class="button-group">
-                        <button type="submit" class="btn btn-primary">Gabungkan PDF</button>
+                    <div style="margin-top:12px">
+                        <button type="submit" class="btn">Gabungkan PDF</button>
+                        <a href="/ui" style="margin-left:8px"><button type="button" class="btn" style="background:#999">Kembali</button></a>
                     </div>
                 </form>
+                <div id="result" style="margin-top:12px"></div>
             </div>
-        </div>
-        
-        <script>
-            const form = document.getElementById('mergeForm');
-            const file1Input = document.getElementById('file1');
-            const file2Input = document.getElementById('file2');
-            const outputInput = document.getElementById('output');
-            
-            // Update file names
-            file1Input.addEventListener('change', (e) => {
-                if (e.target.files[0]) {
-                    document.getElementById('fileName1').textContent = '✓ ' + e.target.files[0].name;
-                    document.getElementById('fileName1').style.display = 'block';
-                }
-            });
-            
-            file2Input.addEventListener('change', (e) => {
-                if (e.target.files[0]) {
-                    document.getElementById('fileName2').textContent = '✓ ' + e.target.files[0].name;
-                    document.getElementById('fileName2').style.display = 'block';
-                }
-            });
-            
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const file1 = file1Input.files[0];
-                const file2 = file2Input.files[0];
-                
-                if (!file1 || !file2) {
-                    showError('Pilih kedua file PDF');
-                    return;
-                }
-                
-                const formData = new FormData();
-                formData.append('file1', file1);
-                formData.append('file2', file2);
-                formData.append('output', outputInput.value || 'merged.pdf');
-                
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('successMsg').classList.remove('show');
-                document.getElementById('errorMsg').classList.remove('show');
-                
-                try {
-                    const response = await fetch('/ui/merge', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const data = await response.json();
-                    document.getElementById('loading').style.display = 'none';
-                    
-                    if (data.status === 'success') {
-                        document.getElementById('successMsg').classList.add('show');
-                        form.reset();
-                        document.getElementById('fileName1').style.display = 'none';
-                        document.getElementById('fileName2').style.display = 'none';
-                    } else {
-                        showError(data.message || 'Terjadi kesalahan');
-                    }
-                } catch (error) {
-                    document.getElementById('loading').style.display = 'none';
-                    showError(error.message);
-                }
-            });
-            
-            function showError(message) {
-                const errorEl = document.getElementById('errorMsg');
-                errorEl.textContent = '❌ ' + message;
-                errorEl.classList.add('show');
-            }
-            
-            // Drag & drop
-            ['file1', 'file2'].forEach(id => {
-                const fileInput = document.getElementById(id);
-                const label = fileInput.nextElementSibling;
-                
-                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                    label.addEventListener(eventName, preventDefaults);
+
+            <script>
+                const file1Input = document.getElementById('file1');
+                const file2Input = document.getElementById('file2');
+                file1Input.addEventListener('change', e => { if(e.target.files[0]){ document.getElementById('fileName1').textContent = e.target.files[0].name; document.getElementById('fileName1').style.display='block'; }});
+                file2Input.addEventListener('change', e => { if(e.target.files[0]){ document.getElementById('fileName2').textContent = e.target.files[0].name; document.getElementById('fileName2').style.display='block'; }});
+
+                document.getElementById('mergeForm').addEventListener('submit', async (ev) => {
+                    ev.preventDefault();
+                    const f1 = file1Input.files[0];
+                    const f2 = file2Input.files[0];
+                    const output = document.getElementById('output').value || 'merged.pdf';
+                    if(!f1 || !f2){ alert('Pilih kedua PDF'); return; }
+                    const fd = new FormData(); fd.append('file1', f1); fd.append('file2', f2); fd.append('output', output);
+                    const resEl = document.getElementById('result'); resEl.textContent = 'Memproses...';
+                    try{
+                        const r = await fetch('/ui/merge', { method: 'POST', body: fd });
+                        const data = await r.json();
+                        if(data.status === 'success'){
+                            resEl.innerHTML = 'Berhasil: ' + (data.path || 'file disimpan di temp');
+                        } else { resEl.textContent = 'Error: ' + (data.message || 'Terjadi kesalahan'); }
+                    }catch(e){ resEl.textContent = 'Error: '+e.message; }
                 });
-                
-                label.addEventListener('drop', (e) => {
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                        fileInput.files = files;
-                        fileInput.dispatchEvent(new Event('change'));
-                    }
-                });
-            });
-            
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        </script>
-    </body>
-    """
+            </script>
+        </body>
+        </html>
+        """
     )
 
 
@@ -478,7 +158,7 @@ def ui_file_explorer():
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>File Explorer - Printing Agent</title>
             <style>
-                body{font-family:Segoe UI,Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;color:#fff}
+                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:20px;color:#fff}
                 .container{max-width:1200px;margin:0 auto}
                 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
                 .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,0.12)}
@@ -489,7 +169,7 @@ def ui_file_explorer():
                 .drives li:hover{background:#f0f4ff}
                 .pathbar{font-size:13px;color:#666;margin-bottom:8px}
                 .toolbar{display:flex;gap:8px;margin-bottom:8px}
-                .btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
+                .btn{background:#667eea;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
                 table{width:100%;border-collapse:collapse}
                 th,td{padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:13px}
                 th{color:#666;font-weight:600}
@@ -501,6 +181,7 @@ def ui_file_explorer():
             <div class="container">
                 <div class="header">
                     <div>
+
                         <h1 style="margin:0;color:#fff;font-size:20px">🗂️ File Explorer</h1>
                         <div class="muted" style="margin-top:4px">Browse files under: F:\\Pesanan</div>
                     </div>
@@ -614,7 +295,7 @@ def ui_file_explorer():
                                                         <h3 style="margin:0;font-size:18px">Informasi & Preview</h3>
                                                     </div>
                                                     <div style="display:flex;gap:8px;align-items:center;">
-                                                        <button id="modalCloseBtn" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer">Close</button>
+                                                        <button id="modalCloseBtn" style="background:#667eea;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer">Close</button>
                                                         <button id="modalXBtn" aria-label="Close" style="background:transparent;border:none;font-size:20px;cursor:pointer">✕</button>
                                                     </div>
                                                 </div>
@@ -660,7 +341,14 @@ def ui_file_explorer():
                             if(['jpg','jpeg','png','gif','webp','bmp'].includes(ext)){
                                 // image
                                 preview.innerHTML = '';
-                                const img = document.createElement('img'); img.src = url; img.style.maxWidth='100%'; img.style.height='auto'; img.style.maxHeight='380px'; preview.appendChild(img);
+                                const img = document.createElement('img');
+                                img.src = url;
+                                img.style.width = 'auto';
+                                img.style.maxWidth = '100%';
+                                img.style.height = 'auto';
+                                img.style.maxHeight = '380px';
+                                img.style.objectFit = 'contain';
+                                preview.appendChild(img);
                                 img.onload = ()=>{
                                     if(infoData && infoData.status === 'success'){
                                         // Grid format matching requested UI
@@ -749,7 +437,7 @@ def ui_file_explorer():
                                             pagesHtml += '</div>';
                                         }
                                         info.innerHTML = `
-                                          <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:20px;border-radius:8px;margin-bottom:20px">
+                                          <div style="background:#667eea;color:white;padding:20px;border-radius:8px;margin-bottom:20px">
                                             <div style="margin:10px 0;text-align:center">
                                               <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JALUR FILE</div>
                                               <div style="font-weight:600;font-size:10px;font-family:monospace;word-break:break-all;margin-top:5px">${displayPath}</div>
@@ -775,7 +463,7 @@ def ui_file_explorer():
                                         `;
                                     } else {
                                         info.innerHTML = `
-                                          <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:20px;border-radius:8px">
+                                          <div style="background:#667eea;color:white;padding:20px;border-radius:8px">
                                             <div style="margin:10px 0;padding-top:10px;border-top:1px solid rgba(255,255,255,0.3);text-align:center">
                                               <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JUMLAH HALAMAN</div>
                                               <div style="font-weight:600;font-size:18px;margin-top:5px">${pdf.numPages}</div>
@@ -886,6 +574,35 @@ def api_file_info():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/open-path", methods=["POST"])
+def api_open_path():
+    data = request.get_json() or {}
+    filepath = data.get("filepath")
+    if not filepath:
+        return jsonify({"ok": False, "error": "missing filepath"}), 400
+    # normalize path
+    filepath = filepath.replace("/", "\\") if os.name == "nt" else filepath
+    filepath = os.path.abspath(filepath)
+    try:
+        if not os.path.exists(filepath):
+            return jsonify({"ok": False, "error": "path does not exist"}), 404
+        # If directory, open it. If file, try to select it in Explorer on Windows or open containing folder otherwise.
+        if os.path.isdir(filepath):
+            if os.name == "nt":
+                subprocess.Popen(["explorer", filepath])
+            else:
+                subprocess.Popen(["xdg-open", filepath])
+        else:
+            if os.name == "nt":
+                # /select, will open Explorer and select the file
+                subprocess.Popen(["explorer", "/select,", filepath])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(filepath)])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/ui/read-file")
 def ui_read_file():
     filepath = request.args.get("filepath")
@@ -928,6 +645,67 @@ def ui_read_file():
         return (f"Error reading file: {str(e)}", 500)
 
 
+@app.route("/ui/thumbnail")
+def ui_thumbnail():
+    filepath = request.args.get("filepath")
+    if not filepath:
+        return ("Missing filepath parameter", 400)
+    # Normalize path (handle both forward and backslashes)
+    filepath = filepath.replace("/", "\\") if os.name == "nt" else filepath
+    filepath = os.path.abspath(filepath)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return (f"File not found: {filepath}", 404)
+    # If Pillow is available, generate a small webp thumbnail (10% scale, quality=10)
+    try:
+        if PIL_AVAILABLE:
+            try:
+                with open(filepath, "rb") as f:
+                    img = Image.open(f)
+                    img = img.convert("RGB")
+                    w, h = img.size
+                    new_w = max(1, int(w * 0.1))
+                    new_h = max(1, int(h * 0.1))
+                    img = img.resize((new_w, new_h), Image.LANCZOS)
+                    bio = io.BytesIO()
+                    img.save(bio, format="WEBP", quality=10, method=6)
+                    data = bio.getvalue()
+                    response = Response(data, mimetype="image/webp")
+                    response.headers["Content-Disposition"] = 'inline; filename=""'
+                    response.headers["Cache-Control"] = "public, max-age=60"
+                    response.headers["X-Content-Type-Options"] = "nosniff"
+                    response.headers["Content-Length"] = len(data)
+                    return response
+            except Exception:
+                # fallthrough to serve original file if thumbnail generation fails
+                pass
+
+        # Fallback: serve original file (same behavior as ui_read_file)
+        with open(filepath, "rb") as f:
+            data = f.read()
+        # Attempt to guess web-friendly mime
+        ext = filepath.split(".")[-1].lower()
+        if ext in ["jpg", "jpeg"]:
+            mimetype = "image/jpeg"
+        elif ext == "png":
+            mimetype = "image/png"
+        elif ext == "gif":
+            mimetype = "image/gif"
+        elif ext == "webp":
+            mimetype = "image/webp"
+        else:
+            mimetype = "application/octet-stream"
+        response = Response(data, mimetype=mimetype)
+        response.headers["Content-Disposition"] = 'inline; filename=""'
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Length"] = len(data)
+        return response
+    except Exception as e:
+        return (f"Error reading file: {str(e)}", 500)
+
+
 @app.route("/ui/preview")
 def ui_preview():
     return render_template_string(
@@ -940,7 +718,7 @@ def ui_preview():
             <title>File Preview</title>
             <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
             <style>
-                body{font-family:Segoe UI,Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;color:#fff}
+                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:20px;color:#fff}
                 .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,0.12);max-width:1100px;margin:0 auto}
                 .layout{display:grid;grid-template-columns:1fr 420px;gap:12px}
                 .preview{background:#f5f7ff;padding:8px;border-radius:6px;min-height:420px;display:flex;align-items:center;justify-content:center}
@@ -954,7 +732,7 @@ def ui_preview():
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                     <h2 style="margin:0">File Preview</h2>
-                    <div><a href="/ui"><button style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:none;padding:6px 10px;border-radius:6px">Close</button></a></div>
+                    <div><a href="/ui"><button style="background:#667eea;color:#fff;border:none;padding:6px 10px;border-radius:6px">Close</button></a></div>
                 </div>
                 <div class="layout">
                     <div>
@@ -1093,7 +871,7 @@ def ui_exposed():
     return render_template_string(
         """
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Exposed Files</title>
-    <style>body{font-family:Segoe UI,Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#333;padding:20px}.card{background:#fff;padding:16px;border-radius:8px;max-width:900px;margin:0 auto;box-shadow:0 8px 30px rgba(0,0,0,0.12)}.entry{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0}</style>
+    <style>body{font-family:Segoe UI,Arial;background:#667eea;color:#333;padding:20px}.card{background:#fff;padding:16px;border-radius:8px;max-width:900px;margin:0 auto;box-shadow:0 8px 30px rgba(0,0,0,0.12)}.entry{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0}</style>
     </head><body><div class="card"><h2>Exposed Files</h2><div id="list"></div><div style="height:12px"></div><a href="/ui"><button>← Kembali</button></a></div>
     <script>
     async function refresh(){
@@ -1151,6 +929,405 @@ def ui_drives():
         return jsonify({"drives": []})
 
 
+@app.route("/ui/file-dialog-component")
+def ui_file_dialog_component():
+    js_code = """
+// File Dialog Component - Full File Explorer
+if (!window.fileDialogComponent) {
+    window.fileDialogComponent = true;
+    
+    // Inject CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        .modal-overlay {
+            position: fixed;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-dialog {
+            background: white;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+        }
+        
+        .modal-body {
+            flex: 1;
+            overflow: hidden;
+            padding: 0;
+            display: flex;
+        }
+        
+        .explorer-sidebar {
+            width: 220px;
+            border-right: 1px solid #e0e0e0;
+            padding: 16px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .explorer-main {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+        
+        .explorer-drives {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+        }
+        
+        .explorer-drives li {
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #333;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .explorer-drives li:hover {
+            background: #e8ecff;
+            color: #667eea;
+        }
+        
+        .sidebar-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .current-path {
+            font-size: 11px;
+            color: #666;
+            word-break: break-all;
+            line-height: 1.3;
+        }
+        
+        .explorer-toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .explorer-toolbar button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .explorer-toolbar button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
+        .explorer-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        
+        .explorer-table thead {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+        
+        .explorer-table th {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 2px solid #e0e0e0;
+            color: #666;
+            font-weight: 600;
+            background: white;
+        }
+        
+        .explorer-table td {
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .explorer-table tr:hover {
+            background: #f8fbff;
+        }
+        
+        .explorer-file-name {
+            cursor: pointer;
+            color: #333;
+            flex: 1;
+        }
+        
+        .explorer-file-name:hover {
+            color: #667eea;
+            text-decoration: underline;
+        }
+        
+        .explorer-file-type {
+            color: #999;
+            font-size: 11px;
+        }
+        
+        .explorer-file-size {
+            color: #999;
+            text-align: right;
+            width: 80px;
+        }
+        
+        .explorer-file-date {
+            color: #999;
+            width: 130px;
+            font-size: 11px;
+        }
+        
+        .explorer-table-container {
+            flex: 1;
+            overflow: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Inject HTML
+    const modalHTML = `
+        <div class="modal-overlay" id="fileDialogModal">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3>Pilih File</h3>
+                    <button class="modal-close" onclick="closeFileDialog()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="explorer-sidebar">
+                        <div class="sidebar-label">Drives</div>
+                        <ul class="explorer-drives" id="fileDialogDrives"></ul>
+                        
+                        <div class="sidebar-label" style="margin-top: 20px;">Current Path</div>
+                        <div class="current-path" id="fileDialogCurrentPath">Root</div>
+                    </div>
+                    <div class="explorer-main">
+                        <div class="explorer-toolbar">
+                            <button onclick="fileDialogRefresh()">🔄 Refresh</button>
+                            <button onclick="fileDialogUpFolder()">⬅️ Up</button>
+                        </div>
+                        <div class="explorer-table-container">
+                            <table class="explorer-table">
+                                <thead>
+                                    <tr>
+                                        <th style="flex: 1;">Name</th>
+                                        <th style="width: 80px;">Size</th>
+                                        <th style="width: 130px;">Modified</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fileDialogFileTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Global state
+    window.fileDialogCurrentPath = "";
+    window.fileDialogCallback = null;
+    
+    // Global functions
+    window.openFileDialog = function(callback) {
+        window.fileDialogCallback = callback || null;
+        document.getElementById('fileDialogModal').classList.add('active');
+        fileDialogLoadDrives();
+        fileDialogLoadFolder("");
+    };
+    
+    window.closeFileDialog = function() {
+        document.getElementById('fileDialogModal').classList.remove('active');
+        window.fileDialogCurrentPath = "";
+        window.fileDialogCallback = null;
+    };
+    
+    window.fileDialogLoadDrives = async function() {
+        try {
+            const res = await fetch('/ui/drives');
+            const data = await res.json();
+            const ul = document.getElementById('fileDialogDrives');
+            ul.innerHTML = '';
+            
+            (data.drives || []).forEach(drive => {
+                const li = document.createElement('li');
+                li.textContent = drive;
+                li.addEventListener('click', () => fileDialogLoadFolder(drive));
+                ul.appendChild(li);
+            });
+        } catch(e) {
+            console.error('Error loading drives:', e);
+        }
+    };
+    
+    window.fileDialogFormatBytes = function(bytes) {
+        if(bytes === null || bytes === undefined) return '-';
+        if(bytes < 1024) return bytes + ' B';
+        const units = ['KB', 'MB', 'GB', 'TB'];
+        let size = bytes;
+        let i = 0;
+        while(size >= 1024 && i < units.length - 1) {
+            size /= 1024;
+            i++;
+        }
+        return size.toFixed(1) + ' ' + units[i];
+    };
+    
+    window.fileDialogLoadFolder = async function(path) {
+        try {
+            const q = '/api/list?path=' + encodeURIComponent(path || '');
+            const res = await fetch(q);
+            
+            if(!res.ok) {
+                const msg = await res.text();
+                alert('Error: ' + msg);
+                return;
+            }
+            
+            const data = await res.json();
+            window.fileDialogCurrentPath = data.current_path || '';
+            document.getElementById('fileDialogCurrentPath').textContent = window.fileDialogCurrentPath || 'Root';
+            
+            const tbody = document.getElementById('fileDialogFileTable');
+            tbody.innerHTML = '';
+            
+            // Add up row if not root
+            if(window.fileDialogCurrentPath) {
+                const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
+                tr.innerHTML = '<td colspan="3" style="color: #667eea; font-weight: 600;">📁 .. (Up)</td>';
+                tr.addEventListener('click', () => {
+                    const parts = window.fileDialogCurrentPath.split('\\\\').filter(Boolean);
+                    parts.pop();
+                    fileDialogLoadFolder(parts.join('\\\\'));
+                });
+                tbody.appendChild(tr);
+            }
+            
+            // Add files/folders
+            (data.items || []).forEach(item => {
+                const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
+                
+                const isFolder = item.type === 'folder';
+                const icon = isFolder ? '📁' : '📄';
+                const name = icon + ' ' + item.name;
+                
+                const nameCell = document.createElement('td');
+                nameCell.className = 'explorer-file-name';
+                nameCell.textContent = name;
+                
+                const sizeCell = document.createElement('td');
+                sizeCell.className = 'explorer-file-size';
+                sizeCell.textContent = isFolder ? '-' : fileDialogFormatBytes(item.size);
+                
+                const dateCell = document.createElement('td');
+                dateCell.className = 'explorer-file-date';
+                dateCell.textContent = item.last_modified || '-';
+                
+                nameCell.addEventListener('click', () => {
+                    if(isFolder) {
+                        const newPath = window.fileDialogCurrentPath ? window.fileDialogCurrentPath + '\\\\' + item.name : item.name;
+                        fileDialogLoadFolder(newPath);
+                    } else {
+                        // Only allow image files
+                        const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.ico'];
+                        const ext = ('.' + item.name.split('.').pop()).toLowerCase();
+                        if(imageExts.includes(ext)) {
+                            const filePath = window.fileDialogCurrentPath ? window.fileDialogCurrentPath + '\\\\' + item.name : item.name;
+                            if(window.fileDialogCallback) {
+                                window.fileDialogCallback(filePath);
+                            }
+                            closeFileDialog();
+                        } else {
+                            alert('Hanya file gambar yang bisa dipilih (.jpg, .png, .gif, .bmp, .webp, dll)');
+                        }
+                    }
+                });
+                
+                tr.appendChild(nameCell);
+                tr.appendChild(sizeCell);
+                tr.appendChild(dateCell);
+                tbody.appendChild(tr);
+            });
+        } catch(e) {
+            alert('Error: ' + e.message);
+        }
+    };
+    
+    window.fileDialogRefresh = function() {
+        fileDialogLoadFolder(window.fileDialogCurrentPath);
+    };
+    
+    window.fileDialogUpFolder = function() {
+        const parts = window.fileDialogCurrentPath.split('\\\\').filter(Boolean);
+        parts.pop();
+        fileDialogLoadFolder(parts.join('\\\\'));
+    };
+}
+"""
+    return Response(js_code, mimetype="application/javascript")
+
+
 @app.route("/ui/read-pdf-info-form")
 def read_pdf_info_form():
     return render_template_string(
@@ -1169,7 +1346,7 @@ def read_pdf_info_form():
             
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #667eea;
                 min-height: 100vh;
                 padding: 20px;
             }
@@ -1281,7 +1458,7 @@ def read_pdf_info_form():
             .browse-btn {
                 width: 100%;
                 padding: 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #667eea;
                 color: white;
                 border: none;
                 border-radius: 8px;
@@ -1403,7 +1580,7 @@ def read_pdf_info_form():
             }
             
             .summary-box {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #667eea;
                 color: white;
                 padding: 20px;
                 border-radius: 8px;
@@ -1934,7 +2111,7 @@ def read_info_form():
             
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #667eea;
                 min-height: 100vh;
                 padding: 20px;
             }
@@ -2306,39 +2483,23 @@ def ui_merge():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# @app.route("/ui/read-info", methods=["POST"])
-# def ui_read_info():
-#     try:
-#         filepath = request.json.get("filepath")
-
-#         if not filepath:
-#             return jsonify({"status": "error", "message": "Missing file"}), 400
-
-#         # Create temp directory
-#         temp_dir = tempfile.gettempdir()
-
-#         # Save uploaded file temporarily
-#         file_path = os.path.join(temp_dir, filepath.filename)
-#         filepath.save(file_path)
-
-#         # Execute read info
-#         result = execute("read_info", {"filepath": file_path})
-
-#         return jsonify(result)
-#     except Exception as e:
-#         return jsonify({"status": "error", "message": str(e)}), 500
-
-
 @app.route("/ui/read-info", methods=["POST"])
 def ui_read_info():
     try:
-        # Ambil path dari JSON
         filepath = request.json.get("filepath")
 
         if not filepath:
-            return jsonify({"status": "error", "message": "Missing file path"}), 400
+            return jsonify({"status": "error", "message": "Missing file"}), 400
 
-        result = execute("read_info", {"filepath": filepath})
+        # Create temp directory
+        temp_dir = tempfile.gettempdir()
+
+        # Save uploaded file temporarily
+        file_path = os.path.join(temp_dir, filepath.filename)
+        filepath.save(file_path)
+
+        # Execute read info
+        result = execute("read_info", {"filepath": file_path})
 
         return jsonify(result)
     except Exception as e:
@@ -2447,6 +2608,925 @@ def ui_read_pdf_file():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "alive", "agent_id": AGENT_ID})
+
+
+@app.route("/ui/image-tools")
+def image_tools():
+    return render_template_string(
+        r"""
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Image Tools - Printing Agent</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: #667eea;
+                min-height: 100vh;
+                padding: 20px;
+            }
+            
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 30px;
+            }
+            
+            .header h1 {
+                color: white;
+                font-size: 28px;
+            }
+            
+            .back-btn {
+                background: rgba(255,255,255,0.2);
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.3s;
+            }
+            
+            .back-btn:hover {
+                background: rgba(255,255,255,0.3);
+            }
+            
+            .content {
+                background: white;
+                border-radius: 10px;
+                padding: 30px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            }
+            
+            .section-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 20px;
+            }
+            
+            .section-header h2 {
+                color: #333;
+                font-size: 20px;
+                margin: 0;
+            }
+            
+            .add-file-btn {
+                background: #667eea;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+                transition: all 0.3s;
+            }
+            
+            .add-file-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            }
+            
+            .file-list {
+                margin-top: 20px;
+            }
+            
+            .file-item {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                padding: 16px;
+                background: #f8f9ff;
+                border-left: 4px solid #667eea;
+                border-radius: 6px;
+                margin-bottom: 16px;
+                gap: 16px;
+            }
+            
+            .file-item-preview {
+                flex-shrink: 0;
+            }
+            
+            .file-item-preview img {
+                width: auto;
+                max-width: 120px;
+                height: auto;
+                max-height: 120px;
+                object-fit: contain;
+                border-radius: 4px;
+                background: #fff;
+                border: 1px solid #e0e0e0;
+            }
+            
+            .file-item-content {
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .file-item-info {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            
+            .file-item-name {
+                color: #333;
+                font-weight: 600;
+                word-break: break-all;
+                font-size: 14px;
+            }
+            
+            .file-item-details {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                font-size: 12px;
+            }
+            
+            .file-item-detail {
+                display: flex;
+                flex-direction: column;
+                background: white;
+                padding: 8px;
+                border-radius: 4px;
+                border-left: 3px solid #667eea;
+            }
+            
+            .file-item-detail-label {
+                color: #999;
+                font-size: 11px;
+                text-transform: uppercase;
+                font-weight: 600;
+            }
+            
+            .file-item-detail-value {
+                color: #333;
+                font-weight: 500;
+                margin-top: 2px;
+            }
+            
+            .file-item-actions {
+                flex-shrink: 0;
+            }
+            
+            .remove-file-btn {
+                background: #ff6b6b;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                transition: all 0.3s;
+                white-space: nowrap;
+            }
+            
+            .remove-file-btn:hover {
+                background: #ee5a52;
+            }
+
+            .tools-btn {
+                background: #4a90e2;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                transition: all 0.3s;
+                white-space: nowrap;
+                margin-right: 8px;
+            }
+
+            .tools-btn:hover { background: #3a78c2; }
+            
+            .empty-state {
+                text-align: center;
+                padding: 40px 20px;
+                color: #999;
+            }
+            
+            .empty-state .icon {
+                font-size: 40px;
+                margin-bottom: 10px;
+            }
+            
+            .empty-state p {
+                font-size: 14px;
+                margin: 5px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Image Tools</h1>
+                <a href="/ui"><button class="back-btn">← Kembali</button></a>
+            </div>
+            
+            <div class="content">
+                <div class="section-header">
+                    <h2>Pilih File</h2>
+                    <button class="add-file-btn" id="addFileBtn">+ Add File</button>
+                </div>
+                
+                <div id="fileListContainer" class="file-list">
+                    <div class="empty-state">
+                        <div class="icon">📁</div>
+                        <p>Belum ada file yang dipilih</p>
+                        <p style="font-size: 12px; margin-top: 10px;">Klik "Add File" untuk memilih file</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            let selectedFiles = [];
+            
+            document.getElementById('addFileBtn').addEventListener('click', () => {
+                try{
+                    if(typeof openFileDialog === 'function'){
+                        openFileDialog((filepath) => addSelectedFile(filepath));
+                        return;
+                    }
+
+                    // Try to dynamically load the component script if it's not yet available
+                    const existing = document.querySelector('script[src="/ui/file-dialog-component"]');
+                    if(!existing){
+                        const s = document.createElement('script');
+                        s.src = '/ui/file-dialog-component';
+                        s.onload = () => {
+                            try{
+                                if(typeof openFileDialog === 'function'){
+                                    openFileDialog((filepath) => addSelectedFile(filepath));
+                                } else {
+                                    const fp = prompt('File dialog failed to initialize. Paste image filepath:');
+                                    if(fp) addSelectedFile(fp);
+                                }
+                            }catch(e){ console.error('After load openFileDialog error', e); alert('Error opening file dialog: '+e.message); }
+                        };
+                        s.onerror = () => {
+                            const fp = prompt('File dialog not available. Paste image filepath:');
+                            if(fp) addSelectedFile(fp);
+                        };
+                        document.body.appendChild(s);
+                        return;
+                    }
+
+                    // If script tag exists but function not defined, wait briefly and retry
+                    setTimeout(()=>{
+                        if(typeof openFileDialog === 'function'){
+                            openFileDialog((filepath) => addSelectedFile(filepath));
+                        } else {
+                            const fp = prompt('File dialog not available. Paste image filepath:');
+                            if(fp) addSelectedFile(fp);
+                        }
+                    }, 300);
+
+                }catch(e){
+                    console.error('Add File failed:', e);
+                    alert('Add File failed: ' + (e && e.message ? e.message : e));
+                }
+            });
+            
+            function addSelectedFile(filepath) {
+                if(selectedFiles.find(f => f.path === filepath)) {
+                    alert('File sudah dipilih');
+                    return;
+                }
+                
+                // Fetch image info
+                fetch('/api/file-info?filepath=' + encodeURIComponent(filepath))
+                    .then(res => res.json())
+                    .then(data => {
+                        selectedFiles.push({
+                            path: filepath,
+                            info: data
+                        });
+                        renderFileList();
+                    })
+                    .catch(err => {
+                        alert('Error loading image info: ' + err.message);
+                    });
+            }
+            
+            function removeSelectedFile(filepath) {
+                selectedFiles = selectedFiles.filter(f => f.path !== filepath);
+                renderFileList();
+            }
+            
+            function renderFileList() {
+                const container = document.getElementById('fileListContainer');
+                if(selectedFiles.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📁</div>
+                            <p>Belum ada file yang dipilih</p>
+                            <p style="font-size: 12px; margin-top: 10px;">Klik "Add File" untuk memilih file</p>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = selectedFiles.map((file) => {
+                        // Collapse any sequence of backslashes into a single backslash for Windows paths
+                        const displayPath = (file.path || '').replace(/\\+/g, '\\');
+                        const info = file.info || {};
+                            // Request a small webp thumbnail (10% scale / quality) for fast preview
+                            const previewUrl = '/ui/thumbnail?filepath=' + encodeURIComponent(file.path);
+
+                        let dimensions = '-';
+                        let dpi = '-';
+                        let colorMode = '-';
+                        let fileSize = '-';
+
+                        if(info.dimensions) {
+                            dimensions = info.dimensions;
+                        }
+                        if(info.dpi) {
+                            dpi = info.dpi;
+                        }
+                        if(info.color_mode) {
+                            colorMode = info.color_mode;
+                        }
+                        if(info.size_mb) {
+                            fileSize = info.size_mb;
+                        }
+
+                        return `
+                            <div class="file-item" data-path=${JSON.stringify(file.path)}>
+                                <div class="file-item-preview">
+                                    <img src="${previewUrl}" alt="Preview" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22%3E%3Crect fill=%22%23e0e0e0%22 width=%22120%22 height=%22120%22/%3E%3C/svg%3E'">
+                                </div>
+                                <div class="file-item-content">
+                                    <div class="file-item-info">
+                                        <div class="file-item-name">${displayPath}</div>
+                                    </div>
+                                    <div class="file-item-details">
+                                        <div class="file-item-detail">
+                                            <div class="file-item-detail-label">Panjang (cm)</div>
+                                            <div class="file-item-detail-value">${info.height_cm || '-'}</div>
+                                        </div>
+                                        <div class="file-item-detail">
+                                            <div class="file-item-detail-label">Lebar (cm)</div>
+                                            <div class="file-item-detail-value">${info.width_cm || '-'}</div>
+                                        </div>
+                                        <div class="file-item-detail">
+                                            <div class="file-item-detail-label">Dimensi (px)</div>
+                                            <div class="file-item-detail-value">${dimensions}</div>
+                                        </div>
+                                        <div class="file-item-detail">
+                                            <div class="file-item-detail-label">DPI</div>
+                                            <div class="file-item-detail-value">${dpi}</div>
+                                        </div>
+                                        <div class="file-item-detail">
+                                            <div class="file-item-detail-label">Mode Warna</div>
+                                            <div class="file-item-detail-value">${colorMode}</div>
+                                        </div>
+                                        <div class="file-item-detail">
+                                            <div class="file-item-detail-label">Ukuran File (MB)</div>
+                                            <div class="file-item-detail-value">${fileSize}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="file-item-actions">
+                                    <button class="tools-btn" onclick='openTools(${JSON.stringify(file.path)})'>Tools</button>
+                                    <button class="remove-file-btn" onclick='removeSelectedFile(${JSON.stringify(file.path)})'>Remove</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // Tools dialog: shows a compact editor/preview similar to the provided UI
+            function openTools(filepath){
+                try{
+                    // If modal already exists, just populate and show
+                    if(document.getElementById('toolsModal')){
+                        document.getElementById('toolsModal').style.display = 'flex';
+                        populateTools(filepath);
+                        return;
+                    }
+
+                    const modal = document.createElement('div');
+                    modal.id = 'toolsModal';
+                    modal.style.position = 'fixed';
+                    modal.style.left = 0;
+                    modal.style.top = 0;
+                    modal.style.right = 0;
+                    modal.style.bottom = 0;
+                    modal.style.background = 'rgba(0,0,0,0.5)';
+                    modal.style.display = 'flex';
+                    modal.style.alignItems = 'center';
+                    modal.style.justifyContent = 'center';
+                    modal.style.zIndex = 11000;
+
+                    modal.innerHTML = `
+                        <div style="width:96%;max-width:1200px;background:#f6f8fb;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+                            <div style="display:flex;gap:12px">
+                                <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                                    <div style="display:flex;justify-content:space-between;align-items:center">
+                                        <div style="font-weight:600;color:#333">Tools — Preview</div>
+                                        <div style="display:flex;gap:8px;align-items:center">
+                                            <button id="toolsRotateBtn" style="padding:6px 8px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer">Rotasi</button>
+                                            <button id="toolsScaleBtn" style="padding:6px 8px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer">Skala</button>
+                                            <button id="toolsCloseBtn" style="padding:6px 8px;border-radius:6px;border:none;background:#ff6b6b;color:#fff;cursor:pointer">Close</button>
+                                        </div>
+                                    </div>
+
+                                    <div style="background:#fff;border-radius:6px;padding:12px;min-height:180px;display:flex;align-items:center;justify-content:center;position:relative">
+                                        <img id="toolsPreviewImg" src="" style="max-width:100%;max-height:320px;object-fit:contain;border-radius:4px;" alt="preview"/>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <input id="toolsPath" type="text" style="flex:1;padding:8px;border-radius:4px;border:1px solid #ccc;font-family:monospace" readonly />
+                                        <button id="toolsOpenInExplorer" title="Open in file explorer" style="padding:6px;border-radius:4px;background:#4a90e2;color:#fff;border:none;cursor:pointer">↗</button>
+                                    </div>
+                                    <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+                                        <label style="white-space:nowrap;color:#333;font-weight:600">Finishing Template :</label>
+                                        <select id="toolsFinishingTemplate" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px">
+                                            <option>NON FINISHING</option>
+                                            <option>POLOS</option>
+                                            <option>LP4</option>
+                                            <option>LIPAT</option>
+                                            <option>DOUBLE SIDE</option>
+                                            <option>UMBUL2</option>
+                                            <option>CUSTOM</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style="width:340px;display:flex;flex-direction:column;gap:8px">
+                                    <div style="background:#fff;padding:12px;border-radius:6px">
+                                        <div style="font-size:12px;color:#777;margin-bottom:6px">Informasi</div>
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                                            <div>
+                                                <div style="font-size:11px;color:#999">Panjang (cm)</div>
+                                                <input id="toolsHeightCm" type="text" style="width:100%;padding:8px;border-radius:4px;border:1px solid #ddd" />
+                                            </div>
+                                            <div>
+                                                <div style="font-size:11px;color:#999">Lebar (cm)</div>
+                                                <input id="toolsWidthCm" type="text" style="width:100%;padding:8px;border-radius:4px;border:1px solid #ddd" />
+                                            </div>
+                                            <div>
+                                                <div style="font-size:11px;color:#999">Dimensi (px)</div>
+                                                <input id="toolsDimensionsPx" type="text" readonly style="width:100%;padding:8px;border-radius:4px;border:1px solid #eee;background:#fafafa" />
+                                            </div>
+                                            <div>
+                                                <div style="font-size:11px;color:#999">DPI</div>
+                                                <input id="toolsDpi" type="text" style="width:100%;padding:8px;border-radius:4px;border:1px solid #ddd" />
+                                            </div>
+                                            <div style="grid-column:1/2">
+                                                <div style="font-size:11px;color:#999">Mode Warna</div>
+                                                <input id="toolsColorMode" type="text" style="width:100%;padding:8px;border-radius:4px;border:1px solid #ddd" />
+                                            </div>
+                                            <div style="grid-column:2/3">
+                                                <div style="font-size:11px;color:#999">Ukuran File (MB)</div>
+                                                <input id="toolsFileSizeMb" type="text" readonly style="width:100%;padding:8px;border-radius:4px;border:1px solid #eee;background:#fafafa" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style="background:#fff;padding:10px;border-radius:6px;display:flex;gap:8px;align-items:center;justify-content:flex-end">
+                                        <button id="toolsApplyBtn" style="padding:8px 12px;border-radius:6px;border:none;background:#4caf50;color:#fff;cursor:pointer">Apply</button>
+                                        <button id="toolsCancelBtn" style="padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Lower controls area: three panels similar to screenshot -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+                                <!-- Left: Plong -->
+                                <div style="background:#fff;padding:12px;border-radius:6px">
+                                    <div style="font-weight:600;margin-bottom:8px">Aktifkan Plong</div>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <input id="plongEnable" type="checkbox" />
+                                        <label for="plongEnable">Aktifkan Plong</label>
+                                    </div>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                                        <input id="plongFold4" type="checkbox" /> <label style="font-size:13px">Lipat Plong 4</label>
+                                    </div>
+
+                                    <div style="display:grid;grid-template-columns:1fr 120px 1fr;gap:6px;align-items:center;justify-items:center;margin-bottom:8px">
+                                        <div></div>
+                                        <input id="jarak_plong_atas" type="text" placeholder="Top" value="2" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+                                        <div></div>
+
+                                        <input id="jarak_plong_kiri" type="text" placeholder="Left" value="2" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+                                        <div style="width:120px;height:40px;display:flex;align-items:center;justify-content:center;border:1px dashed #bbb;border-radius:4px;background:#fafafa">
+                                            <img id="plongCenterPreview" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2236%22 height=%2236%22%3E%3Crect fill=%22%23f6f6f6%22 width=%2236%22 height=%2236%22/%3E%3C/svg%3E" alt="preview" style="max-width:36px;max-height:36px;"/>
+                                        </div>
+                                        <input id="jarak_plong_kanan" type="text" placeholder="Right" value="2" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+
+                                        <div></div>
+                                        <input id="jarak_plong_bawah" type="text" placeholder="Bottom" value="2" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+                                        <div></div>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                                        <input id="plongCorner" type="checkbox" /> <label for="plongCorner">Bawah Pojok</label>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                                        <label style="width:90px;font-size:12px;color:#666">Warna Plong</label>
+                                        <select id="plongColor" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px"><option>White</option><option>Black</option></select>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                                        <label style="width:90px;font-size:12px;color:#666">Jarak Plong</label>
+                                        <input id="jarak_plong" type="text" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <label style="width:90px;font-size:12px;color:#666">Bentuk plong</label>
+                                        <div>
+                                            <label style="margin-right:8px"><input type="radio" name="bentuk_plong" value="circle" id="bentuk_circle"> Bulat</label>
+                                            <label><input type="radio" name="bentuk_plong" value="square" id="bentuk_square"> Kotak</label>
+                                        </div>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+                                        <label style="width:90px;font-size:12px;color:#666">Ukuran plong</label>
+                                        <input id="diameter_lebar" type="text" placeholder="lebar" style="width:70px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                        <span style="align-self:center">x</span>
+                                        <input id="diameter_panjang" type="text" placeholder="panjang" style="width:70px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+                                        <label style="width:90px;font-size:12px;color:#666">Diameter plong</label>
+                                        <input id="diameter_single" type="text" style="width:100px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+                                </div>
+
+                                <!-- Middle: Lebihan -->
+                                <div style="background:#fff;padding:12px;border-radius:6px">
+                                    <div style="font-weight:600;margin-bottom:8px">Aktifkan Lebihan</div>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <input id="lebihanEnable" type="checkbox" />
+                                        <label for="lebihanEnable">Aktifkan Lebihan</label>
+                                    </div>
+
+                                    <div style="margin-bottom:8px">
+                                        <div style="font-size:12px;color:#666;margin-bottom:6px">Lebihan Keliling</div>
+                                        <input id="lebihanAll" type="number" step="0.1" value="2.5" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+
+                                    <div style="display:grid;grid-template-columns:1fr 120px 1fr;gap:6px;align-items:center;justify-items:center;margin-bottom:8px">
+                                        <div></div>
+                                        <input id="lebTop" type="number" step="0.1" placeholder="Top" value="2.5" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+                                        <div></div>
+
+                                        <input id="lebLeft" type="number" step="0.1" placeholder="Left" value="2.5" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+                                        <div style="width:120px;height:40px;display:flex;align-items:center;justify-content:center;border:1px dashed #bbb;border-radius:4px;background:#fafafa">
+                                            <img id="lebCenterPreview" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2236%22 height=%2236%22%3E%3Crect fill=%22%23f6f6f6%22 width=%2236%22 height=%2236%22/%3E%3C/svg%3E" alt="preview" style="max-width:36px;max-height:36px;"/>
+                                        </div>
+                                        <input id="lebRight" type="number" step="0.1" placeholder="Right" value="2.5" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+
+                                        <div></div>
+                                        <input id="lebBottom" type="number" step="0.1" placeholder="Bottom" value="2.5" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;text-align:center" />
+                                        <div></div>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <input id="lebRemoveScript" type="checkbox" /> <label>Hapus file script & setting</label>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <label style="width:90px;font-size:12px;color:#666">Background</label>
+                                        <select id="lebBackground" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px">
+                                            <option>White</option>
+                                            <option>Transparent</option>
+                                            <option>Black</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <label style="width:90px;font-size:12px;color:#666">Warna garis</label>
+                                        <select id="lebLineColor" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px">
+                                            <option>Black</option>
+                                            <option>White</option>
+                                            <option>Red</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+                                        <label style="width:110px;color:#666">Kualitas Export</label>
+                                        <input id="lebQuality" type="number" step="1" min="1" max="100" value="80" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+                                </div>
+
+                                <!-- Right: Pesan -->
+                                <div style="background:#fff;padding:12px;border-radius:6px">
+                                    <div style="font-weight:600;margin-bottom:8px">Aktifkan Pesan</div>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <input id="pesanDefault" type="checkbox" checked /> <label>Default</label>
+                                        <input id="pesanEnable" type="checkbox" /> <label>Pesan</label>
+                                    </div>
+                                    <div style="margin-bottom:8px">
+                                        <div style="font-size:12px;color:#666">Pesan Text</div>
+                                        <input id="pesanText" type="text" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <label style="width:90px;color:#666">Ukuran</label>
+                                        <input id="pesanSize" type="number" step="0.1" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                                        <label style="width:90px;color:#666">Warna</label>
+                                        <select id="pesanColor" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px"><option>Black</option><option>White</option></select>
+                                    </div>
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <label style="width:90px;color:#666">Posisi X</label>
+                                        <input id="pesanX" type="number" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                        <label style="width:60px;color:#666">Posisi Y</label>
+                                        <input id="pesanY" type="number" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:4px" />
+                                    </div>
+                                    <div style="margin-top:8px">
+                                        <label style="font-size:12px;color:#666">Posisi</label>
+                                        <select id="pesanPos" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px"><option>vertical</option><option>horizontal</option></select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    document.body.appendChild(modal);
+
+                    // Wire controls
+                    document.getElementById('toolsCloseBtn').addEventListener('click', ()=>{ modal.style.display='none'; });
+                    document.getElementById('toolsCancelBtn').addEventListener('click', ()=>{ modal.style.display='none'; });
+                    document.getElementById('toolsOpenInExplorer').addEventListener('click', ()=>{
+                        try{
+                            const p = document.getElementById('toolsPath').value;
+                            fetch('/api/open-path', {
+                                method: 'POST',
+                                headers: {'Content-Type':'application/json'},
+                                body: JSON.stringify({filepath: p})
+                            }).then(r=>r.json()).then(j=>{
+                                if(j && j.ok){
+                                    alert('Opened in Explorer');
+                                } else {
+                                    alert('Failed to open: '+(j && (j.error||j.message) ? (j.error||j.message) : 'Unknown'));
+                                }
+                            }).catch(e=>{ alert('Open failed: '+e.message); });
+                        }catch(e){ alert('Open failed: '+e.message); }
+                    });
+
+                    // rotate logic
+                    let rot = 0;
+                    document.getElementById('toolsRotateBtn').addEventListener('click', ()=>{
+                        rot = (rot + 90) % 360;
+                        const img = document.getElementById('toolsPreviewImg');
+                        img.style.transform = `rotate(${rot}deg)`;
+                    });
+
+                    // scale logic (toggle small preview / original)
+                    let scaled = false;
+                    document.getElementById('toolsScaleBtn').addEventListener('click', ()=>{
+                        const img = document.getElementById('toolsPreviewImg');
+                        if(!scaled){ img.style.width = '100%'; img.style.maxHeight = '160px'; scaled = true; } else { img.style.width='auto'; img.style.maxHeight='320px'; scaled=false; }
+                    });
+
+                    // apply action: simply copy edited fields back to selectedFiles array if present
+                    document.getElementById('toolsApplyBtn').addEventListener('click', ()=>{
+                        try{
+                            const p = document.getElementById('toolsPath').value;
+                            const hf = document.getElementById('toolsHeightCm').value;
+                            const wf = document.getElementById('toolsWidthCm').value;
+                            const dpi = document.getElementById('toolsDpi').value;
+                            // extra fields
+                            const plong = !!document.getElementById('plongEnable').checked;
+                            const plongFold4 = !!document.getElementById('plongFold4').checked;
+                            const plongTop = document.getElementById('jarak_plong_atas') ? document.getElementById('jarak_plong_atas').value : null;
+                            const plongLeft = document.getElementById('jarak_plong_kiri') ? document.getElementById('jarak_plong_kiri').value : null;
+                            const plongRight = document.getElementById('jarak_plong_kanan') ? document.getElementById('jarak_plong_kanan').value : null;
+                            const plongBottom = document.getElementById('jarak_plong_bawah') ? document.getElementById('jarak_plong_bawah').value : null;
+                            const plongCorner = !!document.getElementById('plongCorner').checked;
+                            const plongColor = document.getElementById('plongColor') ? document.getElementById('plongColor').value : null;
+                            const plongGap = document.getElementById('jarak_plong') ? document.getElementById('jarak_plong').value : null;
+                            const bentuk_plong = document.getElementById('bentuk_circle') && document.getElementById('bentuk_circle').checked ? 'circle' : (document.getElementById('bentuk_square') && document.getElementById('bentuk_square').checked ? 'square' : null);
+                            const diameter_lebar = document.getElementById('diameter_lebar') ? document.getElementById('diameter_lebar').value : null;
+                            const diameter_panjang = document.getElementById('diameter_panjang') ? document.getElementById('diameter_panjang').value : null;
+                            const diameter_single = document.getElementById('diameter_single') ? document.getElementById('diameter_single').value : null;
+
+                            const lebEnable = !!document.getElementById('lebihanEnable').checked;
+                            const lebAll = document.getElementById('lebihanAll').value;
+                            const lebTop = document.getElementById('lebTop').value;
+                            const lebBottom = document.getElementById('lebBottom').value;
+                            const lebLeft = document.getElementById('lebLeft').value;
+                            const lebRight = document.getElementById('lebRight').value;
+                            const lebRemove = !!document.getElementById('lebRemoveScript').checked;
+                            const lebQuality = document.getElementById('lebQuality').value;
+                            const lebBackground = document.getElementById('lebBackground') ? document.getElementById('lebBackground').value : null;
+                            const lebLineColor = document.getElementById('lebLineColor') ? document.getElementById('lebLineColor').value : null;
+
+                            const pesanDefault = !!document.getElementById('pesanDefault').checked;
+                            const pesanEnable = !!document.getElementById('pesanEnable').checked;
+                            const pesanText = document.getElementById('pesanText').value;
+                            const pesanSize = document.getElementById('pesanSize').value;
+                            const pesanColor = document.getElementById('pesanColor').value;
+                            const pesanX = document.getElementById('pesanX').value;
+                            const pesanY = document.getElementById('pesanY').value;
+                            const pesanPos = document.getElementById('pesanPos').value;
+                            const finishingTemplate = document.getElementById('toolsFinishingTemplate') ? document.getElementById('toolsFinishingTemplate').value : null;
+
+                            // update in-memory selectedFiles if present
+                            const idx = selectedFiles.findIndex(s=>s.path===p);
+                            if(idx !== -1){
+                                if(!selectedFiles[idx].info) selectedFiles[idx].info = {};
+                                selectedFiles[idx].info.width_cm = wf || selectedFiles[idx].info.width_cm;
+                                selectedFiles[idx].info.height_cm = hf || selectedFiles[idx].info.height_cm;
+                                selectedFiles[idx].info.dpi = dpi || selectedFiles[idx].info.dpi;
+
+                                // plong
+                                selectedFiles[idx].info.plong = plong;
+                                selectedFiles[idx].info.plong_fold4 = plongFold4;
+                                selectedFiles[idx].info.jarak_plong_atas = plongTop;
+                                selectedFiles[idx].info.jarak_plong_kiri = plongLeft;
+                                selectedFiles[idx].info.jarak_plong_kanan = plongRight;
+                                selectedFiles[idx].info.jarak_plong_bawah = plongBottom;
+                                selectedFiles[idx].info.jenis_plong = plongCorner ? 'pojok' : (selectedFiles[idx].info.jenis_plong || 'pojok');
+                                selectedFiles[idx].info.warna_plong = plongColor || selectedFiles[idx].info.warna_plong;
+                                selectedFiles[idx].info.jarak_plong = plongGap || selectedFiles[idx].info.jarak_plong;
+                                selectedFiles[idx].info.bentuk_plong = bentuk_plong || selectedFiles[idx].info.bentuk_plong;
+                                selectedFiles[idx].info.diameter_lebar = diameter_lebar || selectedFiles[idx].info.diameter_lebar;
+                                selectedFiles[idx].info.diameter_panjang = diameter_panjang || selectedFiles[idx].info.diameter_panjang;
+                                selectedFiles[idx].info.diameter_single = diameter_single || selectedFiles[idx].info.diameter_single;
+
+                                // lebihan
+                                selectedFiles[idx].info.lebihan = lebEnable;
+                                selectedFiles[idx].info.lebihan_all = lebAll;
+                                selectedFiles[idx].info.leb_top = lebTop;
+                                selectedFiles[idx].info.leb_bottom = lebBottom;
+                                selectedFiles[idx].info.leb_left = lebLeft;
+                                selectedFiles[idx].info.leb_right = lebRight;
+                                selectedFiles[idx].info.leb_remove_script = lebRemove;
+                                selectedFiles[idx].info.leb_quality = lebQuality;
+                                selectedFiles[idx].info.lebBackground = lebBackground;
+                                selectedFiles[idx].info.lebLineColor = lebLineColor;
+
+                                // pesan
+                                selectedFiles[idx].info.pesan_default = pesanDefault;
+                                selectedFiles[idx].info.pesan_enabled = pesanEnable;
+                                selectedFiles[idx].info.pesan_text = pesanText;
+                                selectedFiles[idx].info.pesan_size = pesanSize;
+                                selectedFiles[idx].info.pesan_color = pesanColor;
+                                selectedFiles[idx].info.pesan_x = pesanX;
+                                selectedFiles[idx].info.pesan_y = pesanY;
+                                selectedFiles[idx].info.pesan_pos = pesanPos;
+                                // finishing
+                                if(finishingTemplate) selectedFiles[idx].info.finishing_template = finishingTemplate;
+                            }
+                            renderFileList();
+                            modal.style.display='none';
+                        }catch(e){ alert('Apply failed: '+e.message); }
+                    });
+
+                    // populate for first show
+                    populateTools(filepath);
+
+                    function populateTools(fp){
+                        if(!fp) return;
+                        const imgEl = document.getElementById('toolsPreviewImg');
+                        const pathEl = document.getElementById('toolsPath');
+                        pathEl.value = fp;
+                        if(fp){
+                            imgEl.src = '/ui/thumbnail?filepath=' + encodeURIComponent(fp);
+                            try{ var lebImg = document.getElementById('lebCenterPreview'); if(lebImg) lebImg.src = '/ui/thumbnail?filepath='+encodeURIComponent(fp); }catch(e){}
+                        } else {
+                            imgEl.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22320%22 height=%22320%22%3E%3Crect fill=%22%23eaeaea%22 width=%22320%22 height=%22320%22/%3E%3C/svg%3E';
+                        }
+                        
+                        // Find saved info from selectedFiles first
+                        let savedInfo = null;
+                        const fileIdx = selectedFiles.findIndex(f => f.path === fp);
+                        if(fileIdx >= 0) {
+                            savedInfo = selectedFiles[fileIdx].info || {};
+                        }
+                        
+                        // fetch info for basic file metadata
+                        fetch('/api/file-info?filepath='+encodeURIComponent(fp)).then(r=>r.json()).then(data=>{
+                            const fileInfo = data || {};
+                            // Merge: use saved info for tool settings, file info for metadata
+                            const info = { ...fileInfo, ...savedInfo };
+                            
+                            document.getElementById('toolsDimensionsPx').value = info.dimensions || '-';
+                            document.getElementById('toolsWidthCm').value = info.width_cm || '';
+                            document.getElementById('toolsHeightCm').value = info.height_cm || '';
+                            document.getElementById('toolsDpi').value = info.dpi || '';
+                            document.getElementById('toolsColorMode').value = info.color_mode || '';
+                            document.getElementById('toolsFileSizeMb').value = info.size_mb || '';
+                            // populate extended fields if present
+                            try{
+                                document.getElementById('plongEnable').checked = !!(info.plong);
+                                document.getElementById('plongFold4').checked = !!(info.plong_fold4);
+                                document.getElementById('jarak_plong_atas').value = (info.jarak_plong_atas !== undefined && info.jarak_plong_atas !== '') ? info.jarak_plong_atas : '2';
+                                document.getElementById('jarak_plong_kiri').value = (info.jarak_plong_kiri !== undefined && info.jarak_plong_kiri !== '') ? info.jarak_plong_kiri : '2';
+                                document.getElementById('jarak_plong_kanan').value = (info.jarak_plong_kanan !== undefined && info.jarak_plong_kanan !== '') ? info.jarak_plong_kanan : '2';
+                                document.getElementById('jarak_plong_bawah').value = (info.jarak_plong_bawah !== undefined && info.jarak_plong_bawah !== '') ? info.jarak_plong_bawah : '2';
+                                document.getElementById('plongCorner').checked = !!(info.jenis_plong === 'pojok');
+                                if(info.warna_plong) document.getElementById('plongColor').value = info.warna_plong;
+                                document.getElementById('jarak_plong').value = info.jarak_plong || '';
+                                if(info.bentuk_plong === 'circle') document.getElementById('bentuk_circle').checked = true;
+                                else if(info.bentuk_plong === 'square') document.getElementById('bentuk_square').checked = true;
+                                document.getElementById('diameter_lebar').value = info.diameter_lebar || info.diameter_lebar || '';
+                                document.getElementById('diameter_panjang').value = info.diameter_panjang || '';
+                                document.getElementById('diameter_single').value = info.diameter_single || info.diameter_lebar || '';
+                                try{ var pc = document.getElementById('plongCenterPreview'); if(pc && fp) pc.src = '/ui/thumbnail?filepath='+encodeURIComponent(fp); }catch(e){}
+
+                                // finishing template
+                                if(info.finishing_template){
+                                    try{ document.getElementById('toolsFinishingTemplate').value = info.finishing_template; }catch(e){}
+                                }
+
+                                document.getElementById('lebihanEnable').checked = !!(info.lebihan);
+                                document.getElementById('lebihanAll').value = (info.lebihan_all !== undefined && info.lebihan_all !== '') ? info.lebihan_all : '2.5';
+                                document.getElementById('lebTop').value = (info.leb_top !== undefined && info.leb_top !== '') ? info.leb_top : '2.5';
+                                document.getElementById('lebBottom').value = (info.leb_bottom !== undefined && info.leb_bottom !== '') ? info.leb_bottom : '2.5';
+                                document.getElementById('lebLeft').value = (info.leb_left !== undefined && info.leb_left !== '') ? info.leb_left : '2.5';
+                                document.getElementById('lebRight').value = (info.leb_right !== undefined && info.leb_right !== '') ? info.leb_right : '2.5';
+                                document.getElementById('lebRemoveScript').checked = !!(info.leb_remove_script);
+                                document.getElementById('lebQuality').value = info.leb_quality || 80;
+                                if(info.lebBackground) try{ document.getElementById('lebBackground').value = info.lebBackground; }catch(e){}
+                                if(info.lebLineColor) try{ document.getElementById('lebLineColor').value = info.lebLineColor; }catch(e){}
+
+                                document.getElementById('pesanDefault').checked = !!(info.pesan_default);
+                                document.getElementById('pesanEnable').checked = !!(info.pesan_enabled);
+                                document.getElementById('pesanText').value = info.pesan_text || '';
+                                document.getElementById('pesanSize').value = info.pesan_size || '';
+                                if(info.pesan_color) document.getElementById('pesanColor').value = info.pesan_color;
+                                document.getElementById('pesanX').value = info.pesan_x || '';
+                                document.getElementById('pesanY').value = info.pesan_y || '';
+                                if(info.pesan_pos) document.getElementById('pesanPos').value = info.pesan_pos;
+                            }catch(ee){ /* ignore missing fields */ }
+                        }).catch(e=>{ console.warn(e); });
+                    }
+
+                    // Attach finishing template change handler: update Plong, Lebihan, Pesan
+                    try{
+                        const tplEl = document.getElementById('toolsFinishingTemplate');
+                        if(tplEl){
+                            tplEl.addEventListener('change', (ev)=>{
+                                const v = ev && ev.target ? ev.target.value : (tplEl.value || '');
+                                try{
+                                    // default: uncheck all checkboxes first (initial state)
+                                    try{
+                                        const modal = document.getElementById('previewModal');
+                                        const container = modal || document;
+                                        const cbs = container.querySelectorAll('input[type="checkbox"]');
+                                        cbs.forEach(cb=>{ cb.checked = false; });
+                                        // also clear pesan text by default
+                                        const pesanTextClear = document.getElementById('pesanText'); if(pesanTextClear) pesanTextClear.value = '';
+                                    }catch(inner){ console.warn('Failed to reset defaults', inner); }
+
+                                    if(v === 'NON FINISHING'){
+                                        // all already unchecked
+                                    } else if(v === 'POLOS'){
+                                        const leb = document.getElementById('lebihanEnable'); if(leb) leb.checked = true;
+                                        const pesan = document.getElementById('pesanEnable'); if(pesan) pesan.checked = true;
+                                        const pesanText = document.getElementById('pesanText'); if(pesanText) pesanText.value = 'POLOS';
+                                    } else if(v === 'LP4'){
+                                        const plong = document.getElementById('plongEnable'); if(plong) plong.checked = true;
+                                        const plongFold4 = document.getElementById('plongFold4'); if(plongFold4) plongFold4.checked = true;
+                                        const pesan = document.getElementById('pesanEnable'); if(pesan) pesan.checked = true;
+                                        const pesanText = document.getElementById('pesanText'); if(pesanText) pesanText.value = 'LP4';
+                                    } else if(v === 'LIPAT'){
+                                        const leb = document.getElementById('lebihanEnable'); if(leb) leb.checked = true;
+                                        const pesan = document.getElementById('pesanEnable'); if(pesan) pesan.checked = true;
+                                        const pesanText = document.getElementById('pesanText'); if(pesanText) pesanText.value = 'LIPAT';
+                                    } else if(v === 'DOUBLE SIDE'){
+                                        const pesan = document.getElementById('pesanEnable'); if(pesan) pesan.checked = true;
+                                        const pesanText = document.getElementById('pesanText'); if(pesanText) pesanText.value = 'DOUBLE SIDE';
+                                    }
+                                }catch(err){ console.warn('Finishing change handler error', err); }
+                            });
+                        }
+                    }catch(e){ console.warn(e); }
+
+                    return;
+                }catch(e){ console.warn(e); alert('Failed to open tools: '+e.message); }
+            }
+        </script>
+        
+        <!-- Include Universal File Dialog Component -->
+        <script src="/ui/file-dialog-component"></script>
+    </body>
+    </html>
+    """
+    )
 
 
 @app.route("/execute", methods=["POST"])

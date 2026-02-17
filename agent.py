@@ -2483,6 +2483,22 @@ def ui_merge():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/ui/image-processing", methods=["POST"])
+def ui_image_processing():
+    try:
+        payload = request.get_json(silent=True)
+
+        if not payload:
+            return jsonify({"status": "error", "message": "Missing JSON body"}), 400
+
+        result = execute("image_processing", payload)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/ui/read-info", methods=["POST"])
 def ui_read_info():
     try:
@@ -2491,15 +2507,8 @@ def ui_read_info():
         if not filepath:
             return jsonify({"status": "error", "message": "Missing file"}), 400
 
-        # Create temp directory
-        temp_dir = tempfile.gettempdir()
-
-        # Save uploaded file temporarily
-        file_path = os.path.join(temp_dir, filepath.filename)
-        filepath.save(file_path)
-
         # Execute read info
-        result = execute("read_info", {"filepath": file_path})
+        result = execute("read_info", {"filepath": filepath})
 
         return jsonify(result)
     except Exception as e:

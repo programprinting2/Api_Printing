@@ -2,6 +2,9 @@ from tasks.merge_pdf import run as merge_pdf_run
 from tasks.infojpeg import run as read_info_run
 from tasks.infopdf import run as read_pdf_info_run
 from tasks.image_processing import process_image
+from tasks.render_cmyk import render_cmyk
+from tasks.cmyk_master import export_cmyk_master
+from tasks.export_pdf_imposition import export_pdf_imposition
 import concurrent.futures
 import threading
 
@@ -10,6 +13,9 @@ TASK_MAP = {
     "read_info": read_info_run,
     "read_pdf_info": read_pdf_info_run,
     "image_processing": process_image,
+    "render_cmyk": render_cmyk,
+    "export_cmyk_master": export_cmyk_master,
+    "export_pdf_imposition": export_pdf_imposition,
 }
 
 # Shared thread pool for running tasks asynchronously with a timeout

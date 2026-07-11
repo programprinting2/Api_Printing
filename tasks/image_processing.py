@@ -386,7 +386,15 @@
 #     return {"status": "success", "output_path": final_file}
 
 import os
+import shutil
 from PIL import Image, ImageDraw, ImageColor, ImageFont
+
+from tasks.color_management import (
+    ensure_cmyk_output,
+    file_sha256,
+    get_cmyk_icc_path,
+    sample_cmyk_percent,
+)
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -430,6 +438,38 @@ def cm_ke_px(cm, dpi, scale):
 
 def has_any_key(param, keys):
     return any(k in param for k in keys)
+
+
+def processing_requested(param):
+    if param.get("kotak_sekeliling"):
+        return True
+    if has_any_key(
+        param,
+        [
+            "warna_plong",
+            "Plong_atas",
+            "Plong_bawah",
+            "Plong_kiri",
+            "Plong_kanan",
+        ],
+    ):
+        return True
+    if has_any_key(
+        param,
+        [
+            "WarnaBackground",
+            "Lebihan_kiri",
+            "Lebihan_kanan",
+            "Lebihan_atas",
+            "Lebihan_bawah",
+        ],
+    ):
+        return True
+    if "pesan" in param and str(param.get("pesan")).strip():
+        return True
+    if safe_int(param.get("CopyX", 1), 1) > 1 or safe_int(param.get("CopyY", 1), 1) > 1:
+        return True
+    return False
 
 
 # =========================================================
@@ -819,10 +859,37 @@ def process_image(param: dict):
     if not os.path.exists(filepath):
         return {"status": "error", "message": "file not found"}
 
+    with Image.open(filepath) as probe:
+        input_mode = probe.mode
+        source_icc = probe.info.get("icc_profile")
+
+    if (
+        param.get("preserve_original_cmyk", False)
+        and input_mode == "CMYK"
+        and not processing_requested(param)
+    ):
+        ext = os.path.splitext(filepath)[1] or ".jpeg"
+        final_file = os.path.splitext(filepath)[0] + "_output" + ext
+        shutil.copy2(filepath, final_file)
+        sample = sample_cmyk_percent(final_file)
+        return {
+            "status": "success",
+            "output_path": final_file,
+            "color_mode": "CMYK",
+            "icc_profile": "original",
+            "passthrough": True,
+            "export_method": "byte_copy",
+            "source_hash": file_sha256(filepath),
+            "output_hash": file_sha256(final_file),
+            "sample_cmyk": sample,
+        }
+
     img = Image.open(filepath)
 
     dpi = img.info.get("dpi", (300, 300))[0]
     input_mode = img.mode
+    if not source_icc:
+        source_icc = img.info.get("icc_profile")
 
     if input_mode not in ["RGB", "CMYK"]:
         return {
@@ -906,11 +973,37 @@ def process_image(param: dict):
             img, copyX, copyY, rotasi_copy, jarakX, jarakY, dpi, image_scale
         )
 
-    if img.mode != input_mode:
+    output_cmyk = param.get("output_cmyk", True)
+    quality = max(1, min(100, safe_int(param.get("export_quality", 80), 80)))
+    if output_cmyk and input_mode == "CMYK":
+        quality = max(quality, 95)
+
+    icc_bytes = None
+    if output_cmyk:
+        img, icc_bytes = ensure_cmyk_output(img, param)
+        if not icc_bytes and source_icc:
+            icc_bytes = source_icc
+    elif img.mode != input_mode:
         img = img.convert(input_mode)
+
+    force_cmyk_master = param.get("force_cmyk_master", False)
+    if force_cmyk_master and input_mode == "CMYK":
+        quality = max(quality, 98)
 
     final_file = os.path.splitext(filepath)[0] + "_output.jpeg"
 
-    img.save(final_file, dpi=(dpi, dpi), quality=80)
+    save_kwargs = {"dpi": (dpi, dpi), "quality": quality, "subsampling": 0}
+    if icc_bytes:
+        save_kwargs["icc_profile"] = icc_bytes
 
-    return {"status": "success", "output_path": final_file}
+    img.save(final_file, **save_kwargs)
+
+    return {
+        "status": "success",
+        "output_path": final_file,
+        "color_mode": img.mode,
+        "icc_profile": "original" if source_icc and img.mode == "CMYK" else os.path.basename(get_cmyk_icc_path() or ""),
+        "passthrough": False,
+        "export_method": "re-encode",
+        "sample_cmyk": sample_cmyk_percent(final_file),
+    }

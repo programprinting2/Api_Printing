@@ -1,9 +1,62 @@
 import os
 import sys
 import json
+from collections import Counter
 from PyPDF2 import PdfReader
 from PIL import Image
 import io
+
+try:
+    import fitz
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+
+
+def _normalize_color_mode(raw: str) -> str:
+    if not raw:
+        return "Unknown"
+    s = str(raw).replace("/", "").lower()
+    if "cmyk" in s or s in ("devicecmyk",):
+        return "CMYK"
+    if "rgb" in s or s in ("devicergb", "srgb"):
+        return "RGB"
+    if "gray" in s or s in ("devicegray",):
+        return "Gray"
+    if "icc" in s:
+        return "ICCBased"
+    return str(raw).replace("/", "")
+
+
+def _detect_page_color_pymupdf(file_path: str, page_index: int) -> str:
+    if not PYMUPDF_AVAILABLE:
+        return "Unknown"
+    try:
+        doc = fitz.open(file_path)
+        try:
+            if page_index >= len(doc):
+                return "Unknown"
+            page = doc[page_index]
+            mode = "Unknown"
+            for img in page.get_images(full=True):
+                xref = img[0]
+                try:
+                    pix = fitz.Pixmap(doc, xref)
+                    if pix.n - pix.alpha >= 4:
+                        mode = "CMYK"
+                    elif pix.n - pix.alpha == 3:
+                        if mode == "CMYK":
+                            return "Natural (Mixed/Unknown)"
+                        mode = "RGB"
+                    pix = None
+                except Exception:
+                    continue
+            return mode
+        finally:
+            doc.close()
+    except Exception:
+        return "Unknown"
+
 
 def get_pdf_info(file_path):
     try:
@@ -37,22 +90,26 @@ def get_pdf_info(file_path):
                     
                     # Cek jika ada image untuk mendeteksi color mode
                     color_mode = "Unknown"
-                    try:
-                        if "/XObject" in page["/Resources"]:
-                            xobjects = page["/Resources"]["/XObject"].get_object()
-                            for obj in xobjects.values():
-                                obj_ref = obj.get_object()
-                                if obj_ref["/Subtype"] == "/Image":
-                                    # Cek color space
-                                    if "/ColorSpace" in obj_ref:
-                                        cs = obj_ref["/ColorSpace"]
-                                        if isinstance(cs, list):
-                                            color_mode = cs[0].replace('/', '')
-                                        else:
-                                            color_mode = str(cs).replace('/', '')
-                                    break
-                    except:
-                        color_mode = "Natural (Mixed/Unknown)"
+                    if PYMUPDF_AVAILABLE:
+                        color_mode = _detect_page_color_pymupdf(file_path, page_num - 1)
+                    if color_mode in ("Unknown",):
+                        try:
+                            if "/XObject" in page["/Resources"]:
+                                xobjects = page["/Resources"]["/XObject"].get_object()
+                                for obj in xobjects.values():
+                                    obj_ref = obj.get_object()
+                                    if obj_ref["/Subtype"] == "/Image":
+                                        if "/ColorSpace" in obj_ref:
+                                            cs = obj_ref["/ColorSpace"]
+                                            if isinstance(cs, list):
+                                                color_mode = _normalize_color_mode(str(cs[0]))
+                                            else:
+                                                color_mode = _normalize_color_mode(str(cs))
+                                        break
+                        except Exception:
+                            color_mode = "Natural (Mixed/Unknown)"
+                    else:
+                        color_mode = _normalize_color_mode(color_mode)
                     
                     pages_info.append({
                         "page_num": page_num,
@@ -69,11 +126,11 @@ def get_pdf_info(file_path):
                     })
             
             # Deteksi color mode umum dari semua halaman
-            color_modes = [p.get("color_mode", "Unknown") for p in pages_info if "color_mode" in p]
+            color_modes = [_normalize_color_mode(p.get("color_mode", "Unknown")) for p in pages_info if "color_mode" in p]
             if color_modes:
-                # Ambil yang paling sering muncul
-                from collections import Counter
                 common_color = Counter(color_modes).most_common(1)[0][0]
+                if "CMYK" in color_modes and ("RGB" in color_modes or "Natural (Mixed/Unknown)" in color_modes):
+                    common_color = "Natural (Mixed/Unknown)"
             else:
                 common_color = "Unknown"
             

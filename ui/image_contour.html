@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Contur — Printing Agent</title>
+<style>
+  :root{
+    --bg-base:#12161A;
+    --bg-panel:#1A2027;
+    --bg-inset:#0D1114;
+    --line:rgba(79,209,232,0.08);
+    --line-strong:rgba(79,209,232,0.18);
+    --cyan:#4FD1E8;
+    --cyan-dim:#2E7E8E;
+    --amber:#E8A23D;
+    --text:#E7E9EA;
+    --text-dim:#8B96A0;
+    --text-faint:#5B6670;
+    --ruler:36px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg-base);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:22px 24px 16px;
+    border-bottom:1px solid var(--line-strong);
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  header .mark{
+    font-family:var(--mono); font-size:12px; color:var(--cyan);
+    border:1px solid var(--cyan-dim); padding:3px 8px; border-radius:3px; letter-spacing:0.08em;
+  }
+  header h1{ font-size:19px; margin:0; font-weight:600; }
+  header p{ margin:0; color:var(--text-dim); font-size:13px; font-family:var(--mono); }
+  header .back{
+    margin-left:auto; color:var(--text-dim); text-decoration:none; font-size:13px;
+    border:1px solid var(--line-strong); padding:6px 12px; border-radius:5px;
+  }
+  header .back:hover{border-color:var(--cyan); color:var(--cyan);}
+
+  .layout{ display:grid; grid-template-columns:320px 1fr; gap:0; min-height:calc(100vh - 76px); }
+  @media (max-width: 880px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{ background:var(--bg-panel); border-right:1px solid var(--line-strong); padding:20px; overflow-y:auto; }
+  .drop-zone{
+    border:1.5px dashed var(--cyan-dim); border-radius:6px; padding:22px 14px; text-align:center; cursor:pointer;
+    transition:border-color .15s, background .15s; background:var(--bg-inset);
+  }
+  .drop-zone:hover, .drop-zone.drag{ border-color:var(--cyan); background:rgba(79,209,232,0.05); }
+  .drop-zone .icon{ font-family:var(--mono); font-size:22px; color:var(--cyan); display:block; margin-bottom:8px; }
+  .drop-zone .t1{font-size:13.5px; color:var(--text);}
+  .drop-zone .t2{font-size:11.5px; color:var(--text-faint); margin-top:4px; font-family:var(--mono);}
+  input[type=file]{display:none;}
+
+  .error-msg{
+    margin-top:10px; padding:9px 12px; border-radius:5px;
+    background:rgba(232,79,79,0.1); border:1px solid rgba(232,79,79,0.35);
+    color:#F0A0A0; font-size:12px; font-family:var(--mono); display:none;
+  }
+
+  .section{margin-top:22px;}
+  .section-label{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; color:var(--text-faint);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+  .control{margin-bottom:16px;}
+  .control label{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-bottom:6px; }
+  .control label span.val{ font-family:var(--mono); color:var(--cyan); }
+  input[type=range]{ width:100%; accent-color:var(--cyan); height:4px; background:transparent; }
+  input[type=number]{
+    width:100%; background:var(--bg-inset); color:var(--text); border:1px solid var(--line-strong);
+    padding:7px 8px; border-radius:4px; font-family:var(--mono); font-size:12.5px;
+  }
+  select{
+    width:100%; background:var(--bg-inset); color:var(--text); border:1px solid var(--line-strong);
+    padding:7px 8px; border-radius:4px; font-family:var(--sans); font-size:12.5px;
+  }
+  .checkbox-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); }
+  .checkbox-row input{accent-color:var(--cyan);}
+  .offset-row{ display:grid; grid-template-columns:1fr 72px; gap:8px; align-items:center; }
+  .offset-row input[type=number]{ padding:6px 6px; }
+
+  .live-toggle{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px; border-radius:6px; border:1px solid var(--line-strong);
+    background:var(--bg-inset); margin-bottom:12px;
+  }
+  .live-toggle.on{ border-color:rgba(232,162,61,0.55); background:rgba(232,162,61,0.08); }
+  .live-toggle .lbl{ font-size:12.5px; color:var(--text-dim); }
+  .live-toggle .lbl b{ color:var(--amber); font-weight:600; }
+  .switch{
+    position:relative; width:42px; height:22px; flex-shrink:0;
+  }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch .slider{
+    position:absolute; inset:0; cursor:pointer; background:#2a323a; border-radius:22px; transition:.15s;
+  }
+  .switch .slider:before{
+    content:""; position:absolute; height:16px; width:16px; left:3px; top:3px;
+    background:#8B96A0; border-radius:50%; transition:.15s;
+  }
+  .switch input:checked + .slider{ background:var(--amber); }
+  .switch input:checked + .slider:before{ transform:translateX(20px); background:#1A1305; }
+
+  .btn-primary{
+    width:100%; background:var(--amber); color:#1A1305; border:none; padding:12px; border-radius:5px;
+    font-weight:700; font-size:13.5px; cursor:pointer; margin-top:6px;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:disabled{background:var(--bg-inset); color:var(--text-faint); cursor:not-allowed;}
+  .btn-secondary{
+    width:100%; background:transparent; color:var(--text-dim); border:1px solid var(--line-strong);
+    padding:10px; border-radius:5px; font-size:12.5px; cursor:pointer; margin-top:8px;
+  }
+  .btn-secondary:hover{border-color:var(--cyan); color:var(--cyan);}
+
+  .stage{ padding:24px; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .empty-state{
+    flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-faint);
+    font-family:var(--mono); font-size:13px; text-align:center; line-height:1.8;
+  }
+
+  .pane{
+    background:var(--bg-inset); border:1px solid var(--line-strong); border-radius:6px;
+    overflow:hidden; display:flex; flex-direction:column; min-width:0;
+  }
+  .pane-label{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase;
+    padding:9px 12px; color:var(--cyan); border-bottom:1px solid var(--line-strong);
+    display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .zoom-bar{ display:flex; align-items:center; gap:6px; }
+  .zoom-bar button{
+    background:transparent; border:1px solid var(--line-strong); color:var(--text-dim);
+    width:28px; height:28px; border-radius:4px; cursor:pointer; font-family:var(--mono); font-size:14px;
+  }
+  .zoom-bar button:hover{ border-color:var(--cyan); color:var(--cyan); }
+  .zoom-bar .zoom-val{ font-family:var(--mono); font-size:11px; color:var(--text-dim); min-width:48px; text-align:center; }
+
+  .viewport{
+    display:grid;
+    grid-template-columns: var(--ruler) 1fr;
+    grid-template-rows: var(--ruler) 1fr;
+    min-height:420px;
+    max-height:70vh;
+  }
+  .ruler-corner{
+    background:#151a1f; border-right:1px solid var(--line-strong); border-bottom:1px solid var(--line-strong);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:9px; color:var(--text-faint);
+  }
+  .ruler-x, .ruler-y{ position:relative; overflow:hidden; background:#151a1f; }
+  .ruler-x{ border-bottom:1px solid var(--line-strong); }
+  .ruler-y{ border-right:1px solid var(--line-strong); }
+  .ruler-x canvas, .ruler-y canvas{ display:block; width:100%; height:100%; }
+
+  .composite-wrap{
+    position:relative; overflow:auto; background:
+      linear-gradient(45deg,#22282e 25%,transparent 25%),
+      linear-gradient(-45deg,#22282e 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#22282e 75%),
+      linear-gradient(-45deg,transparent 75%,#22282e 75%);
+    background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0px;
+    display:flex; align-items:flex-start; justify-content:flex-start; padding:16px;
+  }
+  .composite{
+    position:relative; line-height:0; box-shadow:0 0 0 1px rgba(79,209,232,0.15);
+    flex-shrink:0;
+  }
+  .composite img{
+    display:block; width:auto; height:auto;
+    position:relative; z-index:1;
+  }
+  .composite .overlay-svg{
+    position:absolute; left:0; top:0; width:100%; height:100%; z-index:2; pointer-events:none;
+  }
+  .composite .overlay-svg svg{ width:100%; height:100%; display:block; }
+
+  .stats-bar{
+    display:flex; gap:24px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--text-dim);
+    border-top:1px solid var(--line-strong); padding-top:14px;
+  }
+  .stats-bar b{color:var(--cyan); font-weight:600;}
+  .stats-bar .stat{display:flex; flex-direction:column; gap:2px;}
+  .stats-bar .stat-label{color:var(--text-faint); font-size:10px; letter-spacing:0.08em; text-transform:uppercase;}
+
+  .actions-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .actions-row .btn-primary, .actions-row .btn-secondary{width:auto; flex:1; min-width:160px; margin-top:0;}
+
+  details{ border:1px solid var(--line-strong); border-radius:6px; background:var(--bg-inset); }
+  details summary{ padding:10px 14px; cursor:pointer; font-family:var(--mono); font-size:12px; color:var(--text-dim); }
+  details pre{
+    margin:0; padding:14px; border-top:1px solid var(--line-strong); font-family:var(--mono); font-size:11px;
+    color:var(--text-dim); max-height:220px; overflow:auto; white-space:pre-wrap; word-break:break-all;
+  }
+
+  .spinner{
+    display:inline-block; width:14px; height:14px; border:2px solid rgba(0,0,0,0.25); border-top-color:#1A1305;
+    border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; margin-right:7px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .bg-note{ font-size:11.5px; color:var(--text-faint); font-family:var(--mono); margin-top:6px; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="mark">API PRINTING</span>
+  <h1>Image Contur</h1>
+  <p>PNG → B-spline cut contour · SVG / PDF</p>
+  <a class="back" href="/ui">← Menu</a>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <div class="drop-zone" id="dropZone">
+      <span class="icon">⌁</span>
+      <div class="t1">Klik atau drag file PNG ke sini</div>
+      <div class="t2">Hanya .PNG · proses di agent :9001</div>
+      <input type="file" id="fileInput" accept="image/png">
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="section">
+      <div class="live-toggle" id="liveToggleBox">
+        <div class="lbl"><b>Live Action</b><br><span style="font-size:11px;color:var(--text-faint)">ubah value → proses otomatis</span></div>
+        <label class="switch">
+          <input type="checkbox" id="ctrlLive">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section" id="bgSection" style="display:none;">
+      <div class="section-label">Deteksi Objek</div>
+      <div id="alphaInfo" style="display:none;" class="bg-note">
+        PNG ini punya channel transparan — area transparan otomatis jadi background.
+      </div>
+      <div id="bgColorControls" style="display:none;">
+        <div class="bg-note" style="margin-top:0; margin-bottom:10px;">
+          PNG tanpa transparansi. Warna background dari pojok gambar — sesuaikan toleransi bila perlu.
+        </div>
+        <div class="control" style="display:flex; gap:10px; align-items:center;">
+          <input type="color" id="ctrlBgColor" value="#ffffff" style="width:44px; height:32px; border:1px solid var(--line-strong); border-radius:4px; background:var(--bg-inset); padding:2px; cursor:pointer;">
+          <div style="flex:1;">
+            <label style="margin-bottom:6px;">Toleransi warna bg <span class="val" id="valBgTol">28</span></label>
+            <input type="range" id="ctrlBgTol" min="2" max="100" value="28" data-live="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Ukuran &amp; Offset</div>
+      <div class="control">
+        <label>DPI <span class="val" id="valDpi">300</span></label>
+        <input type="number" id="ctrlDpi" min="72" max="1200" step="1" value="300" data-live="1">
+      </div>
+      <div class="control">
+        <label>Jarak kontur dari objek <span class="val" id="valOffset">0.0</span> mm</label>
+        <div class="offset-row">
+          <input type="range" id="ctrlOffset" min="0" max="20" step="0.1" value="0" data-live="1">
+          <input type="number" id="ctrlOffsetNum" min="0" max="50" step="0.1" value="0" data-live="1">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Kontur</div>
+      <div class="control">
+        <label>Kehalusan kontur <span class="val" id="valSmoothing">5000</span></label>
+        <input type="range" id="ctrlSmoothing" min="500" max="30000" step="500" value="5000" data-live="1">
+      </div>
+      <div class="control">
+        <label>Buang bercak/noise &lt; <span class="val" id="valSpeckle">500</span> px²</label>
+        <input type="range" id="ctrlSpeckle" min="0" max="5000" step="50" value="500" data-live="1">
+      </div>
+      <div class="control" style="display:flex; gap:10px; align-items:center;">
+        <input type="color" id="ctrlContourColor" value="#ff00c8" style="width:44px; height:32px; border:1px solid var(--line-strong); border-radius:4px; background:var(--bg-inset); padding:2px; cursor:pointer;" data-live="1">
+        <div style="flex:1;">
+          <label style="margin-bottom:6px;">Tebal garis <span class="val" id="valContourWidth">1.5</span> px</label>
+          <input type="range" id="ctrlContourWidth" min="0.5" max="6" step="0.25" value="1.5" data-live="1">
+        </div>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="ctrlShowPoints">
+        <label for="ctrlShowPoints">Tampilkan titik pembentuk kurva</label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Resolusi Proses (experiment)</div>
+      <div class="control" style="margin-bottom:0;">
+        <select id="ctrlRes" data-live="1">
+          <option value="500">Cepat (500px)</option>
+          <option value="900" selected>Seimbang (900px)</option>
+          <option value="1400">Detail (1400px)</option>
+          <option value="2000">Sangat Detail (2000px)</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btnProcess" disabled>Buat Kontur</button>
+    <button class="btn-secondary" id="btnReset">Reset gambar</button>
+  </div>
+
+  <div class="stage">
+    <div class="empty-state" id="emptyState">
+      ─── belum ada gambar ───<br>
+      upload file PNG di panel kiri untuk mulai
+    </div>
+
+    <div id="resultArea" style="display:none; flex:1; flex-direction:column; gap:16px;">
+      <div class="pane">
+        <div class="pane-label">
+          <span>Preview (gambar + kontur)</span>
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <span id="sizeLabel"></span>
+            <div class="zoom-bar">
+              <button type="button" id="btnZoomOut" title="Zoom out">−</button>
+              <span class="zoom-val" id="zoomVal">100%</span>
+              <button type="button" id="btnZoomIn" title="Zoom in">+</button>
+              <button type="button" id="btnZoomReset" title="Reset zoom" style="width:auto;padding:0 8px;font-size:11px;">Fit</button>
+            </div>
+          </div>
+        </div>
+        <div class="viewport" id="viewport">
+          <div class="ruler-corner">cm</div>
+          <div class="ruler-x"><canvas id="rulerX"></canvas></div>
+          <div class="ruler-y"><canvas id="rulerY"></canvas></div>
+          <div class="composite-wrap" id="compositeWrap">
+            <div class="composite" id="composite">
+              <img id="imgOriginal" alt="Gambar asli">
+              <div class="overlay-svg" id="overlaySvg"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-bar" id="statsBar"></div>
+
+      <div class="actions-row">
+        <button class="btn-primary" id="btnDownloadSvg">Download SVG</button>
+        <button class="btn-primary" id="btnDownloadPdf">Download PDF</button>
+        <button class="btn-secondary" id="btnReprocess">Proses ulang dengan setting ini</button>
+      </div>
+
+      <details>
+        <summary>Lihat kode SVG (export: Artwork + CutContour terpisah)</summary>
+        <pre id="svgCode"></pre>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const state = {
+    file: null,
+    img: null,
+    previewUrl: '',
+    hasAlpha: false,
+    origW: 0, origH: 0,
+    pageW: 0, pageH: 0,
+    imageX: 0, imageY: 0,
+    dpi: 300,
+    svgString: '',
+    svgExport: '',
+    pdfBase64: '',
+    curvePoints: [],
+    loopCount: 0,
+    totalPoints: 0,
+    widthCm: 0,
+    heightCm: 0,
+    pageWidthCm: 0,
+    pageHeightCm: 0,
+    offsetMm: 0,
+    zoom: 1,
+    fitScale: 1,
+    busy: false,
+    liveTimer: null,
+    reqSeq: 0
+  };
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const errorMsg = document.getElementById('errorMsg');
+  const btnProcess = document.getElementById('btnProcess');
+  const btnReset = document.getElementById('btnReset');
+  const btnReprocess = document.getElementById('btnReprocess');
+  const btnDownloadSvg = document.getElementById('btnDownloadSvg');
+  const btnDownloadPdf = document.getElementById('btnDownloadPdf');
+  const emptyState = document.getElementById('emptyState');
+  const resultArea = document.getElementById('resultArea');
+  const imgOriginal = document.getElementById('imgOriginal');
+  const overlaySvg = document.getElementById('overlaySvg');
+  const composite = document.getElementById('composite');
+  const compositeWrap = document.getElementById('compositeWrap');
+  const sizeLabel = document.getElementById('sizeLabel');
+  const statsBar = document.getElementById('statsBar');
+  const svgCodeEl = document.getElementById('svgCode');
+  const rulerX = document.getElementById('rulerX');
+  const rulerY = document.getElementById('rulerY');
+  const zoomVal = document.getElementById('zoomVal');
+  const liveToggleBox = document.getElementById('liveToggleBox');
+
+  const bgSection = document.getElementById('bgSection');
+  const alphaInfo = document.getElementById('alphaInfo');
+  const bgColorControls = document.getElementById('bgColorControls');
+  const ctrlBgColor = document.getElementById('ctrlBgColor');
+  const ctrlBgTol = document.getElementById('ctrlBgTol');
+  const valBgTol = document.getElementById('valBgTol');
+
+  const ctrlDpi = document.getElementById('ctrlDpi');
+  const valDpi = document.getElementById('valDpi');
+  const ctrlOffset = document.getElementById('ctrlOffset');
+  const ctrlOffsetNum = document.getElementById('ctrlOffsetNum');
+  const valOffset = document.getElementById('valOffset');
+  const ctrlSmoothing = document.getElementById('ctrlSmoothing');
+  const valSmoothing = document.getElementById('valSmoothing');
+  const ctrlSpeckle = document.getElementById('ctrlSpeckle');
+  const valSpeckle = document.getElementById('valSpeckle');
+  const ctrlContourColor = document.getElementById('ctrlContourColor');
+  const ctrlContourWidth = document.getElementById('ctrlContourWidth');
+  const valContourWidth = document.getElementById('valContourWidth');
+  const ctrlShowPoints = document.getElementById('ctrlShowPoints');
+  const ctrlRes = document.getElementById('ctrlRes');
+  const ctrlLive = document.getElementById('ctrlLive');
+
+  function syncOffsetLabel(v){
+    const n = Math.max(0, Number(v) || 0);
+    valOffset.textContent = n.toFixed(1);
+    return n;
+  }
+
+  function setOffset(v, from){
+    const n = syncOffsetLabel(v);
+    if(from !== 'range') ctrlOffset.value = Math.min(20, n);
+    if(from !== 'num') ctrlOffsetNum.value = String(n);
+  }
+
+  ctrlDpi.addEventListener('input', ()=> valDpi.textContent = ctrlDpi.value);
+  ctrlOffset.addEventListener('input', ()=> setOffset(ctrlOffset.value, 'range'));
+  ctrlOffsetNum.addEventListener('input', ()=> setOffset(ctrlOffsetNum.value, 'num'));
+  ctrlSmoothing.addEventListener('input', ()=> valSmoothing.textContent = ctrlSmoothing.value);
+  ctrlSpeckle.addEventListener('input', ()=> valSpeckle.textContent = ctrlSpeckle.value);
+  ctrlBgTol.addEventListener('input', ()=> valBgTol.textContent = ctrlBgTol.value);
+  ctrlContourWidth.addEventListener('input', ()=> valContourWidth.textContent = parseFloat(ctrlContourWidth.value).toFixed(2));
+  ctrlShowPoints.addEventListener('change', ()=>{ if(state.svgString) paintOverlay(); });
+  ctrlContourColor.addEventListener('input', ()=>{ if(state.svgString) paintOverlay(); });
+  ctrlContourWidth.addEventListener('input', ()=>{ if(state.svgString) paintOverlay(); });
+
+  ctrlLive.addEventListener('change', ()=>{
+    liveToggleBox.classList.toggle('on', ctrlLive.checked);
+    if(ctrlLive.checked && state.file) scheduleLive();
+  });
+
+  function scheduleLive(){
+    if(!ctrlLive.checked || !state.file) return;
+    clearTimeout(state.liveTimer);
+    state.liveTimer = setTimeout(()=>{ runPipeline({ live: true }); }, 450);
+  }
+
+  document.querySelectorAll('[data-live="1"]').forEach(el=>{
+    el.addEventListener('input', scheduleLive);
+    el.addEventListener('change', scheduleLive);
+  });
+
+  dropZone.addEventListener('click', ()=> fileInput.click());
+  dropZone.addEventListener('dragover', e=>{ e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e=>{
+    e.preventDefault();
+    dropZone.classList.remove('drag');
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files[0]) loadFile(e.target.files[0]);
+  });
+
+  function showError(msg){
+    errorMsg.textContent = msg;
+    errorMsg.style.display = 'block';
+  }
+  function clearError(){ errorMsg.style.display = 'none'; }
+
+  function loadFile(file){
+    clearError();
+    const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+    if(!isPng){
+      showError('File harus PNG (.png). Format lain tidak didukung.');
+      return;
+    }
+    state.file = file;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=>{
+        state.img = img;
+        state.previewUrl = ev.target.result;
+        state.origW = img.naturalWidth;
+        state.origH = img.naturalHeight;
+        state.hasAlpha = detectAlpha(img);
+        state.svgString = '';
+        state.svgExport = '';
+        state.pdfBase64 = '';
+        state.curvePoints = [];
+        state.zoom = 1;
+
+        bgSection.style.display = 'block';
+        if(state.hasAlpha){
+          alphaInfo.style.display = 'block';
+          bgColorControls.style.display = 'none';
+        } else {
+          alphaInfo.style.display = 'none';
+          bgColorControls.style.display = 'block';
+          ctrlBgColor.value = sampleCornerColor(img);
+        }
+
+        imgOriginal.src = ev.target.result;
+        btnProcess.disabled = false;
+        resultArea.style.display = 'none';
+        emptyState.style.display = 'flex';
+        emptyState.innerHTML = '─── gambar siap ───<br>klik <b style="color:#4FD1E8">Buat Kontur</b> atau aktifkan <b style="color:#E8A23D">Live Action</b>';
+        if(ctrlLive.checked) scheduleLive();
+      };
+      img.onerror = ()=> showError('Gagal membaca file gambar. Pastikan file PNG tidak rusak.');
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function detectAlpha(img){
+    const c = document.createElement('canvas');
+    c.width = Math.min(img.naturalWidth,200);
+    c.height = Math.min(img.naturalHeight,200);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img,0,0,c.width,c.height);
+    const d = ctx.getImageData(0,0,c.width,c.height).data;
+    for(let i=3;i<d.length;i+=4){ if(d[i] < 250) return true; }
+    return false;
+  }
+
+  function sampleCornerColor(img){
+    const c = document.createElement('canvas');
+    c.width = Math.min(img.naturalWidth,50);
+    c.height = Math.min(img.naturalHeight,50);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img,0,0,c.width,c.height);
+    const d = ctx.getImageData(0,0,c.width,c.height).data;
+    const pts = [[0,0],[c.width-1,0],[0,c.height-1],[c.width-1,c.height-1]];
+    let r=0,g=0,b=0;
+    for(const [x,y] of pts){
+      const i = (y*c.width+x)*4;
+      r+=d[i]; g+=d[i+1]; b+=d[i+2];
+    }
+    r=Math.round(r/4); g=Math.round(g/4); b=Math.round(b/4);
+    const hex = v => v.toString(16).padStart(2,'0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+  }
+
+  btnReset.addEventListener('click', ()=>{
+    clearTimeout(state.liveTimer);
+    state.file = null;
+    state.img = null;
+    state.previewUrl = '';
+    state.svgString = '';
+    state.svgExport = '';
+    state.pdfBase64 = '';
+    state.curvePoints = [];
+    state.zoom = 1;
+    fileInput.value='';
+    btnProcess.disabled = true;
+    resultArea.style.display = 'none';
+    bgSection.style.display = 'none';
+    overlaySvg.innerHTML = '';
+    clearError();
+    emptyState.style.display = 'flex';
+    emptyState.innerHTML = '─── belum ada gambar ───<br>upload file PNG di panel kiri untuk mulai';
+  });
+
+  btnProcess.addEventListener('click', ()=> runPipeline());
+  btnReprocess.addEventListener('click', ()=> runPipeline());
+
+  async function runPipeline(opts){
+    opts = opts || {};
+    if(!state.file) return;
+    if(state.busy && opts.live) return;
+    const seq = ++state.reqSeq;
+    state.busy = true;
+    btnProcess.disabled = true;
+    btnProcess.innerHTML = '<span class="spinner"></span>Memproses…';
+    clearError();
+
+    try{
+      const formData = new FormData();
+      formData.append('file', state.file);
+      formData.append('smoothing', ctrlSmoothing.value);
+      formData.append('min_area', ctrlSpeckle.value);
+      formData.append('line_color', ctrlContourColor.value);
+      formData.append('line_width', ctrlContourWidth.value);
+      formData.append('max_dim', ctrlRes.value);
+      formData.append('offset_mm', ctrlOffsetNum.value || ctrlOffset.value);
+      formData.append('dpi', ctrlDpi.value);
+      if(!state.hasAlpha){
+        formData.append('bg_color', ctrlBgColor.value);
+        formData.append('bg_tolerance', ctrlBgTol.value);
+      }
+
+      const resp = await fetch('/ui/image-contour', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await resp.json();
+      if(seq !== state.reqSeq) return;
+      if(!resp.ok || result.status === 'error'){
+        throw new Error(result.message || result.error || ('Server error ' + resp.status));
+      }
+
+      state.svgString = result.svg;
+      state.svgExport = result.svg_export || result.svg;
+      state.pdfBase64 = result.pdf_base64 || '';
+      state.curvePoints = result.curve_points || [];
+      state.loopCount = result.loops || 0;
+      state.totalPoints = result.points || 0;
+      state.origW = result.width || state.origW;
+      state.origH = result.height || state.origH;
+      state.pageW = result.page_width || state.origW;
+      state.pageH = result.page_height || state.origH;
+      state.imageX = result.image_x || 0;
+      state.imageY = result.image_y || 0;
+      state.dpi = result.dpi || parseFloat(ctrlDpi.value) || 300;
+      state.widthCm = result.width_cm || 0;
+      state.heightCm = result.height_cm || 0;
+      state.pageWidthCm = result.page_width_cm || state.widthCm;
+      state.pageHeightCm = result.page_height_cm || state.heightCm;
+      state.offsetMm = result.offset_mm || 0;
+      ctrlDpi.value = Math.round(state.dpi);
+      valDpi.textContent = ctrlDpi.value;
+      setOffset(state.offsetMm, 'both');
+
+      renderResult(result);
+    } catch(err){
+      if(seq === state.reqSeq) showError('Gagal memproses gambar: ' + err.message);
+    } finally {
+      if(seq === state.reqSeq){
+        state.busy = false;
+        btnProcess.disabled = !state.file;
+        btnProcess.textContent = 'Buat Kontur';
+      }
+    }
+  }
+
+  function setZoom(z){
+    state.zoom = Math.max(0.2, Math.min(8, z));
+    zoomVal.textContent = Math.round(state.zoom * 100) + '%';
+    if(state.svgString) paintOverlay();
+  }
+
+  document.getElementById('btnZoomIn').addEventListener('click', ()=> setZoom(state.zoom * 1.25));
+  document.getElementById('btnZoomOut').addEventListener('click', ()=> setZoom(state.zoom / 1.25));
+  document.getElementById('btnZoomReset').addEventListener('click', ()=> setZoom(1));
+
+  compositeWrap.addEventListener('wheel', (e)=>{
+    if(!state.svgString) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    const prevZoom = state.zoom;
+    const nextZoom = Math.max(0.2, Math.min(8, prevZoom * factor));
+
+    const rect = compositeWrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left + compositeWrap.scrollLeft;
+    const my = e.clientY - rect.top + compositeWrap.scrollTop;
+    const ratio = nextZoom / prevZoom;
+
+    setZoom(nextZoom);
+    // keep cursor point stable after zoom
+    compositeWrap.scrollLeft = mx * ratio - (e.clientX - rect.left);
+    compositeWrap.scrollTop = my * ratio - (e.clientY - rect.top);
+    drawRulers();
+  }, { passive: false });
+
+  function paintOverlay(){
+    if(!state.svgString) return;
+    const color = ctrlContourColor.value;
+    const width = parseFloat(ctrlContourWidth.value);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(state.svgString, 'image/svg+xml');
+    const svg = doc.documentElement;
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.querySelectorAll('path').forEach(p=>{
+      p.setAttribute('stroke', color);
+      p.setAttribute('stroke-width', String(width));
+    });
+    svg.querySelectorAll('circle').forEach(c=>c.remove());
+
+    if(ctrlShowPoints.checked && state.curvePoints.length){
+      const r = Math.max(1.2, width * 0.9);
+      state.curvePoints.forEach(loop=>{
+        loop.forEach(([x,y])=>{
+          const c = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          c.setAttribute('cx', x);
+          c.setAttribute('cy', y);
+          c.setAttribute('r', r.toFixed(2));
+          c.setAttribute('fill', color);
+          c.setAttribute('fill-opacity', '0.9');
+          svg.appendChild(c);
+        });
+      });
+    }
+
+    const leftPct = (state.imageX / state.pageW) * 100;
+    const topPct = (state.imageY / state.pageH) * 100;
+    const wPct = (state.origW / state.pageW) * 100;
+    const hPct = (state.origH / state.pageH) * 100;
+
+    composite.style.aspectRatio = `${state.pageW} / ${state.pageH}`;
+    imgOriginal.style.position = 'absolute';
+    imgOriginal.style.left = leftPct + '%';
+    imgOriginal.style.top = topPct + '%';
+    imgOriginal.style.width = wPct + '%';
+    imgOriginal.style.height = hPct + '%';
+    imgOriginal.style.maxWidth = 'none';
+    imgOriginal.style.maxHeight = 'none';
+
+    const wrapW = Math.max(100, compositeWrap.clientWidth - 32);
+    const wrapH = Math.max(100, Math.min(window.innerHeight * 0.58, compositeWrap.clientHeight || 500));
+    state.fitScale = Math.min(wrapW / state.pageW, wrapH / state.pageH, 1);
+    const scale = state.fitScale * state.zoom;
+    const dispW = Math.max(1, Math.floor(state.pageW * scale));
+    const dispH = Math.max(1, Math.floor(state.pageH * scale));
+    composite.style.width = dispW + 'px';
+    composite.style.height = dispH + 'px';
+    zoomVal.textContent = Math.round(state.zoom * 100) + '%';
+
+    overlaySvg.innerHTML = '';
+    overlaySvg.appendChild(document.importNode(svg, true));
+    drawRulers();
+  }
+
+  function drawRulers(){
+    const xHost = rulerX.parentElement;
+    const yHost = rulerY.parentElement;
+    const xW = xHost.clientWidth;
+    const xH = xHost.clientHeight;
+    const yW = yHost.clientWidth;
+    const yH = yHost.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+
+    rulerX.width = Math.max(1, Math.floor(xW * dpr));
+    rulerX.height = Math.max(1, Math.floor(xH * dpr));
+    rulerY.width = Math.max(1, Math.floor(yW * dpr));
+    rulerY.height = Math.max(1, Math.floor(yH * dpr));
+
+    const ctxX = rulerX.getContext('2d');
+    const ctxY = rulerY.getContext('2d');
+    ctxX.setTransform(dpr,0,0,dpr,0,0);
+    ctxY.setTransform(dpr,0,0,dpr,0,0);
+    ctxX.clearRect(0,0,xW,xH);
+    ctxY.clearRect(0,0,yW,yH);
+
+    const compRect = composite.getBoundingClientRect();
+    const wrapRect = compositeWrap.getBoundingClientRect();
+    const offsetLeft = compRect.left - wrapRect.left + compositeWrap.scrollLeft;
+    const offsetTop = compRect.top - wrapRect.top + compositeWrap.scrollTop;
+    const dispW = compRect.width;
+    const dispH = compRect.height;
+    if(!dispW || !dispH || !state.pageWidthCm) return;
+
+    const cmToX = dispW / state.pageWidthCm;
+    const cmToY = dispH / state.pageHeightCm;
+
+    ctxX.fillStyle = '#8B96A0';
+    ctxX.strokeStyle = 'rgba(79,209,232,0.45)';
+    ctxX.font = '10px ui-monospace, monospace';
+    ctxX.textAlign = 'center';
+    ctxX.textBaseline = 'top';
+
+    const maxX = Math.ceil(state.pageWidthCm);
+    for(let cm=0; cm<=maxX; cm++){
+      const x = offsetLeft + cm * cmToX;
+      if(x < -20 || x > xW + 20) continue;
+      ctxX.beginPath();
+      ctxX.moveTo(x, xH);
+      ctxX.lineTo(x, xH - 12);
+      ctxX.stroke();
+      ctxX.fillText(String(cm), x, 4);
+    }
+
+    ctxY.fillStyle = '#8B96A0';
+    ctxY.strokeStyle = 'rgba(79,209,232,0.45)';
+    ctxY.font = '10px ui-monospace, monospace';
+    ctxY.textAlign = 'right';
+    ctxY.textBaseline = 'middle';
+
+    const maxY = Math.ceil(state.pageHeightCm);
+    for(let cm=0; cm<=maxY; cm++){
+      const y = offsetTop + cm * cmToY;
+      if(y < -20 || y > yH + 20) continue;
+      ctxY.beginPath();
+      ctxY.moveTo(yW, y);
+      ctxY.lineTo(yW - 12, y);
+      ctxY.stroke();
+      ctxY.save();
+      ctxY.translate(yW - 14, y);
+      ctxY.rotate(-Math.PI/2);
+      ctxY.textAlign = 'center';
+      ctxY.fillText(String(cm), 0, 0);
+      ctxY.restore();
+    }
+  }
+
+  function renderResult(result){
+    emptyState.style.display='none';
+    resultArea.style.display='flex';
+    imgOriginal.src = state.previewUrl;
+    paintOverlay();
+
+    sizeLabel.textContent = `${state.widthCm}×${state.heightCm} cm  ·  ${state.origW}×${state.origH}px  ·  ${state.dpi} DPI`;
+
+    const exportSvg = state.svgExport || state.svgString;
+    const sizeKb = (new Blob([exportSvg]).size/1024).toFixed(1);
+    statsBar.innerHTML = `
+      <div class="stat"><span class="stat-label">Ukuran objek</span><b>${state.widthCm} × ${state.heightCm} cm</b></div>
+      <div class="stat"><span class="stat-label">Kanvas (+offset)</span><b>${state.pageWidthCm} × ${state.pageHeightCm} cm</b></div>
+      <div class="stat"><span class="stat-label">Offset</span><b>${Number(state.offsetMm).toFixed(1)} mm</b></div>
+      <div class="stat"><span class="stat-label">Garis kontur</span><b>${state.loopCount}</b></div>
+      <div class="stat"><span class="stat-label">Titik kurva</span><b>${state.totalPoints}</b></div>
+      <div class="stat"><span class="stat-label">SVG export</span><b>${sizeKb} KB</b></div>
+      <div class="stat"><span class="stat-label">max_dim</span><b>${result.max_dim || ctrlRes.value}</b></div>
+    `;
+    svgCodeEl.textContent = exportSvg;
+    requestAnimationFrame(()=>{ paintOverlay(); });
+  }
+
+  compositeWrap.addEventListener('scroll', drawRulers);
+  window.addEventListener('resize', ()=>{ if(state.svgString) paintOverlay(); });
+
+  btnDownloadSvg.addEventListener('click', ()=>{
+    const svg = state.svgExport || state.svgString;
+    if(!svg) return;
+    const blob = new Blob([svg], {type:'image/svg+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'kontur-potong.svg';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=> URL.revokeObjectURL(url), 1000);
+  });
+
+  btnDownloadPdf.addEventListener('click', ()=>{
+    if(!state.pdfBase64) return;
+    const bytes = Uint8Array.from(atob(state.pdfBase64), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'kontur-potong.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string, send_file, Response
-from executor import execute
+from executor import execute, TASK_MAP
 from config import AGENT_SECRET, AGENT_ID
 import tempfile
 import os
@@ -7,6 +7,7 @@ import sys
 import datetime
 import io
 import subprocess
+import uuid
 
 try:
     from PIL import Image
@@ -19,6 +20,35 @@ except Exception:
 EXPOSED_PATHS = []
 
 app = Flask(__name__)
+
+_cors_enabled = False
+try:
+    from flask_cors import CORS
+
+    CORS(
+        app,
+        resources={r"/*": {"origins": "*"}},
+        supports_credentials=False,
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    _cors_enabled = True
+except ImportError:
+    print(
+        "WARNING: flask-cors tidak terpasang — memakai CORS header manual.\n"
+        "Disarankan: pip install flask-cors",
+        file=sys.stderr,
+    )
+
+
+if not _cors_enabled:
+
+    @app.after_request
+    def _manual_cors_headers(response):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        return response
 
 # Simple base directory for the lightweight file explorer (change as needed)
 BASE_DIR = r"F:\\PESANAN\2026"
@@ -58,6 +88,7 @@ def ui_main():
                 <div class="menu">
                     <a href="/ui/file-explorer"><button class="btn">🗂 File Explorer</button></a>
                     <a href="/ui/image-tools"><button class="btn">🖼 Image Tools</button></a>
+                    <a href="/ui/image-contour"><button class="btn">✂ Image Contur</button></a>
                     <a href="/ui/read-info-form"><button class="btn">🖼 Image Info</button></a>
                     <a href="/ui/merge"><button class="btn">📄 Merge PDF</button></a>
                     <a href="/ui/read-pdf-info-form"><button class="btn">🔎 PDF Info</button></a>
@@ -599,6 +630,44 @@ def api_open_path():
             else:
                 subprocess.Popen(["xdg-open", os.path.dirname(filepath)])
         return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/write-file", methods=["POST"])
+def api_write_file():
+    try:
+        payload = request.get_json(silent=True) or {}
+        dest_path = request.form.get("path") or payload.get("path")
+        if not dest_path or not str(dest_path).strip():
+            return jsonify({"ok": False, "error": "missing path"}), 400
+
+        dest_path = str(dest_path).strip()
+        dest_path = dest_path.replace("/", "\\") if os.name == "nt" else dest_path
+        dest_path = os.path.abspath(dest_path)
+
+        parent = os.path.dirname(dest_path)
+        if not parent or not os.path.isdir(parent):
+            return jsonify({"ok": False, "error": "destination folder not found"}), 404
+
+        upload = request.files.get("file")
+        if upload:
+            data = upload.read()
+        else:
+            b64 = payload.get("data_base64")
+            if not b64:
+                return jsonify({"ok": False, "error": "missing file"}), 400
+            import base64
+
+            data = base64.b64decode(b64)
+
+        if not data:
+            return jsonify({"ok": False, "error": "empty file"}), 400
+
+        with open(dest_path, "wb") as handle:
+            handle.write(data)
+
+        return jsonify({"ok": True, "path": dest_path, "size": len(data)})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -2483,6 +2552,53 @@ def ui_merge():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/ui/upload-image", methods=["POST"])
+def ui_upload_image():
+    try:
+        file = request.files.get("file")
+        if not file or not file.filename:
+            return jsonify({"status": "error", "message": "Missing file"}), 400
+
+        upload_dir = os.path.join(tempfile.gettempdir(), "printing_agent_uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".bmp"}:
+            ext = ".jpg"
+
+        filename = f"draftcalc_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{ext}"
+        filepath = os.path.join(upload_dir, filename)
+        raw = file.read()
+        with open(filepath, "wb") as handle:
+            handle.write(raw)
+
+        color_mode = None
+        sample_cmyk = None
+        try:
+            with Image.open(filepath) as img:
+                color_mode = img.mode
+                if img.mode == "CMYK":
+                    px = img.getpixel((img.width // 2, img.height // 2))
+                    sample_cmyk = {
+                        "c": round(px[0] / 255 * 100),
+                        "m": round(px[1] / 255 * 100),
+                        "y": round(px[2] / 255 * 100),
+                        "k": round(px[3] / 255 * 100),
+                    }
+        except Exception:
+            pass
+
+        return jsonify({
+            "status": "success",
+            "filepath": filepath,
+            "color_mode": color_mode,
+            "sample_cmyk": sample_cmyk,
+            "bytes": len(raw),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/ui/image-processing", methods=["POST"])
 def ui_image_processing():
     try:
@@ -2491,10 +2607,49 @@ def ui_image_processing():
         if not payload:
             return jsonify({"status": "error", "message": "Missing JSON body"}), 400
 
-        result = execute("image_processing", payload)
+        result = execute("image_processing", payload, timeout_seconds=180)
 
         return jsonify(result)
 
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/ui/render-cmyk", methods=["POST"])
+def ui_render_cmyk():
+    try:
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"status": "error", "message": "Missing JSON body"}), 400
+
+        result = execute("render_cmyk", payload, timeout_seconds=300)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/ui/export-cmyk-master", methods=["POST"])
+def ui_export_cmyk_master():
+    try:
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"status": "error", "message": "Missing JSON body"}), 400
+
+        result = execute("export_cmyk_master", payload, timeout_seconds=300)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/ui/export-pdf-imposition", methods=["POST"])
+def ui_export_pdf_imposition():
+    try:
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"status": "error", "message": "Missing JSON body"}), 400
+
+        result = execute("export_pdf_imposition", payload, timeout_seconds=300)
+        return jsonify(result)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -2616,7 +2771,57 @@ def ui_read_pdf_file():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "alive", "agent_id": AGENT_ID})
+    return jsonify({
+        "status": "alive",
+        "agent_id": AGENT_ID,
+        "tasks": list(TASK_MAP.keys()),
+    })
+
+
+@app.route("/ui/image-contour", methods=["GET"])
+def ui_image_contour_page():
+    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "image_contour.html")
+    with open(html_path, encoding="utf-8") as handle:
+        return handle.read()
+
+
+@app.route("/ui/image-contour", methods=["POST"])
+def ui_image_contour_api():
+    try:
+        file = request.files.get("file")
+        if not file or not file.filename:
+            return jsonify({"status": "error", "message": "No file provided"}), 400
+
+        filename = file.filename.lower()
+        if not filename.endswith(".png"):
+            return jsonify({"status": "error", "message": "File harus PNG (.png)"}), 400
+
+        from tasks.image_contour import generate_contour
+
+        img_bytes = file.read()
+        if not img_bytes:
+            return jsonify({"status": "error", "message": "File kosong"}), 400
+
+        dpi_raw = request.form.get("dpi")
+        dpi_val = float(dpi_raw) if dpi_raw not in (None, "") else None
+
+        result = generate_contour(
+            img_bytes,
+            smoothing=float(request.form.get("smoothing", 5000)),
+            min_area=int(float(request.form.get("min_area", 500))),
+            line_color=request.form.get("line_color", "#ff00c8"),
+            line_width=float(request.form.get("line_width", 1.5)),
+            bg_color=request.form.get("bg_color") or None,
+            bg_tolerance=int(float(request.form.get("bg_tolerance", 28))),
+            max_dim=int(float(request.form.get("max_dim", 1400))),
+            offset_mm=float(request.form.get("offset_mm", 0)),
+            dpi=dpi_val,
+        )
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 422
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/ui/image-tools")

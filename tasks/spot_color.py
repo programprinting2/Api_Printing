@@ -1,0 +1,274 @@
+"""
+Spot Color PDF Generator — Multi-Channel
+=========================================
+Menghasilkan PDF dengan satu atau lebih Separation colorspace.
+Setiap channel = satu spot color layer terpisah (Spot White, UV Varnish, Die Cut, dst).
+
+Struktur PDF (1 halaman, N spot channels):
+  Im0..ImN-1 : spot images (Indexed → Separation)
+  ImMain     : gambar utama (DeviceRGB)
+  Content stream pakai BMC/BDC/EMC per channel.
+"""
+
+import io, os, uuid
+import numpy as np
+import fitz
+from PIL import Image
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "spot_output")
+
+_CALRGB_STR = """[ /CalRGB <<
+    /BlackPoint [ 0 0 0 ]
+    /Gamma [ 2.2 2.2 2.2 ]
+    /Matrix [ 0.412384 0.212646 0.019318 0.357590 0.715164 0.119171
+              0.180496 0.072189 0.950546 ]
+    /WhitePoint [ 0.950455 1.0 1.08905 ]
+  >> ]"""
+
+# Preview RGB per mode (tint=1 → warna ini, tint=0 → white)
+_MODE_RGB = {
+    "cut":    (1.0, 0.0, 0.0),
+    "uv":     (0.0, 0.78, 1.0),
+    "foil":   (1.0, 0.84, 0.0),
+    "emboss": (0.55, 0.0, 1.0),
+}
+_MODE_NAMES = {
+    "cut":    "Die Cut",
+    "uv":     "UV Varnish",
+    "foil":   "Foil Gold",
+    "emboss": "Emboss",
+}
+
+# PS template: proses B dulu, G kedua, R terakhir (agar urutan stack benar)
+_PS_TMPL = ("{{dup dup {b:.6f} mul 1.000000 add 3 1 roll "
+            "{g:.6f} mul 1.000000 add 3 1 roll "
+            "{r:.6f} mul 1.000000 add 3 1 roll}}")
+
+
+def _ensure_dir():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    return OUTPUT_DIR
+
+
+def _encode_name(name: str) -> str:
+    out = []
+    for ch in name:
+        if ch == " ":
+            out.append("#20")
+        elif ch.isalnum() or ch in "-_.":
+            out.append(ch)
+        else:
+            out.append(f"#{ord(ch):02X}")
+    return "".join(out)
+
+
+def _tint_ps(r: float, g: float, b: float) -> bytes:
+    """PostScript FunctionType4: tint=0→white, tint=1→(r,g,b) di CalRGB."""
+    ps = _PS_TMPL.format(b=b - 1.0, g=g - 1.0, r=r - 1.0)
+    return ps.encode("latin-1")
+
+
+def _lookup_identity() -> bytes:
+    return bytes(range(256))   # pixel 0→tint 0 (no ink), pixel 255→tint 1 (full ink)
+
+
+def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str):
+    """
+    image_path : path gambar utama
+    channels   : list of dict {name, mode, mask_np}
+    """
+    main_img = Image.open(image_path)
+    if main_img.mode not in ("RGB",):
+        main_img = main_img.convert("RGB")
+    w_px, h_px = main_img.size
+    w_pt = w_px / dpi * 72.0
+    h_pt = h_px / dpi * 72.0
+
+    doc  = fitz.open()
+    page = doc.new_page(width=w_pt, height=h_pt)
+    pxref = page.xref
+
+    spot_entries = []  # list of (name, im_name, xref_spot_img)
+
+    for idx, ch in enumerate(channels):
+        name   = ch["name"]
+        mode   = ch["mode"]
+        mask_np = ch["mask_np"]
+        r, g, b = _MODE_RGB.get(mode, (1.0, 0.0, 0.0))
+        name_enc = _encode_name(name)
+        im_name  = f"Im{idx}"
+
+        # CalRGB alternate
+        xref_calrgb = doc.get_new_xref()
+        doc.update_object(xref_calrgb, _CALRGB_STR)
+
+        # Tint function (FunctionType 4, PostScript)
+        ps = _tint_ps(r, g, b)
+        xref_tf = doc.get_new_xref()
+        doc.update_object(xref_tf,
+            "<< /FunctionType 4 /Domain [ 0 1 ] /Range [ 0 1 0 1 0 1 ] >>")
+        doc.update_stream(xref_tf, ps, compress=False)
+
+        # Separation colorspace
+        xref_sep = doc.get_new_xref()
+        doc.update_object(xref_sep,
+            f"[ /Separation /{name_enc} {xref_calrgb} 0 R {xref_tf} 0 R ]")
+
+        # Lookup table stream (256 bytes, identity)
+        xref_lut = doc.get_new_xref()
+        doc.update_object(xref_lut, "<< >>")
+        doc.update_stream(xref_lut, _lookup_identity(), compress=True)
+
+        # Indexed colorspace → Separation
+        xref_idx = doc.get_new_xref()
+        doc.update_object(xref_idx,
+            f"[ /Indexed {xref_sep} 0 R 255 {xref_lut} 0 R ]")
+
+        # Spot image XObject — raw bytes, fitz compress saat save
+        mask_img = Image.fromarray(mask_np.astype(np.uint8)).convert("L")
+        mask_img = mask_img.resize((w_px, h_px), Image.LANCZOS)
+        mask_raw = mask_img.tobytes()
+
+        xref_simg = doc.get_new_xref()
+        doc.update_object(xref_simg, f"""<<
+  /Type /XObject /Subtype /Image
+  /Width {w_px} /Height {h_px}
+  /ColorSpace {xref_idx} 0 R
+  /BitsPerComponent 8
+>>""")
+        doc.update_stream(xref_simg, mask_raw, compress=True)
+
+        spot_entries.append((name, im_name, xref_simg))
+
+    # Main image XObject (DeviceRGB)
+    main_raw = bytes(np.array(main_img).flatten())
+    xref_main = doc.get_new_xref()
+    doc.update_object(xref_main, f"""<<
+  /Type /XObject /Subtype /Image
+  /Width {w_px} /Height {h_px}
+  /ColorSpace /DeviceRGB /BitsPerComponent 8
+>>""")
+    doc.update_stream(xref_main, main_raw, compress=True)
+
+    # ExtGState — hanya /op true (stroke overprint)
+    # JANGAN /OP true: akan membuat gambar RGB transparan → spot tembus ke bg
+    xref_gs = doc.get_new_xref()
+    doc.update_object(xref_gs, "<< /Type /ExtGState /op true >>")
+
+    # Content stream
+    mat = f"{w_pt:.4f} 0 0 {h_pt:.4f} 0 0"
+    spot_list_pdf = "".join(f"({n})" for n, _, _ in spot_entries)
+
+    lines = []
+    lines.append(f"/MultiChannelImage <</MainChannel /RGBColorMode /Spot [{spot_list_pdf}]>>BDC")
+    lines.append("/SeparationImages BMC")
+    for name, im_name, _ in spot_entries:
+        lines.append(f"/SpotImage <</Ink ({name})>>BDC")
+        lines.append(f"q\n/GS0 gs\n/RelativeColorimetric ri\n{mat} cm\n/{im_name} Do\nQ")
+        lines.append("EMC")
+    lines.append("/MainChannelImage BMC")
+    lines.append(f"q\n/GS0 gs\n/RelativeColorimetric ri\n{mat} cm\n/ImMain Do\nQ")
+    lines.append("EMC\nEMC\nEMC")
+    content = "\n".join(lines).encode("latin-1")
+
+    xref_cont = doc.get_new_xref()
+    doc.update_object(xref_cont, "<< >>")
+    doc.update_stream(xref_cont, content, compress=True)
+
+    # Resources
+    xobj_lines = "\n".join(f"    /{im} {xr} 0 R" for _, im, xr in spot_entries)
+    xobj_lines += f"\n    /ImMain {xref_main} 0 R"
+    res = f"""<<
+  /ProcSet [ /PDF /ImageC /ImageI ]
+  /XObject <<
+{xobj_lines}
+  >>
+  /ExtGState << /GS0 {xref_gs} 0 R >>
+>>"""
+
+    doc.xref_set_key(pxref, "Resources", res)
+    doc.xref_set_key(pxref, "Contents",  f"{xref_cont} 0 R")
+    doc.xref_set_key(pxref, "MediaBox",  f"[ 0 0 {w_pt:.4f} {h_pt:.4f} ]")
+    doc.xref_set_key(pxref, "ArtBox",    f"[ 0 0 {w_pt:.4f} {h_pt:.4f} ]")
+
+    doc.save(output_path, deflate=True, garbage=4, clean=False)
+    doc.close()
+
+
+def _mask_to_np(mask_bytes: bytes) -> np.ndarray:
+    img = Image.open(io.BytesIO(mask_bytes)).convert("L")
+    return np.array(img)
+
+
+def run(data: dict) -> dict:
+    """
+    data:
+      image_bytes : bytes gambar utama
+      image_name  : filename
+      dpi         : int
+      channels    : list of {name, mode, mask_bytes}
+        -- ATAU (legacy single channel) --
+      mask_bytes  : bytes
+      spot_name   : str
+      spot_mode   : str
+    """
+    image_bytes = data.get("image_bytes")
+    image_name  = data.get("image_name", "design.jpg")
+    dpi         = int(data.get("dpi", 300))
+
+    if not image_bytes:
+        return {"status": "error", "message": "image_bytes kosong"}
+
+    # Normalisasi ke format channels list
+    channels_raw = data.get("channels")
+    if not channels_raw:
+        # Legacy single-channel
+        mask_bytes = data.get("mask_bytes")
+        spot_name  = data.get("spot_name") or _MODE_NAMES.get(data.get("spot_mode", "cut"), "Spot Color")
+        spot_mode  = data.get("spot_mode", "cut")
+        if not mask_bytes:
+            return {"status": "error", "message": "mask_bytes / channels kosong"}
+        channels_raw = [{"name": spot_name, "mode": spot_mode, "mask_bytes": mask_bytes}]
+
+    try:
+        out_dir = _ensure_dir()
+        uid      = uuid.uuid4().hex[:8]
+        out_name = f"spot_{uid}.pdf"
+        out_path = os.path.join(out_dir, out_name)
+
+        ext = os.path.splitext(image_name)[1].lower() or ".jpg"
+        tmp = os.path.join(out_dir, f"_tmp_{uid}{ext}")
+        with open(tmp, "wb") as f:
+            f.write(image_bytes)
+
+        # Siapkan channels dengan mask numpy
+        channels = []
+        for ch in channels_raw:
+            mb = ch.get("mask_bytes") or ch.get("mask")
+            if isinstance(mb, str):
+                import base64
+                mb = base64.b64decode(mb)
+            channels.append({
+                "name":    ch.get("name", "Spot Color"),
+                "mode":    ch.get("mode", "cut"),
+                "mask_np": _mask_to_np(mb),
+            })
+
+        _build_spot_pdf(tmp, channels, dpi, out_path)
+
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+
+        return {
+            "status":   "success",
+            "filename": out_name,
+            "output_path": out_path,
+            "channels": [{"name": ch["name"], "mode": ch["mode"]} for ch in channels],
+            "n_channels": len(channels),
+        }
+
+    except Exception as e:
+        import traceback
+        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}

@@ -92,6 +92,7 @@ def ui_main():
                     <a href="/ui/read-info-form"><button class="btn">🖼 Image Info</button></a>
                     <a href="/ui/merge"><button class="btn">📄 Merge PDF</button></a>
                     <a href="/ui/read-pdf-info-form"><button class="btn">🔎 PDF Info</button></a>
+                    <a href="/ui/spot-color"><button class="btn">🎨 Spot Color Tool</button></a>
                 </div>
             </div>
             </body>
@@ -3755,6 +3756,1135 @@ def run_task():
 
     result = execute(task_name, payload)
     return jsonify(result)
+
+
+# ─── Spot Color ────────────────────────────────────────────────────────────────
+
+@app.route("/ui/spot-color")
+def ui_spot_color():
+    return render_template_string(r"""
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Spot Color Tool - Printing Agent</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#1e1e2e;min-height:100vh;display:flex;flex-direction:column}
+
+        /* ── Topbar ─────────────────────────────────────────────────────────── */
+        .topbar{background:#13131f;padding:8px 14px;display:flex;align-items:center;gap:12px;color:#e0e0f0;border-bottom:1px solid #2d2d45}
+        .topbar h1{font-size:15px;font-weight:700;letter-spacing:.3px}
+        .topbar a button{background:#2d2d45;color:#ccd;border:none;padding:5px 11px;border-radius:5px;cursor:pointer;font-size:12px}
+        .topbar a button:hover{background:#3d3d5c}
+        .main{display:flex;flex:1;gap:0;overflow:hidden;height:calc(100vh - 40px)}
+
+        /* ── LEFT PANEL (toolbox) ───────────────────────────────────────────── */
+        .left-panel{width:170px;min-width:160px;background:#16162a;border-right:1px solid #2a2a40;display:flex;flex-direction:column;padding:8px 6px;gap:0;overflow-y:auto}
+
+        /* upload row */
+        .upload-row{display:flex;flex-direction:column;gap:4px;padding:0 2px 8px;border-bottom:1px solid #2a2a40;margin-bottom:6px}
+        .upload-btn{width:100%;padding:7px;background:#5b5ef4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px}
+        .upload-btn:hover{background:#4a4de0}
+        #imgNameLabel{font-size:10px;color:#666;word-break:break-all;text-align:center;min-height:12px}
+
+        /* ── Accordion ──────────────────────────────────────────────────────── */
+        .acc-header{display:flex;align-items:center;justify-content:space-between;padding:5px 6px;cursor:pointer;font-size:10px;font-weight:700;color:#8888bb;text-transform:uppercase;letter-spacing:.6px;user-select:none;margin-top:4px}
+        .acc-header:hover{color:#aab}
+        .acc-arrow{transition:transform .2s;font-size:9px;opacity:.6}
+        .acc-header.open .acc-arrow{transform:rotate(90deg)}
+        .acc-body{overflow:hidden;max-height:0;transition:max-height .3s ease}
+        .acc-body.open{max-height:500px}
+        .acc-inner{padding:4px 2px 6px}
+
+        /* ── Icon tool grid ─────────────────────────────────────────────────── */
+        .tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:4px}
+        .tool-grid.cols2{grid-template-columns:repeat(2,1fr)}
+        .iBtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+              padding:6px 2px;border:1.5px solid #2d2d45;border-radius:7px;background:#1e1e34;
+              cursor:pointer;font-size:9px;color:#8888bb;transition:all .13s;min-height:46px;line-height:1.2}
+        .iBtn svg{width:18px;height:18px;flex-shrink:0}
+        .iBtn:hover{border-color:#5b5ef4;background:#252540;color:#aac}
+        .iBtn.active{border-color:#5b5ef4;background:#5b5ef4;color:#fff}
+        .iBtn.active svg path,.iBtn.active svg rect,.iBtn.active svg ellipse,.iBtn.active svg polygon,.iBtn.active svg circle{stroke:currentColor}
+
+        /* sel-mode small buttons */
+        .sm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:5px}
+        .smBtn{padding:4px 2px;border:1.5px solid #2d2d45;border-radius:5px;background:#1e1e34;
+               cursor:pointer;font-size:9px;font-weight:700;color:#8888bb;text-align:center;transition:all .13s}
+        .smBtn:hover{border-color:#5b5ef4;color:#aac}
+        .smBtn.active{border-color:#5b5ef4;background:#5b5ef4;color:#fff}
+
+        /* apply/deselect buttons */
+        .sel-actions{display:flex;gap:3px;margin-top:5px}
+        .sel-actions button{flex:1;padding:5px 2px;border:none;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer}
+        .applySelBtn{background:#27ae60;color:#fff}
+        .applySelBtn:hover{background:#219150}
+        .applySelBtn:disabled{background:#2d3d30;color:#555;cursor:not-allowed}
+        .deselBtn{background:#2d2d45;color:#8888bb}
+        .deselBtn:hover{background:#3d3d5c;color:#aac}
+
+        /* slider rows */
+        .sl-row{display:flex;align-items:center;gap:4px;padding:3px 0}
+        .sl-row label{font-size:9px;color:#6668;white-space:nowrap;min-width:28px}
+        .sl-row input[type=range]{flex:1;height:3px;accent-color:#5b5ef4}
+        .sl-row span{font-size:9px;color:#888;min-width:22px;text-align:right}
+        input[type=number]{width:100%;padding:5px 6px;border:1.5px solid #2d2d45;border-radius:5px;font-size:12px;background:#1e1e34;color:#dde;margin-top:3px}
+        input[type=number]:focus{outline:none;border-color:#5b5ef4}
+
+        /* clear mask btn */
+        .clearBtn{width:100%;padding:6px;background:#3a1f1f;color:#f55;border:1.5px solid #5a2020;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:4px}
+        .clearBtn:hover{background:#5a2020}
+
+        /* ── Canvas area ────────────────────────────────────────────────────── */
+        .canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#111118}
+        .canvas-toolbar{background:#13131f;padding:5px 10px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #2a2a40}
+        .canvas-toolbar button{background:#2d2d45;color:#ccd;border:none;padding:4px 9px;border-radius:5px;cursor:pointer;font-size:11px}
+        .canvas-toolbar button:hover{background:#5b5ef4;color:#fff}
+        .canvas-toolbar button:disabled{opacity:.3;cursor:not-allowed}
+        .canvas-toolbar span{color:#555;font-size:11px}
+        .canvas-toolbar .tb-sep{width:1px;height:16px;background:#2d2d45;margin:0 2px}
+        .canvas-wrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:flex-start;padding:20px;position:relative}
+        #canvasContainer{position:relative;display:inline-block;box-shadow:0 6px 32px rgba(0,0,0,.7)}
+        #bgCanvas{display:block}
+        #drawCanvas{position:absolute;top:0;left:0;cursor:crosshair}
+        #selCanvas{position:absolute;top:0;left:0;pointer-events:none}
+
+        /* ── RIGHT PANEL ────────────────────────────────────────────────────── */
+        .right-panel{width:210px;min-width:195px;background:#16162a;border-left:1px solid #2a2a40;display:flex;flex-direction:column;padding:10px;gap:8px;overflow-y:auto}
+        .rp-label{font-size:10px;font-weight:700;color:#6668;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+        input[type=text]{width:100%;padding:6px 8px;border:1.5px solid #2d2d45;border-radius:6px;font-size:12px;background:#1e1e34;color:#dde}
+        input[type=text]:focus{outline:none;border-color:#5b5ef4}
+
+        .spot-mode-group{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+        .mode-btn{padding:7px 6px;border:1.5px solid #2d2d45;border-radius:7px;background:#1e1e34;cursor:pointer;font-size:11px;text-align:left;transition:all .13s;color:#ccc}
+        .mode-btn:hover{border-color:#5b5ef4}
+        .mode-btn.active{border-color:#5b5ef4;background:#5b5ef4;color:#fff}
+        .mode-desc{font-size:9px;opacity:.7;margin-top:2px}
+
+        .add-ch-btn{width:100%;padding:8px;background:#e67e22;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700}
+        .add-ch-btn:hover{background:#d35400}
+        .add-ch-btn:disabled{background:#2d2d45;color:#555;cursor:not-allowed}
+        .ch-item{background:#1e1e34;border:1px solid #2d2d45;border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:5px}
+        .ch-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+        .ch-info{flex:1;min-width:0}
+        .ch-name{font-weight:700;font-size:11px;color:#dde;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ch-mode{font-size:9px;color:#666}
+        .ch-del{background:#5a1f1f;color:#f55;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;flex-shrink:0}
+        .ch-del:hover{background:#7a2020}
+        .gen-btn{width:100%;padding:10px;background:#27ae60;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700}
+        .gen-btn:hover{background:#219150}
+        .gen-btn:disabled{background:#1d3a28;color:#555;cursor:not-allowed}
+
+        .status-box{background:#1a1a2e;border:1px solid #2a2a40;border-radius:6px;padding:8px;font-size:11px;color:#888;min-height:44px;word-break:break-all}
+        .status-box.ok{background:#1a2e1e;border-color:#2a4a2a;color:#4caf50}
+        .status-box.err{background:#2e1a1a;border-color:#4a2a2a;color:#f55}
+
+        .dl-btn{width:100%;padding:8px;background:#1565c0;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none}
+        .dl-btn:hover{background:#1976d2}
+
+        /* ── Polygon hint ───────────────────────────────────────────────────── */
+        #polyHint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;display:none;pointer-events:none;z-index:999;border:1px solid #5b5ef4}
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <h1>Spot Color Tool</h1>
+    <a href="/ui"><button>← Kembali</button></a>
+    <span style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.7)" id="coordLabel"></span>
+</div>
+
+<div class="main">
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+        <div class="upload-row">
+            <input type="file" id="imgInput" accept="image/png,image/jpeg,image/jpg" style="display:none">
+            <button class="upload-btn" onclick="document.getElementById('imgInput').click()">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M10 3.5a.5.5 0 0 1 .5.5v5.5H16a.5.5 0 0 1 0 1h-5.5V16a.5.5 0 0 1-1 0v-5.5H4a.5.5 0 0 1 0-1h5.5V4a.5.5 0 0 1 .5-.5z"/><path d="M2 13.5A1.5 1.5 0 0 0 3.5 15h13a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2z"/></svg>
+                Upload Gambar
+            </button>
+            <div id="imgNameLabel">—</div>
+        </div>
+
+        <!-- PAINT -->
+        <div class="acc-header open" onclick="toggleAcc(this)">PAINT <span class="acc-arrow">▶</span></div>
+        <div class="acc-body open"><div class="acc-inner">
+            <div class="tool-grid">
+                <button class="iBtn active" data-tool="brush" onclick="setTool('brush')" title="Brush (B)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    Brush
+                </button>
+                <button class="iBtn" data-tool="eraser" onclick="setTool('eraser')" title="Eraser (E)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6.0001 10 14 18"/></svg>
+                    Eraser
+                </button>
+                <button class="iBtn" data-tool="fill" onclick="setTool('fill')" title="Fill (F)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.5 8.5a5.5 5.5 0 0 0 0 7.778 5.5 5.5 0 0 0 7.778 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 2-4 2-4s2 2.4 2 4Z"/></svg>
+                    Fill
+                </button>
+            </div>
+            <div class="sl-row">
+                <label>Size</label>
+                <input type="range" id="brushSize" min="2" max="200" value="20" oninput="document.getElementById('brushVal').textContent=this.value+'px'">
+                <span id="brushVal">20px</span>
+            </div>
+        </div></div>
+
+        <!-- SHAPE -->
+        <div class="acc-header open" onclick="toggleAcc(this)">SHAPE <span class="acc-arrow">▶</span></div>
+        <div class="acc-body open"><div class="acc-inner">
+            <div class="tool-grid">
+                <button class="iBtn" data-tool="rect" onclick="setTool('rect')" title="Rectangle (R)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+                    Rect
+                </button>
+                <button class="iBtn" data-tool="ellipse" onclick="setTool('ellipse')" title="Ellipse">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
+                    Ellipse
+                </button>
+                <button class="iBtn" data-tool="polygon" onclick="setTool('polygon')" title="Polygon (P)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,3 21,8.5 18,19 6,19 3,8.5"/></svg>
+                    Polygon
+                </button>
+            </div>
+        </div></div>
+
+        <!-- SELECTION -->
+        <div class="acc-header open" onclick="toggleAcc(this)">SELECTION <span class="acc-arrow">▶</span></div>
+        <div class="acc-body open"><div class="acc-inner">
+            <div class="tool-grid cols2">
+                <button class="iBtn" data-tool="magicwand" onclick="setTool('magicwand')" title="Magic Wand (W)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m15 4-1 1"/><path d="m4 15 1-1"/><path d="m4 4 16 16"/><path d="m16 4 1 1"/><path d="m5 15-1 1"/><path d="M10.5 2.5 9 4"/><path d="M2.5 10.5 4 9"/><path d="m9 9 6 6"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+                    Magic Wand
+                </button>
+                <button class="iBtn" data-tool="colorselect" onclick="setTool('colorselect')" title="Select by Color (S)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 13.5 5.5 5.5 5-5-5.5-5.5L2 13.5Z"/><path d="m9 9 3-3"/><path d="m12 6 1.5-1.5a2.12 2.12 0 0 1 3 3L15 9"/><path d="m15 9 5 5"/><path d="M21 20a1 1 0 1 1-2 0c0-.9 1-2.5 1-2.5S21 19 21 20Z"/></svg>
+                    Sel.Color
+                </button>
+            </div>
+            <div class="sl-row" style="margin-top:3px">
+                <label>Tol</label>
+                <input type="range" id="tolerance" min="1" max="120" value="32" oninput="document.getElementById('tolVal').textContent=this.value">
+                <span id="tolVal">32</span>
+            </div>
+            <div class="sm-grid">
+                <button class="smBtn active" data-selmode="new"      onclick="setSelMode('new')"      title="New Selection">New</button>
+                <button class="smBtn"        data-selmode="add"      onclick="setSelMode('add')"      title="Add to Selection (Shift)">+Add</button>
+                <button class="smBtn"        data-selmode="subtract" onclick="setSelMode('subtract')" title="Subtract (Alt)">−Sub</button>
+            </div>
+            <div class="sel-actions">
+                <button class="applySelBtn" id="applySelBtn" onclick="applySelection()" disabled title="Apply selection to mask (Enter)">
+                    ✓ Apply
+                </button>
+                <button class="deselBtn" onclick="deselect()" title="Deselect (Ctrl+D / Esc)">
+                    ✕ Desel
+                </button>
+            </div>
+        </div></div>
+
+        <!-- SETTINGS -->
+        <div class="acc-header open" onclick="toggleAcc(this)">SETTINGS <span class="acc-arrow">▶</span></div>
+        <div class="acc-body open"><div class="acc-inner">
+            <div class="sl-row">
+                <label>Opacity</label>
+                <input type="range" id="overlayOpacity" min="10" max="220" value="120" oninput="updateOverlayOpacity(this.value)">
+                <span id="opacityVal">120</span>
+            </div>
+            <div class="sl-row">
+                <label>DPI</label>
+                <input type="number" id="dpiInput" value="300" min="72" max="1200" style="padding:3px 5px;font-size:11px">
+            </div>
+            <button class="clearBtn" onclick="clearMask()">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M8.5 4a.5.5 0 0 0-1 0V5H5a.5.5 0 0 0 0 1h10a.5.5 0 0 0 0-1h-2.5V4a.5.5 0 0 0-1 0V5h-3V4zM5.087 7l.842 8.421A1.5 1.5 0 0 0 7.42 17h5.16a1.5 1.5 0 0 0 1.49-1.579L14.913 7H5.087z"/></svg>
+                Hapus Mask
+            </button>
+        </div></div>
+    </div>
+
+    <!-- CANVAS -->
+    <div class="canvas-area">
+        <div class="canvas-toolbar">
+            <button onclick="zoom(1.25)" title="Zoom In">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M6.5 1a5.5 5.5 0 1 0 3.976 9.397l3.064 3.063.707-.707-3.063-3.064A5.5 5.5 0 0 0 6.5 1zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM6 4.5a.5.5 0 0 1 1 0V6h1.5a.5.5 0 0 1 0 1H7v1.5a.5.5 0 0 1-1 0V7H4.5a.5.5 0 0 1 0-1H6V4.5z"/></svg>
+            </button>
+            <button onclick="zoom(0.8)" title="Zoom Out">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M6.5 1a5.5 5.5 0 1 0 3.976 9.397l3.064 3.063.707-.707-3.063-3.064A5.5 5.5 0 0 0 6.5 1zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM4 6.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5z"/></svg>
+            </button>
+            <button onclick="fitCanvas()" title="Fit to window">Fit</button>
+            <button onclick="zoom(1,'reset')" title="100%">1:1</button>
+            <span id="zoomLabel" style="min-width:36px;text-align:center">100%</span>
+            <div class="tb-sep"></div>
+            <button id="undoBtn" onclick="undo()" disabled title="Undo (Ctrl+Z)">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd"/></svg>
+                Undo
+            </button>
+            <button id="redoBtn" onclick="redo()" disabled title="Redo (Ctrl+Y)">
+                Redo
+                <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M12.207 2.232a.75.75 0 00.025 1.06L16.378 7.25H6.375a5.375 5.375 0 000 10.75H9.25a.75.75 0 000-1.5H6.375a3.875 3.875 0 010-7.75h10.003l-4.146 3.957a.75.75 0 001.036 1.085l5.5-5.25a.75.75 0 000-1.085l-5.5-5.25a.75.75 0 00-1.061.025z" clip-rule="evenodd"/></svg>
+            </button>
+            <span style="flex:1"></span>
+            <span id="coordLabel" style="font-size:10px;color:#444;font-variant-numeric:tabular-nums"></span>
+        </div>
+        <div class="canvas-wrap" id="canvasWrap">
+            <div id="canvasContainer">
+                <canvas id="bgCanvas"></canvas>
+                <canvas id="drawCanvas"></canvas>
+                <canvas id="selCanvas" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <div class="rp-label">Nama Channel</div>
+        <input type="text" id="spotName" value="Die Cut" placeholder="mis: Die Cut, UV Varnish">
+
+        <div class="rp-label">Mode Spot</div>
+        <div class="spot-mode-group">
+            <button class="mode-btn active" data-mode="cut" onclick="setMode('cut')">
+                ✂ Die Cut
+                <div class="mode-desc">Potong / kontur</div>
+            </button>
+            <button class="mode-btn" data-mode="uv" onclick="setMode('uv')">
+                ✦ UV Varnish
+                <div class="mode-desc">Mengkilap</div>
+            </button>
+            <button class="mode-btn" data-mode="foil" onclick="setMode('foil')">
+                ★ Foil
+                <div class="mode-desc">Metalik</div>
+            </button>
+            <button class="mode-btn" data-mode="emboss" onclick="setMode('emboss')">
+                ◉ Emboss
+                <div class="mode-desc">Timbul</div>
+            </button>
+        </div>
+
+        <button class="add-ch-btn" id="addChBtn" onclick="addChannel()" disabled>
+            + Tambah Channel
+        </button>
+
+        <div class="rp-label">Channel List <span id="chCount" style="color:#5b5ef4">(0)</span></div>
+        <div id="channelList" style="display:flex;flex-direction:column;gap:4px;min-height:30px">
+            <div style="color:#444;font-size:10px;text-align:center;padding:6px">Belum ada channel</div>
+        </div>
+
+        <button class="gen-btn" id="genBtn" onclick="generatePDF()" disabled>
+            &#9654; Generate Spot PDF
+        </button>
+
+        <div class="status-box" id="statusBox">Upload gambar, gambar area spot, klik "+ Tambah Channel".</div>
+
+        <button class="dl-btn" id="dlBtn">&#11015; Download PDF</button>
+    </div>
+</div>
+
+<div id="polyHint">Klik untuk tambah titik • Double-klik / Enter untuk selesai • Kanan untuk hapus titik</div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────
+const bgCanvas  = document.getElementById('bgCanvas');
+const drawCanvas = document.getElementById('drawCanvas');
+const bgCtx     = bgCanvas.getContext('2d');
+const drawCtx   = drawCanvas.getContext('2d');
+
+let currentTool  = 'brush';
+let currentMode  = 'cut';
+let selMode      = 'new';   // 'new' | 'add' | 'subtract'
+let zoomLevel    = 1;
+let imageFile    = null;
+let imageObj     = null;
+let isDrawing    = false;
+let startX = 0, startY = 0;
+let lastX  = 0, lastY  = 0;
+let overlayAlpha = 120;
+let polyPoints   = [];
+let previewCanvas = null;
+
+// Undo / Redo
+const undoStack = [];
+const redoStack = [];
+const MAX_HISTORY = 25;
+
+// Marching ants
+const selCanvas = document.getElementById('selCanvas');
+const selCtx    = selCanvas.getContext('2d');
+let antPixels   = new Int32Array(0);  // flat [x0,y0,x1,y1,...]
+let antPhase    = 0;
+let antRAF      = null;
+let antFrameTick = 0;      // slow-down counter
+
+// Active selection (separate from drawn mask)
+let selectionMask = null;  // Uint8Array w*h, populated by magic wand / color select
+
+// Warna overlay per mode
+const modeColors = {
+    cut:    [255, 0,   0  ],
+    uv:     [0,   200, 255],
+    foil:   [255, 215, 0  ],
+    emboss: [180, 100, 255],
+};
+
+// ─── Upload Gambar ──────────────────────────────────────────────────────────
+document.getElementById('imgInput').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    imageFile = file;
+    document.getElementById('imgNameLabel').textContent = file.name;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function(){
+        imageObj = img;
+        bgCanvas.width  = img.width;
+        bgCanvas.height = img.height;
+        drawCanvas.width  = img.width;
+        drawCanvas.height = img.height;
+        bgCtx.drawImage(img, 0, 0);
+        selCanvas.width  = img.width;
+        selCanvas.height = img.height;
+        clearMaskData();
+        undoStack.length = 0; redoStack.length = 0; _updateUndoRedo();
+        channels = [];
+        _renderChannelList();
+        fitCanvas();
+        document.getElementById('addChBtn').disabled = false;
+        document.getElementById('statusBox').textContent = 'Gambar dimuat. Gambar area spot lalu klik Tambah Channel.';
+        document.getElementById('statusBox').className = 'status-box';
+    };
+    img.src = url;
+});
+
+// ─── Tool Selection ─────────────────────────────────────────────────────────
+function setTool(t){
+    currentTool = t;
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`[data-tool="${t}"]`).classList.add('active');
+    if(t !== 'polygon') cancelPolygon();
+    updateCursor();
+}
+
+function setMode(m){
+    currentMode = m;
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`[data-mode="${m}"]`).classList.add('active');
+}
+
+function setSelMode(sm){
+    selMode = sm;
+    document.querySelectorAll('.sel-mode-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`[data-selmode="${sm}"]`).classList.add('active');
+}
+
+function updateCursor(){
+    const cur = currentTool;
+    drawCanvas.style.cursor =
+        cur === 'eraser'      ? 'cell'       :
+        cur === 'fill'        ? 'copy'       :
+        cur === 'magicwand'   ? 'copy'       :
+        cur === 'colorselect' ? 'copy'       :
+        'crosshair';
+}
+
+// ─── Overlay color helper ───────────────────────────────────────────────────
+function getColor(alpha){
+    const [r,g,b] = modeColors[currentMode] || [255,0,0];
+    return `rgba(${r},${g},${b},${alpha/255})`;
+}
+
+function updateOverlayOpacity(v){
+    overlayAlpha = parseInt(v);
+    document.getElementById('opacityVal').textContent = v;
+}
+
+// ─── Zoom ───────────────────────────────────────────────────────────────────
+function zoom(factor, mode){
+    if(!imageObj) return;
+    if(mode === 'reset') zoomLevel = 1;
+    else zoomLevel = Math.min(Math.max(zoomLevel * factor, 0.05), 8);
+    applyZoom();
+}
+
+function fitCanvas(){
+    if(!imageObj) return;
+    const wrap = document.getElementById('canvasWrap');
+    const ww = wrap.clientWidth  - 40;
+    const wh = wrap.clientHeight - 40;
+    zoomLevel = Math.min(ww / imageObj.width, wh / imageObj.height);
+    applyZoom();
+}
+
+function applyZoom(){
+    const w = Math.round(imageObj.width  * zoomLevel);
+    const h = Math.round(imageObj.height * zoomLevel);
+    const c = document.getElementById('canvasContainer');
+    c.style.width  = w + 'px';
+    c.style.height = h + 'px';
+    bgCanvas.style.width    = w + 'px';
+    bgCanvas.style.height   = h + 'px';
+    drawCanvas.style.width  = w + 'px';
+    drawCanvas.style.height = h + 'px';
+    selCanvas.style.width   = w + 'px';
+    selCanvas.style.height  = h + 'px';
+    document.getElementById('zoomLabel').textContent = Math.round(zoomLevel*100)+'%';
+}
+
+// ─── Coordinate helper ──────────────────────────────────────────────────────
+function getCanvasPos(e){
+    const rect = drawCanvas.getBoundingClientRect();
+    return {
+        x: Math.round((e.clientX - rect.left) / zoomLevel),
+        y: Math.round((e.clientY - rect.top)  / zoomLevel),
+    };
+}
+
+// ─── Drawing Events ─────────────────────────────────────────────────────────
+drawCanvas.addEventListener('contextmenu', e=>{ e.preventDefault(); if(currentTool==='polygon') removeLastPolyPoint(); });
+
+drawCanvas.addEventListener('mousedown', e=>{
+    if(e.button !== 0) return;
+    if(!imageObj) return;
+    const {x,y} = getCanvasPos(e);
+
+    // Shift = add, Alt = subtract (override selMode for this click)
+    const effMode = e.shiftKey ? 'add' : e.altKey ? 'subtract' : selMode;
+
+    if(currentTool === 'polygon'){
+        handlePolygonClick(x, y, e);
+        return;
+    }
+    saveHistory();
+    if(currentTool === 'fill'){
+        floodFill(x, y, effMode);
+        recomputeAnts();
+        return;
+    }
+    if(currentTool === 'magicwand'){
+        magicWand(x, y, effMode);
+        recomputeAnts();
+        return;
+    }
+    if(currentTool === 'colorselect'){
+        selectByColor(x, y, effMode);
+        recomputeAnts();
+        return;
+    }
+    isDrawing = true;
+    startX = x; startY = y; lastX = x; lastY = y;
+
+    if(currentTool === 'brush' || currentTool === 'eraser'){
+        drawCtx.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over';
+        drawCtx.beginPath();
+        drawCtx.arc(x, y, getBrushRadius(), 0, Math.PI*2);
+        drawCtx.fillStyle = getColor(overlayAlpha);
+        drawCtx.fill();
+    } else {
+        // rect / ellipse: save snapshot for preview
+        previewCanvas = document.createElement('canvas');
+        previewCanvas.width  = drawCanvas.width;
+        previewCanvas.height = drawCanvas.height;
+        previewCanvas.getContext('2d').drawImage(drawCanvas, 0, 0);
+    }
+});
+
+drawCanvas.addEventListener('mousemove', e=>{
+    if(!imageObj) return;
+    const {x,y} = getCanvasPos(e);
+    document.getElementById('coordLabel').textContent = `${x} × ${y} px`;
+
+    if(currentTool === 'polygon' && polyPoints.length > 0){
+        redrawPolygonPreview(x, y);
+        return;
+    }
+    if(!isDrawing) return;
+
+    if(currentTool === 'brush' || currentTool === 'eraser'){
+        drawCtx.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over';
+        drawCtx.beginPath();
+        drawCtx.moveTo(lastX, lastY);
+        drawCtx.lineTo(x, y);
+        drawCtx.strokeStyle = getColor(overlayAlpha);
+        drawCtx.lineWidth = getBrushRadius()*2;
+        drawCtx.lineCap = 'round';
+        drawCtx.lineJoin = 'round';
+        drawCtx.stroke();
+        // fill cap dots
+        drawCtx.beginPath();
+        drawCtx.arc(x, y, getBrushRadius(), 0, Math.PI*2);
+        drawCtx.fillStyle = getColor(overlayAlpha);
+        drawCtx.fill();
+        lastX = x; lastY = y;
+    } else if(currentTool === 'rect' || currentTool === 'ellipse'){
+        // restore snapshot then draw preview
+        drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+        drawCtx.drawImage(previewCanvas, 0, 0);
+        drawCtx.globalCompositeOperation = 'source-over';
+        drawCtx.fillStyle = getColor(overlayAlpha);
+        if(currentTool === 'rect'){
+            drawCtx.fillRect(startX, startY, x-startX, y-startY);
+        } else {
+            const rx = Math.abs(x-startX)/2, ry = Math.abs(y-startY)/2;
+            const cx = startX+(x-startX)/2, cy = startY+(y-startY)/2;
+            drawCtx.beginPath();
+            drawCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+            drawCtx.fill();
+        }
+    }
+});
+
+drawCanvas.addEventListener('mouseup', e=>{
+    if(e.button !== 0) return;
+    if(isDrawing) recomputeAnts();
+    isDrawing = false;
+    drawCtx.globalCompositeOperation = 'source-over';
+    previewCanvas = null;
+});
+
+drawCanvas.addEventListener('mouseleave', ()=>{ isDrawing = false; drawCtx.globalCompositeOperation = 'source-over'; });
+
+// ─── Accordion ───────────────────────────────────────────────────────────────
+function toggleAcc(header){
+    header.classList.toggle('open');
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+}
+
+// ─── Keyboard shortcuts ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+    // Undo / Redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
+    if((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey){ e.preventDefault(); undo(); return; }
+    if((e.ctrlKey||e.metaKey) && (e.key==='y' || (e.key==='z'&&e.shiftKey))){ e.preventDefault(); redo(); return; }
+
+    // Ctrl+D = deselect
+    if((e.ctrlKey||e.metaKey) && e.key==='d'){ e.preventDefault(); deselect(); return; }
+
+    // Tool shortcuts (ignore when Ctrl held)
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    if(e.key === 'Enter'){
+        if(currentTool === 'polygon') finishPolygon();
+        else if(selectionMask) applySelection();
+        return;
+    }
+    if(e.key === 'Escape'){ cancelPolygon(); deselect(); return; }
+    if(e.key === 'b') setTool('brush');
+    if(e.key === 'e') setTool('eraser');
+    if(e.key === 'r') setTool('rect');
+    if(e.key === 'f') setTool('fill');
+    if(e.key === 'p') setTool('polygon');
+    if(e.key === 'w') setTool('magicwand');
+    if(e.key === 's') setTool('colorselect');
+});
+
+// ─── Brush helpers ──────────────────────────────────────────────────────────
+function getBrushRadius(){ return parseInt(document.getElementById('brushSize').value) / 2; }
+
+// ─── Polygon ─────────────────────────────────────────────────────────────────
+function handlePolygonClick(x, y, e){
+    if(e.detail >= 2){
+        finishPolygon();
+        return;
+    }
+    if(polyPoints.length === 0){
+        // save snapshot
+        previewCanvas = document.createElement('canvas');
+        previewCanvas.width  = drawCanvas.width;
+        previewCanvas.height = drawCanvas.height;
+        previewCanvas.getContext('2d').drawImage(drawCanvas, 0, 0);
+        document.getElementById('polyHint').style.display = 'block';
+    }
+    polyPoints.push({x,y});
+    redrawPolygonPreview(x, y);
+}
+
+function redrawPolygonPreview(mx, my){
+    if(!previewCanvas || polyPoints.length === 0) return;
+    drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+    drawCtx.drawImage(previewCanvas,0,0);
+    const pts = polyPoints;
+    drawCtx.beginPath();
+    drawCtx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) drawCtx.lineTo(pts[i].x, pts[i].y);
+    drawCtx.lineTo(mx, my);
+    drawCtx.fillStyle = getColor(overlayAlpha * 0.5);
+    drawCtx.fill();
+    drawCtx.strokeStyle = getColor(200);
+    drawCtx.lineWidth = 1.5 / zoomLevel;
+    drawCtx.setLineDash([4/zoomLevel, 4/zoomLevel]);
+    drawCtx.stroke();
+    drawCtx.setLineDash([]);
+    // draw dots
+    pts.forEach(p=>{ drawCtx.beginPath(); drawCtx.arc(p.x,p.y,3/zoomLevel,0,Math.PI*2); drawCtx.fillStyle='#fff'; drawCtx.fill(); drawCtx.strokeStyle='#333'; drawCtx.lineWidth=1/zoomLevel; drawCtx.stroke(); });
+}
+
+function finishPolygon(){
+    if(polyPoints.length < 3){ cancelPolygon(); return; }
+    if(!previewCanvas) return;
+    saveHistory();
+    drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+    drawCtx.drawImage(previewCanvas,0,0);
+    drawCtx.globalCompositeOperation = 'source-over';
+    drawCtx.beginPath();
+    drawCtx.moveTo(polyPoints[0].x, polyPoints[0].y);
+    polyPoints.forEach(p=>drawCtx.lineTo(p.x,p.y));
+    drawCtx.closePath();
+    drawCtx.fillStyle = getColor(overlayAlpha);
+    drawCtx.fill();
+    polyPoints = [];
+    previewCanvas = null;
+    document.getElementById('polyHint').style.display = 'none';
+    recomputeAnts();
+}
+
+function cancelPolygon(){
+    if(previewCanvas && polyPoints.length > 0){
+        drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+        drawCtx.drawImage(previewCanvas,0,0);
+    }
+    polyPoints = [];
+    previewCanvas = null;
+    document.getElementById('polyHint').style.display = 'none';
+}
+
+function removeLastPolyPoint(){
+    if(polyPoints.length > 0) polyPoints.pop();
+}
+
+// ─── Undo / Redo ─────────────────────────────────────────────────────────────
+function saveHistory(){
+    if(!imageObj) return;
+    const snap = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
+    undoStack.push(snap);
+    if(undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack.length = 0;
+    _updateUndoRedo();
+}
+function undo(){
+    if(!undoStack.length) return;
+    redoStack.push(drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height));
+    drawCtx.putImageData(undoStack.pop(), 0, 0);
+    _updateUndoRedo();
+    recomputeAnts();
+}
+function redo(){
+    if(!redoStack.length) return;
+    undoStack.push(drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height));
+    drawCtx.putImageData(redoStack.pop(), 0, 0);
+    _updateUndoRedo();
+    recomputeAnts();
+}
+function _updateUndoRedo(){
+    document.getElementById('undoBtn').disabled = undoStack.length === 0;
+    document.getElementById('redoBtn').disabled = redoStack.length === 0;
+}
+
+// ─── Marching Ants ───────────────────────────────────────────────────────────
+function recomputeAnts(){
+    if(!imageObj){ antPixels = new Int32Array(0); return; }
+    const w = drawCanvas.width, h = drawCanvas.height;
+    const MAXDIM = 900;
+    const scale  = Math.min(1, MAXDIM / Math.max(w, h));
+    const sw = Math.ceil(w * scale), sh = Math.ceil(h * scale);
+    const invScale = 1 / scale;
+
+    let d;
+    if(selectionMask){
+        // Build scaled ImageData from selectionMask
+        const full = document.createElement('canvas');
+        full.width = w; full.height = h;
+        const fc = full.getContext('2d');
+        const fid = fc.createImageData(w, h);
+        for(let i = 0; i < w*h; i++){
+            if(selectionMask[i]){ fid.data[i*4+3] = 255; }
+        }
+        fc.putImageData(fid, 0, 0);
+        const tmp = document.createElement('canvas');
+        tmp.width = sw; tmp.height = sh;
+        const tc = tmp.getContext('2d');
+        tc.drawImage(full, 0, 0, sw, sh);
+        d = tc.getImageData(0, 0, sw, sh).data;
+    } else {
+        const tmp = document.createElement('canvas');
+        tmp.width = sw; tmp.height = sh;
+        const tc = tmp.getContext('2d');
+        tc.drawImage(drawCanvas, 0, 0, sw, sh);
+        d = tc.getImageData(0, 0, sw, sh).data;
+    }
+
+    const buf = [];
+    for(let y = 0; y < sh; y++){
+        for(let x = 0; x < sw; x++){
+            const i = (y * sw + x) * 4;
+            if(d[i+3] <= 10) continue;
+            const isEdge =
+                y===0    || d[((y-1)*sw+x)*4+3] <= 10 ||
+                y===sh-1 || d[((y+1)*sw+x)*4+3] <= 10 ||
+                x===0    || d[(y*sw+x-1)*4+3]   <= 10 ||
+                x===sw-1 || d[(y*sw+x+1)*4+3]   <= 10;
+            if(isEdge) buf.push(Math.round(x * invScale), Math.round(y * invScale));
+        }
+    }
+    antPixels = new Int32Array(buf);
+    if(!antRAF) _startAnts();
+}
+
+function _startAnts(){ antRAF = requestAnimationFrame(_tickAnts); }
+
+function _tickAnts(){
+    antRAF = requestAnimationFrame(_tickAnts);
+    antFrameTick++;
+    if(antFrameTick % 5 === 0){   // ~12fps instead of 60fps → slow crawl
+        antPhase = (antPhase + 1) % 14;
+        _drawAnts();
+    }
+}
+
+function _drawAnts(){
+    const w = selCanvas.width, h = selCanvas.height;
+    selCtx.clearRect(0, 0, w, h);
+    const n = antPixels.length;
+    if(n === 0) return;
+
+    const DASH = 7;
+    const pxSz = Math.max(1, Math.ceil(1 / Math.min(zoomLevel, 1)));
+
+    selCtx.beginPath();
+    for(let k = 0; k < n; k += 2){
+        if(((k/2 + antPhase) % (DASH*2)) < DASH) selCtx.rect(antPixels[k], antPixels[k+1], pxSz, pxSz);
+    }
+    selCtx.fillStyle = '#fff';
+    selCtx.fill();
+
+    selCtx.beginPath();
+    for(let k = 0; k < n; k += 2){
+        if(((k/2 + antPhase) % (DASH*2)) >= DASH) selCtx.rect(antPixels[k], antPixels[k+1], pxSz, pxSz);
+    }
+    selCtx.fillStyle = '#000';
+    selCtx.fill();
+}
+
+// ─── Selection mode helper ───────────────────────────────────────────────────
+function _applySelPixels(dst, selected, sm){
+    const [fr,fg,fb] = modeColors[currentMode];
+    const fa = overlayAlpha;
+    if(sm === 'subtract'){
+        for(let k = 0; k < selected.length; k++){
+            const pi = selected[k]*4;
+            dst[pi+3] = 0;
+        }
+    } else {
+        // 'new': clear first
+        if(sm === 'new'){
+            for(let i=3; i < dst.length; i+=4) dst[i] = 0;
+        }
+        for(let k = 0; k < selected.length; k++){
+            const pi = selected[k]*4;
+            dst[pi]=fr; dst[pi+1]=fg; dst[pi+2]=fb; dst[pi+3]=fa;
+        }
+    }
+}
+
+// ─── Flood Fill ─────────────────────────────────────────────────────────────
+function floodFill(sx, sy, sm='new'){
+    const w = drawCanvas.width, h = drawCanvas.height;
+    const imgData = drawCtx.getImageData(0,0,w,h);
+    const d = imgData.data;
+    const idx = (sy*w+sx)*4;
+    const tr = d[idx], tg = d[idx+1], tb = d[idx+2], ta = d[idx+3];
+
+    const stack = [[sx,sy]];
+    const visited = new Uint8Array(w*h);
+    const selected = [];
+
+    while(stack.length){
+        const [cx,cy] = stack.pop();
+        if(cx<0||cy<0||cx>=w||cy>=h) continue;
+        const i = cy*w+cx;
+        if(visited[i]) continue;
+        visited[i]=1;
+        const pi = i*4;
+        if(Math.abs(d[pi]-tr)>30||Math.abs(d[pi+1]-tg)>30||Math.abs(d[pi+2]-tb)>30||Math.abs(d[pi+3]-ta)>30) continue;
+        selected.push(i);
+        stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+    }
+    _applySelPixels(d, selected, sm);
+    drawCtx.putImageData(imgData,0,0);
+}
+
+// ─── Magic Wand — only updates selectionMask, no color paint ────────────────
+function magicWand(sx, sy, sm='new'){
+    const w = drawCanvas.width, h = drawCanvas.height;
+    const tol = parseInt(document.getElementById('tolerance').value);
+    const src  = bgCtx.getImageData(0,0,w,h).data;
+    const si   = (sy*w+sx)*4;
+    const tr = src[si], tg = src[si+1], tb = src[si+2];
+
+    const visited = new Uint8Array(w*h);
+    const newSel  = new Uint8Array(w*h);
+    const stack   = [[sx,sy]];
+    while(stack.length){
+        const [cx,cy] = stack.pop();
+        if(cx<0||cy<0||cx>=w||cy>=h) continue;
+        const i = cy*w+cx;
+        if(visited[i]) continue;
+        visited[i]=1;
+        const pi = i*4;
+        if(Math.abs(src[pi]-tr)>tol||Math.abs(src[pi+1]-tg)>tol||Math.abs(src[pi+2]-tb)>tol) continue;
+        newSel[i]=1;
+        stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+    }
+    _mergeSelMask(newSel, sm, w*h);
+}
+
+// ─── Select by Color — only updates selectionMask, no color paint ────────────
+function selectByColor(sx, sy, sm='new'){
+    const w = drawCanvas.width, h = drawCanvas.height;
+    const tol = parseInt(document.getElementById('tolerance').value);
+    const src  = bgCtx.getImageData(0,0,w,h).data;
+    const si   = (sy*w+sx)*4;
+    const tr = src[si], tg = src[si+1], tb = src[si+2];
+
+    const newSel = new Uint8Array(w*h);
+    for(let i=0; i<w*h; i++){
+        const pi = i*4;
+        if(Math.abs(src[pi]-tr)<=tol&&Math.abs(src[pi+1]-tg)<=tol&&Math.abs(src[pi+2]-tb)<=tol) newSel[i]=1;
+    }
+    _mergeSelMask(newSel, sm, w*h);
+}
+
+// ─── Merge new selection into selectionMask based on mode ───────────────────
+function _mergeSelMask(newSel, sm, size){
+    if(sm==='add' && selectionMask){
+        for(let i=0;i<size;i++) if(newSel[i]) selectionMask[i]=1;
+    } else if(sm==='subtract' && selectionMask){
+        for(let i=0;i<size;i++) if(newSel[i]) selectionMask[i]=0;
+    } else {
+        selectionMask = newSel;
+    }
+    document.getElementById('applySelBtn').disabled = false;
+    recomputeAnts();
+}
+
+// ─── Apply selection to drawCanvas with current mode color ───────────────────
+function applySelection(){
+    if(!selectionMask||!imageObj) return;
+    saveHistory();
+    const w = drawCanvas.width, h = drawCanvas.height;
+    const dst = drawCtx.getImageData(0,0,w,h);
+    const d = dst.data;
+    const [fr,fg,fb] = modeColors[currentMode];
+    const fa = overlayAlpha;
+    for(let i=0;i<w*h;i++){
+        if(selectionMask[i]){ d[i*4]=fr; d[i*4+1]=fg; d[i*4+2]=fb; d[i*4+3]=fa; }
+    }
+    drawCtx.putImageData(dst,0,0);
+    selectionMask = null;
+    document.getElementById('applySelBtn').disabled = true;
+    recomputeAnts();
+}
+
+// ─── Deselect ────────────────────────────────────────────────────────────────
+function deselect(){
+    selectionMask = null;
+    antPixels = new Int32Array(0);
+    selCtx.clearRect(0,0,selCanvas.width,selCanvas.height);
+    document.getElementById('applySelBtn').disabled = true;
+}
+
+// ─── Clear mask ──────────────────────────────────────────────────────────────
+function clearMask(){
+    if(!imageObj) return;
+    if(!confirm('Hapus semua area spot?')) return;
+    clearMaskData();
+}
+
+function clearMaskData(){
+    drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+    cancelPolygon();
+    selectionMask = null;
+    antPixels = new Int32Array(0);
+    selCtx.clearRect(0,0,selCanvas.width,selCanvas.height);
+    const ab = document.getElementById('applySelBtn');
+    if(ab) ab.disabled = true;
+}
+
+// ─── Channel List State ─────────────────────────────────────────────────────
+let channels = [];  // [{name, mode, maskB64}]
+
+const MODE_COLORS = {
+    cut:    '#e74c3c',
+    uv:     '#00bcd4',
+    foil:   '#f1c40f',
+    emboss: '#9b59b6',
+};
+const MODE_LABELS = {
+    cut: 'Die Cut', uv: 'UV Varnish', foil: 'Foil/Gold', emboss: 'Emboss'
+};
+
+function _extractMaskB64(){
+    // Export drawCanvas → grayscale PNG (alpha→brightness), kembalikan base64 string
+    const mc = document.createElement('canvas');
+    mc.width = drawCanvas.width; mc.height = drawCanvas.height;
+    const mx = mc.getContext('2d');
+    mx.fillStyle='#000';
+    mx.fillRect(0,0,mc.width,mc.height);
+    const raw = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
+    const out = mx.getImageData(0,0,mc.width,mc.height);
+    for(let i=0;i<raw.data.length;i+=4){
+        const v = raw.data[i+3];
+        out.data[i]=out.data[i+1]=out.data[i+2]=v; out.data[i+3]=255;
+    }
+    mx.putImageData(out,0,0);
+    // strip "data:image/png;base64,"
+    return mc.toDataURL('image/png').split(',')[1];
+}
+
+function addChannel(){
+    if(!imageObj){ alert('Upload gambar dulu!'); return; }
+    const name = (document.getElementById('spotName').value.trim()) || 'Spot Color';
+    const maskData = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
+    const hasPixel = maskData.data.some((_,i)=>i%4===3 && maskData.data[i]>10);
+    if(!hasPixel){ alert('Gambar area spot pada canvas terlebih dahulu!'); return; }
+
+    const maskB64 = _extractMaskB64();
+    channels.push({ name, mode: currentMode, maskB64 });
+    _renderChannelList();
+    clearMaskData();  // kosongkan canvas untuk channel berikutnya
+    document.getElementById('statusBox').textContent =
+        `Channel "${name}" (${MODE_LABELS[currentMode]}) ditambahkan. Total: ${channels.length} channel.`;
+    document.getElementById('statusBox').className = 'status-box';
+}
+
+function removeChannel(idx){
+    channels.splice(idx,1);
+    _renderChannelList();
+}
+
+function _renderChannelList(){
+    const list = document.getElementById('channelList');
+    const count = document.getElementById('chCount');
+    count.textContent = `(${channels.length})`;
+    document.getElementById('genBtn').disabled = channels.length === 0;
+    if(channels.length === 0){
+        list.innerHTML = '<div style="color:#bbb;font-size:11px;text-align:center;padding:6px">Belum ada channel</div>';
+        return;
+    }
+    list.innerHTML = channels.map((ch,i)=>`
+        <div class="ch-item">
+            <div class="ch-dot" style="background:${MODE_COLORS[ch.mode]||'#999'}"></div>
+            <div class="ch-info">
+                <div class="ch-name">${ch.name}</div>
+                <div class="ch-mode">${MODE_LABELS[ch.mode]||ch.mode}</div>
+            </div>
+            <button class="ch-del" onclick="removeChannel(${i})">×</button>
+        </div>`
+    ).join('');
+}
+
+// ─── Generate PDF ────────────────────────────────────────────────────────────
+async function generatePDF(){
+    if(!imageFile || channels.length===0) return;
+    const dpi = parseInt(document.getElementById('dpiInput').value)||300;
+
+    const genBtn   = document.getElementById('genBtn');
+    const statusBox= document.getElementById('statusBox');
+    const dlBtn    = document.getElementById('dlBtn');
+    genBtn.disabled=true; genBtn.textContent='Memproses...';
+    statusBox.className='status-box';
+    statusBox.textContent=`Membuat PDF dengan ${channels.length} spot channel...`;
+    dlBtn.style.display='none';
+
+    try {
+        // Convert image → base64
+        const imgB64 = await new Promise(res=>{
+            const rd = new FileReader();
+            rd.onload = e => res(e.target.result.split(',')[1]);
+            rd.readAsDataURL(imageFile);
+        });
+
+        const payload = {
+            image: imgB64,
+            image_name: imageFile.name,
+            dpi,
+            channels: channels.map(ch=>({ name:ch.name, mode:ch.mode, mask:ch.maskB64 }))
+        };
+
+        const res  = await fetch('/api/spot-color', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if(data.status==='success'){
+            const chNames = (data.channels||[]).map(c=>c.name).join(', ');
+            statusBox.className='status-box ok';
+            statusBox.innerHTML = `PDF berhasil!<br><small>${data.filename}</small><br>`
+                + `<small>${data.n_channels} channel: ${chNames}</small>`;
+            dlBtn.style.display='block';
+            dlBtn.onclick=()=>window.open('/api/spot-color-download?file='+encodeURIComponent(data.filename));
+            dlBtn.textContent='⬇ Download ' + data.filename;
+        } else {
+            statusBox.className='status-box err';
+            statusBox.textContent='Error: '+(data.message||'Terjadi kesalahan');
+        }
+    } catch(e){
+        statusBox.className='status-box err';
+        statusBox.textContent='Error: '+e.message;
+    } finally {
+        genBtn.disabled = channels.length===0;
+        genBtn.textContent='Generate Spot PDF';
+    }
+}
+</script>
+</body>
+</html>
+""")
+
+
+@app.route("/api/spot-color", methods=["POST"])
+def api_spot_color():
+    try:
+        import base64
+        data         = request.get_json(force=True)
+        image_b64    = data.get("image")
+        image_name   = data.get("image_name", "design.jpg")
+        dpi          = int(data.get("dpi", 300))
+        channels_raw = data.get("channels", [])
+
+        if not image_b64:
+            return jsonify({"status": "error", "message": "image (base64) wajib diisi"}), 400
+        if not channels_raw:
+            return jsonify({"status": "error", "message": "channels wajib diisi"}), 400
+
+        image_bytes = base64.b64decode(image_b64)
+        channels = []
+        for ch in channels_raw:
+            mb = base64.b64decode(ch["mask"])
+            channels.append({"name": ch.get("name", "Spot Color"),
+                              "mode": ch.get("mode", "cut"),
+                              "mask_bytes": mb})
+
+        result = execute("spot_color", {
+            "image_bytes": image_bytes,
+            "image_name":  image_name,
+            "channels":    channels,
+            "dpi":         dpi,
+        }, timeout_seconds=120)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/spot-color-download")
+def api_spot_color_download():
+    from tasks.spot_color import OUTPUT_DIR
+    filename = request.args.get("file", "")
+    if not filename or ".." in filename or "/" in filename or "\\" in filename:
+        return ("Invalid filename", 400)
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    if not os.path.exists(filepath):
+        return ("File not found", 404)
+    return send_file(filepath, as_attachment=True, download_name=filename, mimetype="application/pdf")
 
 
 if __name__ == "__main__":

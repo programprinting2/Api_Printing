@@ -37,6 +37,19 @@ def auto_detect_bgcolor(img_rgb: np.ndarray) -> str:
     return "#{:02x}{:02x}{:02x}".format(int(avg[0]), int(avg[1]), int(avg[2]))
 
 
+def pdf_to_png(pdf_bytes: bytes, dpi: float = 300.0) -> bytes:
+    """Render halaman pertama PDF ke PNG RGBA pada DPI tertentu."""
+    import fitz
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        page = doc[0]
+        pix = page.get_pixmap(dpi=int(round(dpi)), alpha=True)
+        return pix.tobytes("png")
+    finally:
+        doc.close()
+
+
 def read_dpi(pil_img: Image.Image, fallback: float = 300.0) -> float:
     dpi_info = pil_img.info.get("dpi")
     if dpi_info and isinstance(dpi_info, (tuple, list)) and dpi_info[0]:
@@ -55,6 +68,182 @@ def mm_to_px(mm: float, dpi: float) -> float:
     return float(mm) * float(dpi) / 25.4
 
 
+# ─── Deteksi bentuk standar (circle / ellipse / rect / rounded-rect) ─────────
+# Jika kontur cocok dengan bentuk geometris standar, pakai bentuk eksak
+# (bezier presisi) — hasil tajam, bukan hasil tracing yang bergelombang.
+
+KAPPA = 0.5522847498307936  # konstanta bezier untuk seperempat lingkaran
+
+
+def _bezier_ellipse_path(cx: float, cy: float, rx: float, ry: float, ang: float = 0.0) -> str:
+    """Ellipse/circle presisi sebagai 4 segmen cubic bezier (boleh dirotasi)."""
+    k = KAPPA
+    local = [
+        (rx, 0), (rx, ry * k), (rx * k, ry), (0, ry),
+        (-rx * k, ry), (-rx, ry * k), (-rx, 0),
+        (-rx, -ry * k), (-rx * k, -ry), (0, -ry),
+        (rx * k, -ry), (rx, -ry * k), (rx, 0),
+    ]
+    ca, sa = math.cos(ang), math.sin(ang)
+    P = [(cx + x * ca - y * sa, cy + x * sa + y * ca) for x, y in local]
+    d = f"M{P[0][0]:.2f},{P[0][1]:.2f}"
+    for i in range(0, 12, 3):
+        c1, c2, e = P[i + 1], P[i + 2], P[i + 3]
+        d += f" C{c1[0]:.2f},{c1[1]:.2f} {c2[0]:.2f},{c2[1]:.2f} {e[0]:.2f},{e[1]:.2f}"
+    return d + " Z"
+
+
+def _rounded_rect_path(box: np.ndarray, r: float) -> str:
+    """Rect (boleh dirotasi) dengan sudut membulat radius r sebagai path presisi."""
+    if r < 0.5:
+        p = box
+        return (
+            f"M{p[0][0]:.2f},{p[0][1]:.2f} L{p[1][0]:.2f},{p[1][1]:.2f}"
+            f" L{p[2][0]:.2f},{p[2][1]:.2f} L{p[3][0]:.2f},{p[3][1]:.2f} Z"
+        )
+    k = KAPPA
+    d = ""
+    for i in range(4):
+        C = box[i].astype(float)
+        Pv = box[(i - 1) % 4].astype(float)
+        Nv = box[(i + 1) % 4].astype(float)
+        u_in = (Pv - C) / (np.linalg.norm(Pv - C) + 1e-9)
+        u_out = (Nv - C) / (np.linalg.norm(Nv - C) + 1e-9)
+        s = C + u_in * r
+        e = C + u_out * r
+        d += (f"M{s[0]:.2f},{s[1]:.2f}" if i == 0 else f" L{s[0]:.2f},{s[1]:.2f}")
+        c1 = s + (C - s) * k
+        c2 = e + (C - e) * k
+        d += f" C{c1[0]:.2f},{c1[1]:.2f} {c2[0]:.2f},{c2[1]:.2f} {e[0]:.2f},{e[1]:.2f}"
+    return d + " Z"
+
+
+def _sample_ellipse(cx, cy, rx, ry, ang, n=180) -> np.ndarray:
+    t = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    ca, sa = math.cos(ang), math.sin(ang)
+    x = cx + rx * np.cos(t) * ca - ry * np.sin(t) * sa
+    y = cy + rx * np.cos(t) * sa + ry * np.sin(t) * ca
+    return np.stack([x, y], axis=1)
+
+
+def _sample_rounded_rect(box: np.ndarray, r: float, n_arc: int = 14) -> np.ndarray:
+    if r < 0.5:
+        return box.astype(float)
+    out = []
+    for i in range(4):
+        C = box[i].astype(float)
+        Pv = box[(i - 1) % 4].astype(float)
+        Nv = box[(i + 1) % 4].astype(float)
+        u_in = (Pv - C) / (np.linalg.norm(Pv - C) + 1e-9)
+        u_out = (Nv - C) / (np.linalg.norm(Nv - C) + 1e-9)
+        s = C + u_in * r
+        e = C + u_out * r
+        O = C + u_in * r + u_out * r  # pusat busur sudut
+        a0 = math.atan2(s[1] - O[1], s[0] - O[0])
+        a1 = math.atan2(e[1] - O[1], e[0] - O[0])
+        # ambil arah putar terpendek (sudut 90°)
+        da = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
+        for t in np.linspace(0, 1, n_arc):
+            a = a0 + da * t
+            out.append([O[0] + r * math.cos(a), O[1] + r * math.sin(a)])
+    return np.array(out)
+
+
+def detect_standard_shape(cnt_scaled: np.ndarray):
+    """Cek apakah kontur cocok bentuk standar. Return dict info bentuk atau None."""
+    pts = cnt_scaled.reshape(-1, 2).astype(np.float32)
+    if len(pts) < 20:
+        return None
+    A = cv2.contourArea(pts)
+    if A <= 0:
+        return None
+    bx, by, bw, bh = cv2.boundingRect(pts)
+    diag = math.sqrt(bw * bw + bh * bh)
+    tol_mean = 0.006 * diag
+    tol_max = 0.02 * diag
+
+    step = max(1, len(pts) // 200)
+    test_pts = pts[::step]
+
+    def deviation(candidate: np.ndarray):
+        cand = candidate.astype(np.float32).reshape(-1, 1, 2)
+        ds = [
+            abs(cv2.pointPolygonTest(cand, (float(x), float(y)), True))
+            for x, y in test_pts
+        ]
+        return float(np.mean(ds)), float(np.max(ds))
+
+    # ── Circle ──
+    M = cv2.moments(pts)
+    if M["m00"] > 0:
+        cx, cy = M["m10"] / M["m00"], M["m01"] / M["m00"]
+        dists = np.linalg.norm(pts - np.array([cx, cy]), axis=1)
+        rad = float(np.mean(dists))
+        if rad > 3:
+            dev = np.abs(dists - rad)
+            if float(np.mean(dev)) < 0.01 * rad and float(np.max(dev)) < 0.035 * rad:
+                return {"type": "circle", "cx": cx, "cy": cy, "r": rad}
+
+    # ── Ellipse ──
+    if len(pts) >= 5:
+        try:
+            (ecx, ecy), (MA, ma), ang_deg = cv2.fitEllipse(pts)
+            if MA > 6 and ma > 6:
+                ang = math.radians(ang_deg)
+                cand = _sample_ellipse(ecx, ecy, MA / 2, ma / 2, ang, n=180)
+                m, mx = deviation(cand)
+                if m < tol_mean and mx < tol_max:
+                    return {
+                        "type": "ellipse", "cx": ecx, "cy": ecy,
+                        "rx": MA / 2, "ry": ma / 2, "angle": ang,
+                    }
+        except cv2.error:
+            pass
+
+    # ── Rect / Rounded-rect (boleh dirotasi) ──
+    rrect = cv2.minAreaRect(pts)
+    (rcx, rcy), (rw, rh), _rang = rrect
+    if rw > 4 and rh > 4:
+        rect_area = rw * rh
+        ratio = A / rect_area
+        box = cv2.boxPoints(rrect)
+        if ratio > 0.985:
+            m, mx = deviation(box)
+            if m < tol_mean and mx < tol_max:
+                return {"type": "rrect", "box": box, "r": 0.0}
+        if 0.80 < ratio <= 0.995:
+            # estimasi radius sudut dari defisit luas: A_rect - A = (4-π)·r²
+            r_est = math.sqrt(max(0.0, rect_area - A) / (4 - math.pi))
+            if 0.5 < r_est <= min(rw, rh) / 2 + 1:
+                cand = _sample_rounded_rect(box, r_est)
+                m, mx = deviation(cand)
+                if m < tol_mean and mx < tol_max:
+                    return {"type": "rrect", "box": box, "r": r_est}
+    return None
+
+
+def shape_to_svg_path(shape: dict) -> str:
+    if shape["type"] == "circle":
+        return _bezier_ellipse_path(shape["cx"], shape["cy"], shape["r"], shape["r"])
+    if shape["type"] == "ellipse":
+        return _bezier_ellipse_path(
+            shape["cx"], shape["cy"], shape["rx"], shape["ry"], shape["angle"]
+        )
+    return _rounded_rect_path(shape["box"], shape["r"])
+
+
+def shape_sample_points(shape: dict, n: int = 160) -> list[list[float]]:
+    if shape["type"] == "circle":
+        pts = _sample_ellipse(shape["cx"], shape["cy"], shape["r"], shape["r"], 0.0, n=n)
+    elif shape["type"] == "ellipse":
+        pts = _sample_ellipse(
+            shape["cx"], shape["cy"], shape["rx"], shape["ry"], shape["angle"], n=n
+        )
+    else:
+        pts = _sample_rounded_rect(shape["box"], shape["r"], n_arc=max(8, n // 8))
+    return [[round(float(x), 2), round(float(y), 2)] for x, y in pts]
+
+
 def fit_bspline(contour_pts: np.ndarray, smoothing: float = 5000.0):
     pts = contour_pts.reshape(-1, 2).astype(float)
     n = len(pts)
@@ -62,11 +251,17 @@ def fit_bspline(contour_pts: np.ndarray, smoothing: float = 5000.0):
     pts_ds = pts[::step]
     x = np.append(pts_ds[:, 0], pts_ds[0, 0])
     y = np.append(pts_ds[:, 1], pts_ds[0, 1])
+    # Skala smoothing per kontur: s pada splprep adalah toleransi absolut
+    # (jumlah kuadrat residual). Nilai global yang cocok untuk kontur besar akan
+    # menghancurkan kontur kecil — normalisasi terhadap jumlah titik agar
+    # sheet berisi banyak objek kecil tetap akurat.
+    s_eff = smoothing * (len(pts_ds) / 600.0)
+    k = 3 if len(pts_ds) > 5 else 1
     try:
-        tck, _ = splprep([x, y], s=smoothing, per=True, k=3)
+        tck, _ = splprep([x, y], s=s_eff, per=True, k=k)
         return tck
     except Exception:
-        tck, _ = splprep([x, y], s=smoothing * 5, per=True, k=3)
+        tck, _ = splprep([x, y], s=s_eff * 5, per=True, k=k)
         return tck
 
 
@@ -142,8 +337,13 @@ def build_svg_export(
     image_h: int,
     color: str = "#ff00c8",
     stroke_width: float = 1.5,
+    pt_scale: float = 1.0,
 ) -> str:
-    """SVG with Artwork image and CutContour paths as separate groups (not flattened)."""
+    """SVG with Artwork image and CutContour paths as separate groups (not flattened).
+
+    pt_scale = 72/dpi: atribut width/height ditulis dalam point supaya ukuran
+    fisik saat diimpor (Corel/Illustrator) sama dengan aslinya.
+    """
     b64 = base64.b64encode(source_png).decode("ascii")
     path_elements = "\n    ".join(
         f'<path d="{d}" fill="none" stroke="{color}" '
@@ -153,7 +353,8 @@ def build_svg_export(
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'xmlns:xlink="http://www.w3.org/1999/xlink" '
-        f'viewBox="0 0 {width} {height}" width="{width}" height="{height}">\n'
+        f'viewBox="0 0 {width} {height}" '
+        f'width="{width * pt_scale:.2f}pt" height="{height * pt_scale:.2f}pt">\n'
         f'  <g id="Artwork">\n'
         f'    <image x="{image_x:.2f}" y="{image_y:.2f}" '
         f'width="{image_w}" height="{image_h}" '
@@ -205,68 +406,161 @@ def build_pdf_with_image(
     image_h: Optional[int] = None,
     color: str = "#ff00c8",
     stroke_width: float = 1.5,
+    source_pdf: Optional[bytes] = None,
+    pt_scale: float = 1.0,
 ) -> bytes:
-    """PDF with separate OCG layers: Artwork + CutContour (not blended/flattened)."""
+    """PDF with separate OCG layers: Artwork + CutContour (not blended/flattened).
+
+    Jika source_pdf diberikan, halaman PDF vector asli di-embed langsung
+    (kualitas tidak turun); source_png hanya dipakai sebagai fallback raster.
+
+    pt_scale = 72/dpi: konversi koordinat pixel → point supaya ukuran fisik
+    halaman output sama dengan aslinya (1000px @300dpi = 240pt, bukan 1000pt).
+    """
     image_w = int(image_w if image_w is not None else page_w)
     image_h = int(image_h if image_h is not None else page_h)
     try:
         import fitz
 
         doc = fitz.open()
-        page = doc.new_page(width=float(page_w), height=float(page_h))
+        page = doc.new_page(
+            width=float(page_w) * pt_scale, height=float(page_h) * pt_scale
+        )
 
         ocg_art = doc.add_ocg("Artwork", on=True)
         ocg_cut = doc.add_ocg("CutContour", on=True)
 
-        img_rect = fitz.Rect(image_x, image_y, image_x + image_w, image_y + image_h)
-        page.insert_image(
-            img_rect,
-            stream=source_png,
-            keep_proportion=False,
-            oc=ocg_art,
+        img_rect = fitz.Rect(
+            image_x * pt_scale,
+            image_y * pt_scale,
+            (image_x + image_w) * pt_scale,
+            (image_y + image_h) * pt_scale,
         )
-
-        rgb = hex_to_rgb01(color)
-        shape = page.new_shape()
-        for d in paths:
-            tokens = re.findall(r"[MLCZ][^MLCZ]*", d)
-            cur = None
-            start = None
-            for tok in tokens:
-                cmd = tok[0]
-                nums = list(map(float, re.findall(r"-?[\d.]+", tok[1:])))
-                if cmd == "M":
-                    cur = fitz.Point(nums[0], nums[1])
-                    start = cur
-                elif cmd == "L" and cur is not None:
-                    nxt = fitz.Point(nums[0], nums[1])
-                    shape.draw_line(cur, nxt)
-                    cur = nxt
-                elif cmd == "C" and cur is not None:
-                    p1 = fitz.Point(nums[0], nums[1])
-                    p2 = fitz.Point(nums[2], nums[3])
-                    p3 = fitz.Point(nums[4], nums[5])
-                    shape.draw_bezier(cur, p1, p2, p3)
-                    cur = p3
-                elif cmd == "Z" and cur is not None and start is not None:
-                    if abs(cur.x - start.x) > 0.01 or abs(cur.y - start.y) > 0.01:
-                        shape.draw_line(cur, start)
-                    cur = start
-            shape.finish(
-                color=rgb,
-                fill=None,
-                width=float(stroke_width),
-                closePath=False,
-                stroke_opacity=1,
-                fill_opacity=0,
-                oc=ocg_cut,
+        embedded = False
+        if source_pdf:
+            try:
+                src = fitz.open(stream=source_pdf, filetype="pdf")
+                page.show_pdf_page(img_rect, src, 0, oc=ocg_art)
+                src.close()
+                embedded = True
+            except Exception:
+                embedded = False
+        if not embedded:
+            page.insert_image(
+                img_rect,
+                stream=source_png,
+                keep_proportion=False,
+                oc=ocg_art,
             )
-        shape.commit()
+
+        # ── Kontur sebagai spot color /CutContour di content stream terpisah ──
+        # Standar industri: RIP/plotter mengenali spot "CutContour"; di Corel/
+        # Illustrator garis potong jadi objek terpisah dari artwork (tidak
+        # menyatu), plus bisa di-toggle lewat layer OCG.
+        try:
+            r, g, b = hex_to_rgb01(color)
+            ps = (
+                f"{{dup dup {b - 1.0:.6f} mul 1.000000 add 3 1 roll "
+                f"{g - 1.0:.6f} mul 1.000000 add 3 1 roll "
+                f"{r - 1.0:.6f} mul 1.000000 add 3 1 roll}}"
+            )
+            xref_tf = doc.get_new_xref()
+            doc.update_object(
+                xref_tf,
+                "<< /FunctionType 4 /Domain [ 0 1 ] /Range [ 0 1 0 1 0 1 ] >>",
+            )
+            doc.update_stream(xref_tf, ps.encode("latin-1"), compress=False)
+            xref_sep = doc.get_new_xref()
+            doc.update_object(
+                xref_sep, f"[ /Separation /CutContour /DeviceRGB {xref_tf} 0 R ]"
+            )
+
+            # CTM px→pt: koordinat path tetap pixel, dipetakan ke point oleh cm.
+            # Lebar garis ikut ter-skala (px → ukuran fisik konsisten).
+            ops = (
+                "/OC /OCcut BDC\n"
+                f"q\n{pt_scale:.6f} 0 0 {pt_scale:.6f} 0 0 cm\n"
+                "/CutCS CS\n1 SCN\n"
+                f"{float(stroke_width):.2f} w\n1 j\n1 J\n"
+            )
+            for d in paths:
+                ops += "q\n" + svg_path_to_pdf_ops(d, float(page_h)) + "S\nQ\n"
+            ops += "Q\nEMC\n"
+            xref_cont = doc.get_new_xref()
+            doc.update_object(xref_cont, "<< >>")
+            doc.update_stream(xref_cont, ops.encode("latin-1"), compress=True)
+
+            pxref = page.xref
+            ctype, cval = doc.xref_get_key(pxref, "Contents")
+            if ctype == "array":
+                new_contents = cval.rstrip("]") + f" {xref_cont} 0 R]"
+            else:
+                new_contents = f"[{cval} {xref_cont} 0 R]"
+            doc.xref_set_key(pxref, "Contents", new_contents)
+
+            # Resources bisa berupa indirect reference — resolve dulu,
+            # xref_set_key tidak bisa menembus indirect di tengah path.
+            rtype, rval = doc.xref_get_key(pxref, "Resources")
+            if rtype == "xref":
+                res_target, res_prefix = int(rval.split()[0]), ""
+            else:
+                res_target, res_prefix = pxref, "Resources/"
+            for sub, val in (
+                ("ColorSpace/CutCS", f"{xref_sep} 0 R"),
+                ("Properties/OCcut", f"{ocg_cut} 0 R"),
+            ):
+                stype, sval = doc.xref_get_key(res_target, res_prefix + sub.split("/")[0])
+                if stype == "xref":
+                    doc.xref_set_key(int(sval.split()[0]), sub.split("/")[1], val)
+                else:
+                    doc.xref_set_key(res_target, res_prefix + sub, val)
+        except Exception:
+            # Fallback: gambar via fitz shape (RGB biasa, tetap layer OCG terpisah)
+            rgb = hex_to_rgb01(color)
+            shape = page.new_shape()
+            s = pt_scale
+            for d in paths:
+                tokens = re.findall(r"[MLCZ][^MLCZ]*", d)
+                cur = None
+                start = None
+                for tok in tokens:
+                    cmd = tok[0]
+                    nums = list(map(float, re.findall(r"-?[\d.]+", tok[1:])))
+                    if cmd == "M":
+                        cur = fitz.Point(nums[0] * s, nums[1] * s)
+                        start = cur
+                    elif cmd == "L" and cur is not None:
+                        nxt = fitz.Point(nums[0] * s, nums[1] * s)
+                        shape.draw_line(cur, nxt)
+                        cur = nxt
+                    elif cmd == "C" and cur is not None:
+                        p1 = fitz.Point(nums[0] * s, nums[1] * s)
+                        p2 = fitz.Point(nums[2] * s, nums[3] * s)
+                        p3 = fitz.Point(nums[4] * s, nums[5] * s)
+                        shape.draw_bezier(cur, p1, p2, p3)
+                        cur = p3
+                    elif cmd == "Z" and cur is not None and start is not None:
+                        if abs(cur.x - start.x) > 0.01 or abs(cur.y - start.y) > 0.01:
+                            shape.draw_line(cur, start)
+                        cur = start
+                shape.finish(
+                    color=rgb,
+                    fill=None,
+                    width=float(stroke_width) * s,
+                    closePath=False,
+                    stroke_opacity=1,
+                    fill_opacity=0,
+                    oc=ocg_cut,
+                )
+            shape.commit()
+
         pdf_bytes = doc.tobytes(deflate=True)
         doc.close()
         return pdf_bytes
     except Exception:
-        return build_pdf_contour_only(page_w, page_h, paths, color=color, stroke_width=stroke_width)
+        return build_pdf_contour_only(
+            page_w, page_h, paths, color=color, stroke_width=stroke_width, pt_scale=pt_scale
+        )
 
 
 def build_pdf_contour_only(
@@ -275,9 +569,10 @@ def build_pdf_contour_only(
     paths: list[str],
     color: str = "#ff00c8",
     stroke_width: float = 1.5,
+    pt_scale: float = 1.0,
 ) -> bytes:
     r, g, b = hex_to_rgb01(color)
-    content = ""
+    content = f"q\n{pt_scale:.6f} 0 0 {pt_scale:.6f} 0 0 cm\n"
     for d in paths:
         content += (
             f"{r:.3f} {g:.3f} {b:.3f} RG\n"
@@ -286,6 +581,7 @@ def build_pdf_contour_only(
         )
         content += svg_path_to_pdf_ops(d, height)
         content += "S\n"
+    content += "Q\n"
 
     pdf = "%PDF-1.4\n"
     parts = []
@@ -298,7 +594,7 @@ def build_pdf_contour_only(
     push("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
     push(
         f"3 0 obj\n<< /Type /Page /Parent 2 0 R "
-        f"/MediaBox [0 0 {width} {height}] "
+        f"/MediaBox [0 0 {width * pt_scale:.2f} {height * pt_scale:.2f}] "
         f"/Contents 4 0 R /Resources << >> >>\nendobj\n"
     )
     stream_len = len(content)
@@ -352,16 +648,25 @@ def generate_contour(
     show_points: bool = False,
 ) -> dict:
     """
-    Generate cut contour SVG + PDF (source image + contour) from a PNG.
+    Generate cut contour SVG + PDF (source image + contour) from a PNG or PDF.
     """
-    pil_src = Image.open(io.BytesIO(img_bytes))
+    source_pdf: Optional[bytes] = None
+    if img_bytes[:5] == b"%PDF-":
+        # Input PDF: render ke PNG untuk deteksi kontur & preview,
+        # tapi simpan bytes PDF asli untuk di-embed vector ke output.
+        source_pdf = img_bytes
+        dpi_val = float(dpi) if dpi and float(dpi) > 0 else 300.0
+        img_bytes = pdf_to_png(source_pdf, dpi_val)
+        pil_src = Image.open(io.BytesIO(img_bytes))
+    else:
+        pil_src = Image.open(io.BytesIO(img_bytes))
+        dpi_val = float(dpi) if dpi else read_dpi(pil_src, 300.0)
+        if dpi_val <= 0:
+            dpi_val = 300.0
+
     orig_w, orig_h = pil_src.size
     if orig_w < 1 or orig_h < 1:
         raise ValueError("Gambar tidak valid.")
-
-    dpi_val = float(dpi) if dpi else read_dpi(pil_src, 300.0)
-    if dpi_val <= 0:
-        dpi_val = 300.0
 
     offset_mm = max(0.0, float(offset_mm))
     offset_px = mm_to_px(offset_mm, dpi_val)
@@ -401,7 +706,15 @@ def generate_contour(
     offset_proc = offset_px * scale
     mask, pad = apply_offset_mask(mask, offset_proc)
 
-    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    # Haluskan tepi mask: blur + re-threshold menghilangkan staircase piksel
+    # (sumber utama kontur bergelombang), lalu spline mengikuti tepi yang
+    # benar-benar mulus.
+    mask = cv2.GaussianBlur(mask, (5, 5), 0)
+    _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+
+    # RETR_EXTERNAL: hanya kontur terluar per objek — untuk cut line stiker,
+    # lubang di dalam objek (mis. lubang huruf) tidak boleh ikut dipotong.
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     out_scale = orig_w / proc_w
     pad_out = pad * out_scale
@@ -417,17 +730,27 @@ def generate_contour(
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < min_area:
+        # min_area dievaluasi di resolusi ASLI (px²) — kalau dievaluasi di
+        # resolusi proses (downscale), objek kecil pada sheet besar ikut terbuang.
+        area_orig = area * (out_scale ** 2)
+        if area_orig < min_area:
             continue
         # Contour is in padded process space → map to page (original + pad) coords
         cnt_xy = cnt.reshape(-1, 2).astype(float)
         cnt_scaled = cnt_xy * out_scale
         if len(cnt_scaled) < 8:
             continue
-        tck = fit_bspline(cnt_scaled, smoothing=smoothing)
-        n_sample = max(100, min(400, int(area * out_scale**2 / 500)))
-        path_d = spline_to_svg_path(tck, n_segments=n_sample)
-        pts = spline_sample_points(tck, n_segments=n_sample)
+
+        # Bentuk standar? → pakai geometri eksak (tajam), bukan hasil tracing
+        shape = detect_standard_shape(cnt_scaled)
+        if shape is not None:
+            path_d = shape_to_svg_path(shape)
+            pts = shape_sample_points(shape)
+        else:
+            tck = fit_bspline(cnt_scaled, smoothing=smoothing)
+            n_sample = max(100, min(600, int(area_orig / 500)))
+            path_d = spline_to_svg_path(tck, n_segments=n_sample)
+            pts = spline_sample_points(tck, n_segments=n_sample)
         svg_paths.append(path_d)
         curve_points.append(pts)
         total_points += len(pts)
@@ -457,6 +780,7 @@ def generate_contour(
         image_h=orig_h,
         color=line_color,
         stroke_width=line_width,
+        pt_scale=72.0 / dpi_val,
     )
     pdf_bytes = build_pdf_with_image(
         page_w,
@@ -469,6 +793,8 @@ def generate_contour(
         image_h=orig_h,
         color=line_color,
         stroke_width=line_width,
+        source_pdf=source_pdf,
+        pt_scale=72.0 / dpi_val,
     )
 
     width_cm = round(px_to_cm(orig_w, dpi_val), 2)
@@ -476,10 +802,11 @@ def generate_contour(
     page_w_cm = round(px_to_cm(page_w, dpi_val), 2)
     page_h_cm = round(px_to_cm(page_h, dpi_val), 2)
 
-    return {
+    result = {
         "status": "success",
         "svg": svg,
         "svg_export": svg_export,
+        "is_pdf_source": source_pdf is not None,
         "pdf_base64": base64.b64encode(pdf_bytes).decode(),
         "loops": len(svg_paths),
         "points": total_points,
@@ -503,6 +830,20 @@ def generate_contour(
         "line_color": line_color,
         "line_width": line_width,
     }
+    if source_pdf is not None:
+        # Preview raster untuk browser (input-nya PDF) — downscale agar payload kecil
+        prev_scale = min(1.0, 1600 / max(orig_w, orig_h))
+        if prev_scale < 1.0:
+            prev = src_rgba.resize(
+                (max(1, int(orig_w * prev_scale)), max(1, int(orig_h * prev_scale))),
+                Image.LANCZOS,
+            )
+            prev_buf = io.BytesIO()
+            prev.save(prev_buf, format="PNG")
+            result["preview_png_base64"] = base64.b64encode(prev_buf.getvalue()).decode()
+        else:
+            result["preview_png_base64"] = base64.b64encode(source_png).decode()
+    return result
 
 
 def run(data: dict) -> dict:

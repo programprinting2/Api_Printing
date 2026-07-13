@@ -65,39 +65,169 @@ def safe_join(base, path):
 def ui_main():
     return render_template_string(
         r"""
-        <!doctype html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Printing Agent - Menu</title>
-            <style>
-                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:30px;color:#fff}
-                .card{background:#fff;color:#222;border-radius:10px;padding:20px;max-width:700px;margin:0 auto}
-                .title{font-size:22px;margin-bottom:6px}
-                .menu{display:flex;flex-direction:column;gap:10px;margin-top:8px}
-                .btn{background:#667eea;color:#fff;border:none;padding:12px 16px;border-radius:8px;cursor:pointer;text-align:left}
-                .menu a{text-decoration:none}
-                .small{color:#666;font-size:13px;margin-bottom:8px}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <div class="title">Printing Agent</div>
-                <div class="small">Menu Utama — pilih fitur</div>
-                <div class="menu">
-                    <a href="/ui/file-explorer"><button class="btn">🗂 File Explorer</button></a>
-                    <a href="/ui/image-tools"><button class="btn">🖼 Image Tools</button></a>
-                    <a href="/ui/image-contour"><button class="btn">✂ Image Contur</button></a>
-                    <a href="/ui/read-info-form"><button class="btn">🖼 Image Info</button></a>
-                    <a href="/ui/merge"><button class="btn">📄 Merge PDF</button></a>
-                    <a href="/ui/read-pdf-info-form"><button class="btn">🔎 PDF Info</button></a>
-                    <a href="/ui/spot-color"><button class="btn">🎨 Spot Color Tool</button></a>
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Printing Agent — Menu Utama</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;color:#222;min-height:100vh}
+
+        /* Topbar */
+        .topbar{background:#fff;height:52px;padding:0 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e0e0e0;position:sticky;top:0;z-index:10}
+        .logo{font-size:17px;font-weight:800;letter-spacing:.5px;color:#1a1a1a}
+        .logo span{color:#0066cc}
+        .topbar .tag{font-size:11px;color:#888;margin-left:6px}
+
+        .wrap{max-width:960px;margin:0 auto;padding:28px 24px 48px}
+        .hero{margin-bottom:26px}
+        .hero h1{font-size:22px;font-weight:700;color:#1a1a1a}
+        .hero p{font-size:13px;color:#777;margin-top:4px}
+
+        /* Category section */
+        .section{margin-bottom:26px}
+        .sec-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+        .sec-head .dot{width:8px;height:8px;border-radius:50%}
+        .sec-head h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#555}
+        .sec-head .line{flex:1;height:1px;background:#e0e0e0}
+
+        /* Tool grid */
+        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+        .tool{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid #e6e6e6;border-radius:10px;padding:14px 15px 32px;text-decoration:none;color:inherit;transition:all .14s;position:relative;cursor:pointer}
+        .api-link{position:absolute;bottom:9px;right:11px;font-size:10px;font-weight:700;color:#0066cc;text-decoration:none;border:1px solid #cfd8e3;background:#f4f8ff;padding:2px 9px;border-radius:10px;letter-spacing:.4px}
+        .api-link:hover{background:#0066cc;color:#fff}
+        .tool:hover{border-color:#0066cc;box-shadow:0 4px 16px rgba(0,102,204,.10);transform:translateY(-2px)}
+        .tool .ico{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
+        .tool .ico svg{width:20px;height:20px}
+        .tool .meta{min-width:0}
+        .tool .name{font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:2px}
+        .tool .desc{font-size:11.5px;color:#888;line-height:1.35}
+        .tool .arrow{position:absolute;top:14px;right:13px;color:#ccc;opacity:0;transition:opacity .14s}
+        .tool:hover .arrow{opacity:1;color:#0066cc}
+
+        .footer{text-align:center;font-size:11px;color:#aaa;margin-top:8px}
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <span class="logo">PRINTING<span> AGENT</span></span>
+        <span class="tag">v1.0</span>
+    </div>
+
+    <div class="wrap">
+        <div class="hero">
+            <h1>Menu Utama</h1>
+            <p>Pilih alat sesuai kebutuhan produksi Anda.</p>
+        </div>
+
+        <!-- SPOT COLOR / PRODUKSI -->
+        <div class="section">
+            <div class="sec-head"><span class="dot" style="background:#e91e63"></span><h2>Produksi Cetak</h2><span class="line"></span></div>
+            <div class="grid">
+                <div class="tool" data-href="/ui/spot-color">
+                    <span class="ico" style="background:#e91e63">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2-4 2.5 2.5 0 0 1 2-4h1a5 5 0 0 0 5-5 10 10 0 0 0-10-7z"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">Spot Color Tool</div><div class="desc">Buat PDF spot color (White &amp; Varnish) dari desain</div></span>
+                    <span class="arrow">→</span>
+                </div>
+                <div class="tool" data-href="/ui/image-contour">
+                    <span class="ico" style="background:#ff6f00">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12 12 12M20 4 8.12 15.88"/><path d="M14.8 14.8 20 20"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">Image Contour</div><div class="desc">Buat garis kontur / cut line dari gambar</div></span>
+                    <span class="arrow">→</span>
                 </div>
             </div>
-            </body>
-            </html>
-            """
+        </div>
+
+        <!-- GAMBAR -->
+        <div class="section">
+            <div class="sec-head"><span class="dot" style="background:#0066cc"></span><h2>Gambar</h2><span class="line"></span></div>
+            <div class="grid">
+                <div class="tool" data-href="/ui/image-tools">
+                    <span class="ico" style="background:#0066cc">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">Image Tools</div><div class="desc">Konversi, resize, CMYK, imposition</div></span>
+                    <span class="arrow">→</span>
+                </div>
+                <div class="tool" data-href="/ui/read-info-form">
+                    <span class="ico" style="background:#00838f">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">Image Info</div><div class="desc">Lihat resolusi, DPI, colorspace gambar</div></span>
+                    <span class="arrow">→</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- PDF -->
+        <div class="section">
+            <div class="sec-head"><span class="dot" style="background:#c62828"></span><h2>PDF</h2><span class="line"></span></div>
+            <div class="grid">
+                <div class="tool" data-href="/ui/merge">
+                    <span class="ico" style="background:#c62828">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 12v6M9 15h6"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">Merge PDF</div><div class="desc">Gabungkan beberapa PDF jadi satu file</div></span>
+                    <span class="arrow">→</span>
+                </div>
+                <div class="tool" data-href="/ui/read-pdf-info-form">
+                    <span class="ico" style="background:#5e35b1">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="m15 18-1.6-1.6"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">PDF Info</div><div class="desc">Periksa metadata &amp; struktur PDF</div></span>
+                    <span class="arrow">→</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- BERKAS -->
+        <div class="section">
+            <div class="sec-head"><span class="dot" style="background:#455a64"></span><h2>Berkas</h2><span class="line"></span></div>
+            <div class="grid">
+                <div class="tool" data-href="/ui/file-explorer">
+                    <span class="ico" style="background:#455a64">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">File Explorer</div><div class="desc">Jelajah &amp; kelola berkas di server</div></span>
+                    <span class="arrow">→</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">Printing Agent — internal tools · <a href="/ui/api-docs" style="color:#0066cc">Dokumentasi API</a></div>
+    </div>
+    <script>
+    // Kartu bisa diklik + chip "API" per tool menuju dokumentasi bagiannya
+    const API_MAP = {
+        '/ui/spot-color':        'spot-color',
+        '/ui/image-contour':     'image-contour',
+        '/ui/image-tools':       'image-tools',
+        '/ui/read-info-form':    'image-info',
+        '/ui/merge':             'merge-pdf',
+        '/ui/read-pdf-info-form':'pdf-info',
+        '/ui/file-explorer':     'file-explorer',
+    };
+    document.querySelectorAll('.tool[data-href]').forEach(card=>{
+        card.addEventListener('click', ()=>{ location.href = card.dataset.href; });
+        const id = API_MAP[card.dataset.href];
+        if(id){
+            const a = document.createElement('a');
+            a.className = 'api-link';
+            a.href = '/ui/api-docs#' + id;
+            a.textContent = '⟨/⟩ API';
+            a.addEventListener('click', e=>e.stopPropagation());
+            card.appendChild(a);
+        }
+    });
+    </script>
+</body>
+</html>
+        """
     )
 
 
@@ -112,17 +242,20 @@ def ui_merge_page():
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>Merge PDF - Printing Agent</title>
             <style>
-                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:20px;color:#fff}
+                body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;min-height:100vh;padding:20px;color:#222}
                 .card{background:#fff;color:#222;border-radius:8px;padding:18px;max-width:820px;margin:0 auto}
                 .form-group{margin-bottom:12px}
                 .file-input-wrapper{display:flex;align-items:center;gap:8px}
                 .file-input-label{background:#f0f0f0;padding:8px 12px;border-radius:6px;cursor:pointer}
-                .btn{background:#667eea;color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
+                .btn{background:#0066cc;color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
             </style>
         </head>
         <body>
-            <div class="card">
-                <h2>Merge PDF</h2>
+            <div style="max-width:820px;margin:0 auto 16px;display:flex;justify-content:space-between;align-items:center">
+                <h1 style="margin:0;color:#1a1a1a;font-size:22px;font-weight:700">📄 Merge PDF</h1>
+                <a href="/ui"><button type="button" style="background:#fff;color:#444;border:1px solid #ccc;padding:8px 16px;border-radius:5px;cursor:pointer;font-size:13px">← Kembali</button></a>
+            </div>
+            <div class="card" style="border:1px solid #e4e4e4">
                 <form id="mergeForm">
                     <div class="form-group">
                         <label>File PDF Pertama</label>
@@ -144,7 +277,6 @@ def ui_merge_page():
                     </div>
                     <div style="margin-top:12px">
                         <button type="submit" class="btn">Gabungkan PDF</button>
-                        <a href="/ui" style="margin-left:8px"><button type="button" class="btn" style="background:#999">Kembali</button></a>
                     </div>
                 </form>
                 <div id="result" style="margin-top:12px"></div>
@@ -190,10 +322,10 @@ def ui_file_explorer():
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>File Explorer - Printing Agent</title>
             <style>
-                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:20px;color:#fff}
+                body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;min-height:100vh;padding:20px;color:#222}
                 .container{max-width:1200px;margin:0 auto}
                 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-                .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,0.12)}
+                .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #e4e4e4}
                 .explorer{display:grid;grid-template-columns:240px 1fr;gap:12px}
                 .sidebar{padding:12px;border-right:1px solid #eee}
                 .drives{list-style:none;padding:0;margin:0}
@@ -201,7 +333,7 @@ def ui_file_explorer():
                 .drives li:hover{background:#f0f4ff}
                 .pathbar{font-size:13px;color:#666;margin-bottom:8px}
                 .toolbar{display:flex;gap:8px;margin-bottom:8px}
-                .btn{background:#667eea;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
+                .btn{background:#0066cc;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
                 table{width:100%;border-collapse:collapse}
                 th,td{padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:13px}
                 th{color:#666;font-weight:600}
@@ -214,7 +346,7 @@ def ui_file_explorer():
                 <div class="header">
                     <div>
 
-                        <h1 style="margin:0;color:#fff;font-size:20px">🗂️ File Explorer</h1>
+                        <h1 style="margin:0;color:#1a1a1a;font-size:22px;font-weight:700">🗂️ File Explorer</h1>
                         <div class="muted" style="margin-top:4px">Browse files under: F:\\Pesanan</div>
                     </div>
                     <div><a href="/ui"><button class="btn">← Kembali</button></a></div>
@@ -327,7 +459,7 @@ def ui_file_explorer():
                                                         <h3 style="margin:0;font-size:18px">Informasi & Preview</h3>
                                                     </div>
                                                     <div style="display:flex;gap:8px;align-items:center;">
-                                                        <button id="modalCloseBtn" style="background:#667eea;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer">Close</button>
+                                                        <button id="modalCloseBtn" style="background:#0066cc;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer">Close</button>
                                                         <button id="modalXBtn" aria-label="Close" style="background:transparent;border:none;font-size:20px;cursor:pointer">✕</button>
                                                     </div>
                                                 </div>
@@ -458,7 +590,7 @@ def ui_file_explorer():
                                             pagesHtml += '<h4 style="color:#333;margin-bottom:10px;font-size:12px;font-weight:600">Detail Setiap Halaman</h4>';
                                             infoData.pages.forEach(pg => {
                                                 if(!pg.error){
-                                                    pagesHtml += '<div style="background:#f8f9ff;padding:8px;border-left:3px solid #667eea;margin-bottom:8px;border-radius:4px;font-size:11px">';
+                                                    pagesHtml += '<div style="background:#f8f9ff;padding:8px;border-left:3px solid #0066cc;margin-bottom:8px;border-radius:4px;font-size:11px">';
                                                     pagesHtml += '<div style="font-weight:600;color:#333;margin-bottom:4px">Halaman '+pg.page_num+'</div>';
                                                     pagesHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;color:#666">';
                                                     pagesHtml += '<div>L: <strong>'+pg.width_cm+'</strong>cm</div>';
@@ -469,7 +601,7 @@ def ui_file_explorer():
                                             pagesHtml += '</div>';
                                         }
                                         info.innerHTML = `
-                                          <div style="background:#667eea;color:white;padding:20px;border-radius:8px;margin-bottom:20px">
+                                          <div style="background:#0066cc;color:white;padding:20px;border-radius:8px;margin-bottom:20px">
                                             <div style="margin:10px 0;text-align:center">
                                               <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JALUR FILE</div>
                                               <div style="font-weight:600;font-size:10px;font-family:monospace;word-break:break-all;margin-top:5px">${displayPath}</div>
@@ -495,7 +627,7 @@ def ui_file_explorer():
                                         `;
                                     } else {
                                         info.innerHTML = `
-                                          <div style="background:#667eea;color:white;padding:20px;border-radius:8px">
+                                          <div style="background:#0066cc;color:white;padding:20px;border-radius:8px">
                                             <div style="margin:10px 0;padding-top:10px;border-top:1px solid rgba(255,255,255,0.3);text-align:center">
                                               <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JUMLAH HALAMAN</div>
                                               <div style="font-weight:600;font-size:18px;margin-top:5px">${pdf.numPages}</div>
@@ -788,8 +920,8 @@ def ui_preview():
             <title>File Preview</title>
             <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
             <style>
-                body{font-family:Segoe UI,Arial;background:#667eea;min-height:100vh;padding:20px;color:#fff}
-                .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,0.12);max-width:1100px;margin:0 auto}
+                body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;min-height:100vh;padding:20px;color:#222}
+                .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #e4e4e4;max-width:1100px;margin:0 auto}
                 .layout{display:grid;grid-template-columns:1fr 420px;gap:12px}
                 .preview{background:#f5f7ff;padding:8px;border-radius:6px;min-height:420px;display:flex;align-items:center;justify-content:center}
                 .info{padding:8px}
@@ -802,7 +934,7 @@ def ui_preview():
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                     <h2 style="margin:0">File Preview</h2>
-                    <div><a href="/ui"><button style="background:#667eea;color:#fff;border:none;padding:6px 10px;border-radius:6px">Close</button></a></div>
+                    <div><a href="/ui"><button style="background:#0066cc;color:#fff;border:none;padding:6px 10px;border-radius:6px">Close</button></a></div>
                 </div>
                 <div class="layout">
                     <div>
@@ -941,7 +1073,7 @@ def ui_exposed():
     return render_template_string(
         """
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Exposed Files</title>
-    <style>body{font-family:Segoe UI,Arial;background:#667eea;color:#333;padding:20px}.card{background:#fff;padding:16px;border-radius:8px;max-width:900px;margin:0 auto;box-shadow:0 8px 30px rgba(0,0,0,0.12)}.entry{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0}</style>
+    <style>body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;color:#222;padding:20px}.card{background:#fff;padding:16px;border-radius:10px;max-width:900px;margin:0 auto;border:1px solid #e4e4e4}.entry{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0}</style>
     </head><body><div class="card"><h2>Exposed Files</h2><div id="list"></div><div style="height:12px"></div><a href="/ui"><button>← Kembali</button></a></div>
     <script>
     async function refresh(){
@@ -1104,7 +1236,7 @@ if (!window.fileDialogComponent) {
         
         .explorer-drives li:hover {
             background: #e8ecff;
-            color: #667eea;
+            color: #0066cc;
         }
         
         .sidebar-label {
@@ -1129,7 +1261,7 @@ if (!window.fileDialogComponent) {
         }
         
         .explorer-toolbar button {
-            background: #667eea;
+            background: #0066cc;
             color: white;
             border: none;
             padding: 6px 12px;
@@ -1183,7 +1315,7 @@ if (!window.fileDialogComponent) {
         }
         
         .explorer-file-name:hover {
-            color: #667eea;
+            color: #0066cc;
             text-decoration: underline;
         }
         
@@ -1324,7 +1456,7 @@ if (!window.fileDialogComponent) {
             if(window.fileDialogCurrentPath) {
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
-                tr.innerHTML = '<td colspan="3" style="color: #667eea; font-weight: 600;">📁 .. (Up)</td>';
+                tr.innerHTML = '<td colspan="3" style="color: #0066cc; font-weight: 600;">📁 .. (Up)</td>';
                 tr.addEventListener('click', () => {
                     const parts = window.fileDialogCurrentPath.split('\\\\').filter(Boolean);
                     parts.pop();
@@ -1415,8 +1547,9 @@ def read_pdf_info_form():
             }
             
             body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: #667eea;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                background: #eef0f3;
+                color: #222;
                 min-height: 100vh;
                 padding: 20px;
             }
@@ -1434,23 +1567,26 @@ def read_pdf_info_form():
             }
             
             .header h1 {
-                color: white;
-                font-size: 28px;
+                color: #1a1a1a;
+                font-size: 22px;
+                font-weight: 700;
             }
             
             .back-btn {
-                background: rgba(255,255,255,0.2);
-                color: white;
-                border: none;
-                padding: 10px 20px;
+                background: #fff;
+                color: #444;
+                border: 1px solid #ccc;
+                padding: 8px 16px;
                 border-radius: 5px;
                 cursor: pointer;
-                font-size: 14px;
-                transition: all 0.3s;
+                font-size: 13px;
+                transition: all 0.15s;
             }
             
             .back-btn:hover {
-                background: rgba(255,255,255,0.3);
+                background: #f0f0f0;
+                border-color: #0066cc;
+                color: #0066cc;
             }
             
             .main-container {
@@ -1471,14 +1607,14 @@ def read_pdf_info_form():
                 background: white;
                 border-radius: 10px;
                 padding: 30px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e4e4e4;
             }
             
             .upload-card {
                 background: white;
                 border-radius: 10px;
                 padding: 30px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e4e4e4;
             }
             
             .card h2 {
@@ -1501,7 +1637,7 @@ def read_pdf_info_form():
                 display: block;
                 width: 100%;
                 padding: 40px 20px;
-                border: 2px dashed #667eea;
+                border: 2px dashed #0066cc;
                 border-radius: 8px;
                 text-align: center;
                 cursor: pointer;
@@ -1510,12 +1646,12 @@ def read_pdf_info_form():
             }
             
             .file-input-label:hover {
-                border-color: #764ba2;
+                border-color: #0055aa;
                 background: #f0f2ff;
             }
             
             .file-input-label p {
-                color: #667eea;
+                color: #0066cc;
                 font-weight: 500;
                 margin-bottom: 10px;
             }
@@ -1528,7 +1664,7 @@ def read_pdf_info_form():
             .browse-btn {
                 width: 100%;
                 padding: 20px;
-                background: #667eea;
+                background: #0066cc;
                 color: white;
                 border: none;
                 border-radius: 8px;
@@ -1551,7 +1687,7 @@ def read_pdf_info_form():
                 padding: 10px;
                 background: #f0f2ff;
                 border-radius: 5px;
-                color: #667eea;
+                color: #0066cc;
                 font-size: 13px;
                 text-align: center;
             }
@@ -1572,7 +1708,7 @@ def read_pdf_info_form():
                 background: white;
                 border-radius: 10px;
                 padding: 20px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e4e4e4;
                 display: flex;
                 flex-direction: column;
                 height: fit-content;
@@ -1610,7 +1746,7 @@ def read_pdf_info_form():
             }
             
             .pdf-controls button {
-                background: #667eea;
+                background: #0066cc;
                 color: white;
                 border: none;
                 padding: 8px 15px;
@@ -1621,7 +1757,7 @@ def read_pdf_info_form():
             }
             
             .pdf-controls button:hover {
-                background: #764ba2;
+                background: #0055aa;
             }
             
             .pdf-controls button:disabled {
@@ -1640,7 +1776,7 @@ def read_pdf_info_form():
                 background: white;
                 border-radius: 10px;
                 padding: 30px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e4e4e4;
             }
             
             .info-card h2 {
@@ -1650,7 +1786,7 @@ def read_pdf_info_form():
             }
             
             .summary-box {
-                background: #667eea;
+                background: #0066cc;
                 color: white;
                 padding: 20px;
                 border-radius: 8px;
@@ -1682,7 +1818,7 @@ def read_pdf_info_form():
             .page-item {
                 background: #f8f9ff;
                 padding: 15px;
-                border-left: 4px solid #667eea;
+                border-left: 4px solid #0066cc;
                 margin-bottom: 10px;
                 border-radius: 5px;
             }
@@ -1710,12 +1846,12 @@ def read_pdf_info_form():
             .loading {
                 text-align: center;
                 padding: 20px;
-                color: #667eea;
+                color: #0066cc;
             }
             
             .spinner {
                 border: 3px solid #f3f3f3;
-                border-top: 3px solid #667eea;
+                border-top: 3px solid #0066cc;
                 border-radius: 50%;
                 width: 30px;
                 height: 30px;
@@ -2180,8 +2316,9 @@ def read_info_form():
             }
             
             body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: #667eea;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                background: #eef0f3;
+                color: #222;
                 min-height: 100vh;
                 padding: 20px;
             }
@@ -2199,23 +2336,26 @@ def read_info_form():
             }
             
             .header h1 {
-                color: white;
-                font-size: 28px;
+                color: #1a1a1a;
+                font-size: 22px;
+                font-weight: 700;
             }
             
             .back-btn {
-                background: rgba(255,255,255,0.2);
-                color: white;
-                border: none;
-                padding: 10px 20px;
+                background: #fff;
+                color: #444;
+                border: 1px solid #ccc;
+                padding: 8px 16px;
                 border-radius: 5px;
                 cursor: pointer;
-                font-size: 14px;
-                transition: all 0.3s;
+                font-size: 13px;
+                transition: all 0.15s;
             }
             
             .back-btn:hover {
-                background: rgba(255,255,255,0.3);
+                background: #f0f0f0;
+                border-color: #0066cc;
+                color: #0066cc;
             }
             
             .main-grid {
@@ -2228,7 +2368,7 @@ def read_info_form():
                 background: white;
                 border-radius: 10px;
                 padding: 30px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e4e4e4;
             }
             
             .card h2 {
@@ -2251,7 +2391,7 @@ def read_info_form():
                 display: block;
                 width: 100%;
                 padding: 40px 20px;
-                border: 2px dashed #667eea;
+                border: 2px dashed #0066cc;
                 border-radius: 8px;
                 text-align: center;
                 cursor: pointer;
@@ -2260,12 +2400,12 @@ def read_info_form():
             }
             
             .file-input-label:hover {
-                border-color: #764ba2;
+                border-color: #0055aa;
                 background: #f0f2ff;
             }
             
             .file-input-label p {
-                color: #667eea;
+                color: #0066cc;
                 font-weight: 500;
                 margin-bottom: 10px;
             }
@@ -2280,7 +2420,7 @@ def read_info_form():
                 padding: 10px;
                 background: #f0f2ff;
                 border-radius: 5px;
-                color: #667eea;
+                color: #0066cc;
                 font-size: 13px;
                 text-align: center;
             }
@@ -2304,7 +2444,7 @@ def read_info_form():
                 padding: 15px;
                 background: #f8f9ff;
                 border-radius: 8px;
-                border-left: 4px solid #667eea;
+                border-left: 4px solid #0066cc;
             }
             
             .info-label {
@@ -2324,12 +2464,12 @@ def read_info_form():
             .loading {
                 text-align: center;
                 padding: 20px;
-                color: #667eea;
+                color: #0066cc;
             }
             
             .spinner {
                 border: 3px solid #f3f3f3;
-                border-top: 3px solid #667eea;
+                border-top: 3px solid #0066cc;
                 border-radius: 50%;
                 width: 30px;
                 height: 30px;
@@ -2658,10 +2798,25 @@ def ui_export_pdf_imposition():
 @app.route("/ui/read-info", methods=["POST"])
 def ui_read_info():
     try:
-        filepath = request.json.get("filepath")
+        filepath = None
+
+        # 1) JSON body: {"filepath": "..."} (file sudah ada di server)
+        json_data = request.get_json(silent=True)
+        if json_data:
+            filepath = json_data.get("filepath")
+
+        # 2) Multipart upload: field "filepath" atau "file"
+        if not filepath:
+            up = request.files.get("filepath") or request.files.get("file")
+            if up and up.filename:
+                temp_dir = tempfile.gettempdir()
+                filepath = os.path.join(temp_dir, up.filename)
+                up.save(filepath)
 
         if not filepath:
             return jsonify({"status": "error", "message": "Missing file"}), 400
+        if not os.path.isfile(filepath):
+            return jsonify({"status": "error", "message": f"File not found: {filepath}"}), 404
 
         # Execute read info
         result = execute("read_info", {"filepath": filepath})
@@ -2794,8 +2949,8 @@ def ui_image_contour_api():
             return jsonify({"status": "error", "message": "No file provided"}), 400
 
         filename = file.filename.lower()
-        if not filename.endswith(".png"):
-            return jsonify({"status": "error", "message": "File harus PNG (.png)"}), 400
+        if not (filename.endswith(".png") or filename.endswith(".pdf")):
+            return jsonify({"status": "error", "message": "File harus PNG (.png) atau PDF (.pdf)"}), 400
 
         from tasks.image_contour import generate_contour
 
@@ -2842,8 +2997,9 @@ def image_tools():
             }
             
             body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: #667eea;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                background: #eef0f3;
+                color: #222;
                 min-height: 100vh;
                 padding: 20px;
             }
@@ -2861,30 +3017,33 @@ def image_tools():
             }
             
             .header h1 {
-                color: white;
-                font-size: 28px;
+                color: #1a1a1a;
+                font-size: 22px;
+                font-weight: 700;
             }
             
             .back-btn {
-                background: rgba(255,255,255,0.2);
-                color: white;
-                border: none;
-                padding: 10px 20px;
+                background: #fff;
+                color: #444;
+                border: 1px solid #ccc;
+                padding: 8px 16px;
                 border-radius: 5px;
                 cursor: pointer;
-                font-size: 14px;
-                transition: all 0.3s;
+                font-size: 13px;
+                transition: all 0.15s;
             }
             
             .back-btn:hover {
-                background: rgba(255,255,255,0.3);
+                background: #f0f0f0;
+                border-color: #0066cc;
+                color: #0066cc;
             }
             
             .content {
                 background: white;
                 border-radius: 10px;
                 padding: 30px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e4e4e4;
             }
             
             .section-header {
@@ -2901,7 +3060,7 @@ def image_tools():
             }
             
             .add-file-btn {
-                background: #667eea;
+                background: #0066cc;
                 color: white;
                 border: none;
                 padding: 10px 20px;
@@ -2926,7 +3085,7 @@ def image_tools():
                 justify-content: space-between;
                 padding: 16px;
                 background: #f8f9ff;
-                border-left: 4px solid #667eea;
+                border-left: 4px solid #0066cc;
                 border-radius: 6px;
                 margin-bottom: 16px;
                 gap: 16px;
@@ -2979,7 +3138,7 @@ def image_tools():
                 background: white;
                 padding: 8px;
                 border-radius: 4px;
-                border-left: 3px solid #667eea;
+                border-left: 3px solid #0066cc;
             }
             
             .file-item-detail-label {
@@ -3771,315 +3930,344 @@ def ui_spot_color():
     <title>Spot Color Tool - Printing Agent</title>
     <style>
         *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:'Segoe UI',system-ui,sans-serif;background:#1e1e2e;min-height:100vh;display:flex;flex-direction:column}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#e8e8e8;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
         /* ── Topbar ─────────────────────────────────────────────────────────── */
-        .topbar{background:#13131f;padding:8px 14px;display:flex;align-items:center;gap:12px;color:#e0e0f0;border-bottom:1px solid #2d2d45}
-        .topbar h1{font-size:15px;font-weight:700;letter-spacing:.3px}
-        .topbar a button{background:#2d2d45;color:#ccd;border:none;padding:5px 11px;border-radius:5px;cursor:pointer;font-size:12px}
-        .topbar a button:hover{background:#3d3d5c}
-        .main{display:flex;flex:1;gap:0;overflow:hidden;height:calc(100vh - 40px)}
+        .topbar{background:#fff;height:36px;padding:0 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #d0d0d0;flex-shrink:0}
+        .topbar-logo{font-size:12px;font-weight:800;color:#222;letter-spacing:.5px;margin-right:4px}
+        .topbar-logo span{color:#0066cc}
+        .topbar a button,.topbar button.tb-action{background:#f0f0f0;color:#444;border:1px solid #ccc;padding:3px 9px;border-radius:3px;cursor:pointer;font-size:11px}
+        .topbar a button:hover,.topbar button.tb-action:hover{background:#e0e0e0}
+        .topbar-sep{width:1px;height:18px;background:#d8d8d8}
+        #imgNameLabel{font-size:10px;color:#666;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .upload-btn-top{background:#0066cc;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px}
+        .upload-btn-top:hover{background:#0055aa}
+        .main{display:flex;flex:1;overflow:hidden}
 
-        /* ── LEFT PANEL (toolbox) ───────────────────────────────────────────── */
-        .left-panel{width:170px;min-width:160px;background:#16162a;border-right:1px solid #2a2a40;display:flex;flex-direction:column;padding:8px 6px;gap:0;overflow-y:auto}
+        /* ── Narrow Toolbox (Photoshop-style) ──────────────────────────────── */
+        .toolbox{width:36px;background:#f0f0f0;border-right:1px solid #c8c8c8;display:flex;flex-direction:column;align-items:center;padding:4px 2px;gap:1px;overflow:hidden;flex-shrink:0;z-index:10}
+        .tbSep{width:24px;height:1px;background:#c0c0c0;margin:3px 0;flex-shrink:0}
+        .tbBtn{width:30px;height:30px;border:1px solid transparent;border-radius:3px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#444;transition:all .1s;position:relative;flex-shrink:0}
+        .tbBtn svg{width:16px;height:16px;pointer-events:none}
+        .tbBtn:hover{background:#ddd;border-color:#bbb;color:#111}
+        .tbBtn.active{background:#0066cc;border-color:#0050aa;color:#fff}
+        /* Tooltip */
+        .tbBtn::after{content:attr(data-tip);position:absolute;left:36px;top:50%;transform:translateY(-50%);background:#222;color:#fff;font-size:10px;padding:3px 8px;border-radius:3px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:9999;border:1px solid #444}
+        .tbBtn:hover::after{opacity:1}
 
-        /* upload row */
-        .upload-row{display:flex;flex-direction:column;gap:4px;padding:0 2px 8px;border-bottom:1px solid #2a2a40;margin-bottom:6px}
-        .upload-btn{width:100%;padding:7px;background:#5b5ef4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px}
-        .upload-btn:hover{background:#4a4de0}
-        #imgNameLabel{font-size:10px;color:#666;word-break:break-all;text-align:center;min-height:12px}
+        /* ── Context / Properties Bar ───────────────────────────────────────── */
+        .ctx-bar{background:#f5f5f5;border-bottom:1px solid #d8d8d8;height:30px;padding:0 10px;display:flex;align-items:center;gap:8px;flex-shrink:0;overflow:hidden}
+        .ctx-bar label{font-size:10px;color:#555;white-space:nowrap}
+        .ctx-bar input[type=range]{width:80px;accent-color:#0066cc;cursor:pointer}
+        .ctx-val{font-size:10px;color:#333;min-width:28px;font-variant-numeric:tabular-nums}
+        .ctx-sep{width:1px;height:18px;background:#d0d0d0}
+        .ctx-btn{background:#e8e8e8;color:#333;border:1px solid #c8c8c8;padding:2px 7px;border-radius:3px;cursor:pointer;font-size:10px;font-weight:600;display:flex;align-items:center;gap:3px;white-space:nowrap}
+        .ctx-btn:hover{background:#d8d8d8}
+        .ctx-btn:disabled{opacity:.4;cursor:not-allowed}
+        .ctx-btn.active{background:#0066cc;color:#fff;border-color:#0050aa}
+        .ctx-sm{background:#e8e8e8;color:#555;border:1px solid #c8c8c8;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:10px;font-weight:700}
+        .ctx-sm:hover{background:#d0d0d0;color:#111}
+        .ctx-sm.active{background:#0066cc;color:#fff;border-color:#0050aa}
+        /* Context sections – show/hide based on active tool */
+        .ctx-paint,.ctx-sel,.ctx-always{display:flex;align-items:center;gap:6px}
+        .ctx-paint{display:none}
+        .ctx-sel{display:none}
 
-        /* ── Accordion ──────────────────────────────────────────────────────── */
-        .acc-header{display:flex;align-items:center;justify-content:space-between;padding:5px 6px;cursor:pointer;font-size:10px;font-weight:700;color:#8888bb;text-transform:uppercase;letter-spacing:.6px;user-select:none;margin-top:4px}
-        .acc-header:hover{color:#aab}
-        .acc-arrow{transition:transform .2s;font-size:9px;opacity:.6}
-        .acc-header.open .acc-arrow{transform:rotate(90deg)}
-        .acc-body{overflow:hidden;max-height:0;transition:max-height .3s ease}
-        .acc-body.open{max-height:500px}
-        .acc-inner{padding:4px 2px 6px}
-
-        /* ── Icon tool grid ─────────────────────────────────────────────────── */
-        .tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:4px}
-        .tool-grid.cols2{grid-template-columns:repeat(2,1fr)}
-        .iBtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-              padding:6px 2px;border:1.5px solid #2d2d45;border-radius:7px;background:#1e1e34;
-              cursor:pointer;font-size:9px;color:#8888bb;transition:all .13s;min-height:46px;line-height:1.2}
-        .iBtn svg{width:18px;height:18px;flex-shrink:0}
-        .iBtn:hover{border-color:#5b5ef4;background:#252540;color:#aac}
-        .iBtn.active{border-color:#5b5ef4;background:#5b5ef4;color:#fff}
-        .iBtn.active svg path,.iBtn.active svg rect,.iBtn.active svg ellipse,.iBtn.active svg polygon,.iBtn.active svg circle{stroke:currentColor}
-
-        /* sel-mode small buttons */
-        .sm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:5px}
-        .smBtn{padding:4px 2px;border:1.5px solid #2d2d45;border-radius:5px;background:#1e1e34;
-               cursor:pointer;font-size:9px;font-weight:700;color:#8888bb;text-align:center;transition:all .13s}
-        .smBtn:hover{border-color:#5b5ef4;color:#aac}
-        .smBtn.active{border-color:#5b5ef4;background:#5b5ef4;color:#fff}
-
-        /* apply/deselect buttons */
-        .sel-actions{display:flex;gap:3px;margin-top:5px}
-        .sel-actions button{flex:1;padding:5px 2px;border:none;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer}
-        .applySelBtn{background:#27ae60;color:#fff}
-        .applySelBtn:hover{background:#219150}
-        .applySelBtn:disabled{background:#2d3d30;color:#555;cursor:not-allowed}
-        .deselBtn{background:#2d2d45;color:#8888bb}
-        .deselBtn:hover{background:#3d3d5c;color:#aac}
-
-        /* slider rows */
-        .sl-row{display:flex;align-items:center;gap:4px;padding:3px 0}
-        .sl-row label{font-size:9px;color:#6668;white-space:nowrap;min-width:28px}
-        .sl-row input[type=range]{flex:1;height:3px;accent-color:#5b5ef4}
-        .sl-row span{font-size:9px;color:#888;min-width:22px;text-align:right}
-        input[type=number]{width:100%;padding:5px 6px;border:1.5px solid #2d2d45;border-radius:5px;font-size:12px;background:#1e1e34;color:#dde;margin-top:3px}
-        input[type=number]:focus{outline:none;border-color:#5b5ef4}
-
-        /* clear mask btn */
-        .clearBtn{width:100%;padding:6px;background:#3a1f1f;color:#f55;border:1.5px solid #5a2020;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:4px}
-        .clearBtn:hover{background:#5a2020}
-
-        /* ── Canvas area ────────────────────────────────────────────────────── */
-        .canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#111118}
-        .canvas-toolbar{background:#13131f;padding:5px 10px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #2a2a40}
-        .canvas-toolbar button{background:#2d2d45;color:#ccd;border:none;padding:4px 9px;border-radius:5px;cursor:pointer;font-size:11px}
-        .canvas-toolbar button:hover{background:#5b5ef4;color:#fff}
-        .canvas-toolbar button:disabled{opacity:.3;cursor:not-allowed}
-        .canvas-toolbar span{color:#555;font-size:11px}
-        .canvas-toolbar .tb-sep{width:1px;height:16px;background:#2d2d45;margin:0 2px}
-        .canvas-wrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:flex-start;padding:20px;position:relative}
-        #canvasContainer{position:relative;display:inline-block;box-shadow:0 6px 32px rgba(0,0,0,.7)}
+        /* ── Canvas Area ────────────────────────────────────────────────────── */
+        .canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#888}
+        /* Ruler grid: corner | H ruler | V ruler | canvas */
+        .ruler-wrap{flex:1;display:grid;grid-template-areas:"corner rh" "rv cw";grid-template-columns:20px 1fr;grid-template-rows:20px 1fr;overflow:hidden}
+        .ruler-corner{grid-area:corner;background:#4a4a4a;border-right:1px solid #333;border-bottom:1px solid #333}
+        #rulerH{grid-area:rh;background:#4a4a4a;border-bottom:1px solid #333;display:block;height:20px;width:100%}
+        #rulerV{grid-area:rv;background:#4a4a4a;border-right:1px solid #333;display:block;width:20px;height:100%}
+        .canvas-wrap{grid-area:cw;overflow:auto;padding:20px;display:flex;align-items:flex-start;justify-content:flex-start}
+        #canvasContainer{position:relative;display:inline-block;box-shadow:0 4px 20px rgba(0,0,0,.45)}
         #bgCanvas{display:block}
         #drawCanvas{position:absolute;top:0;left:0;cursor:crosshair}
         #selCanvas{position:absolute;top:0;left:0;pointer-events:none}
 
         /* ── RIGHT PANEL ────────────────────────────────────────────────────── */
-        .right-panel{width:210px;min-width:195px;background:#16162a;border-left:1px solid #2a2a40;display:flex;flex-direction:column;padding:10px;gap:8px;overflow-y:auto}
-        .rp-label{font-size:10px;font-weight:700;color:#6668;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-        input[type=text]{width:100%;padding:6px 8px;border:1.5px solid #2d2d45;border-radius:6px;font-size:12px;background:#1e1e34;color:#dde}
-        input[type=text]:focus{outline:none;border-color:#5b5ef4}
+        .right-panel{width:200px;min-width:185px;background:#fff;border-left:1px solid #d0d0d0;display:flex;flex-direction:column;padding:9px;gap:7px;overflow-y:auto;flex-shrink:0}
+        .rp-label{font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.6px;margin-top:3px}
+        input[type=text]{width:100%;padding:5px 7px;border:1px solid #ccc;border-radius:3px;font-size:12px;color:#222}
+        input[type=text]:focus{outline:none;border-color:#0066cc}
+        input[type=number]{width:100%;padding:5px 7px;border:1px solid #ccc;border-radius:3px;font-size:12px;color:#222}
+        input[type=number]:focus{outline:none;border-color:#0066cc}
 
-        .spot-mode-group{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-        .mode-btn{padding:7px 6px;border:1.5px solid #2d2d45;border-radius:7px;background:#1e1e34;cursor:pointer;font-size:11px;text-align:left;transition:all .13s;color:#ccc}
-        .mode-btn:hover{border-color:#5b5ef4}
-        .mode-btn.active{border-color:#5b5ef4;background:#5b5ef4;color:#fff}
-        .mode-desc{font-size:9px;opacity:.7;margin-top:2px}
+        .spot-mode-group{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+        .mode-btn{padding:6px 5px;border:1px solid #d8d8d8;border-radius:4px;background:#f8f8f8;cursor:pointer;font-size:10px;text-align:left;transition:all .1s;color:#333}
+        .mode-btn:hover{border-color:#0066cc;background:#f0f5ff}
+        .mode-btn.active{border-color:#0066cc;background:#0066cc;color:#fff}
+        .mode-desc{font-size:8px;opacity:.7;margin-top:1px}
 
-        .add-ch-btn{width:100%;padding:8px;background:#e67e22;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700}
+        .add-ch-btn{width:100%;padding:7px;background:#e67e22;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
         .add-ch-btn:hover{background:#d35400}
-        .add-ch-btn:disabled{background:#2d2d45;color:#555;cursor:not-allowed}
-        .ch-item{background:#1e1e34;border:1px solid #2d2d45;border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:5px}
-        .ch-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+        .add-ch-btn:disabled{background:#e8e8e8;color:#aaa;cursor:not-allowed}
+        .ch-item{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:5px;padding:6px 8px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .12s}
+        .ch-item:hover{border-color:#9cc4ee;background:#f2f7fd}
+        .ch-item.active{border-color:#0066cc;background:#eaf3ff;box-shadow:0 0 0 1px #0066cc inset}
+        .ch-edit-tag{font-size:8.5px;font-weight:800;color:#fff;background:#0066cc;padding:2px 6px;border-radius:8px;letter-spacing:.4px;flex-shrink:0}
+        .ch-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
         .ch-info{flex:1;min-width:0}
-        .ch-name{font-weight:700;font-size:11px;color:#dde;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .ch-mode{font-size:9px;color:#666}
-        .ch-del{background:#5a1f1f;color:#f55;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;flex-shrink:0}
-        .ch-del:hover{background:#7a2020}
-        .gen-btn{width:100%;padding:10px;background:#27ae60;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700}
+        .ch-name{font-weight:700;font-size:10px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ch-mode{font-size:9px;color:#888}
+        .ch-del{background:#fee8e8;color:#c33;border:1px solid #fcc;border-radius:3px;padding:1px 5px;cursor:pointer;font-size:12px;flex-shrink:0;line-height:1}
+        .ch-del:hover{background:#fcc}
+        .gen-btn{width:100%;padding:8px;background:#27ae60;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700}
         .gen-btn:hover{background:#219150}
-        .gen-btn:disabled{background:#1d3a28;color:#555;cursor:not-allowed}
-
-        .status-box{background:#1a1a2e;border:1px solid #2a2a40;border-radius:6px;padding:8px;font-size:11px;color:#888;min-height:44px;word-break:break-all}
-        .status-box.ok{background:#1a2e1e;border-color:#2a4a2a;color:#4caf50}
-        .status-box.err{background:#2e1a1a;border-color:#4a2a2a;color:#f55}
-
-        .dl-btn{width:100%;padding:8px;background:#1565c0;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none}
+        .gen-btn:disabled{background:#e0e0e0;color:#aaa;cursor:not-allowed}
+        .status-box{background:#f8f8f8;border:1px solid #e8e8e8;border-radius:4px;padding:7px;font-size:10px;color:#666;min-height:38px;word-break:break-all}
+        .status-box.ok{background:#f0fff4;border-color:#b2dfdb;color:#2e7d32}
+        .status-box.err{background:#fff5f5;border-color:#ffcdd2;color:#c62828}
+        .dl-btn{width:100%;padding:7px;background:#1565c0;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;display:none}
         .dl-btn:hover{background:#1976d2}
 
         /* ── Polygon hint ───────────────────────────────────────────────────── */
-        #polyHint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;display:none;pointer-events:none;z-index:999;border:1px solid #5b5ef4}
+        #polyHint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:5px 14px;border-radius:14px;font-size:11px;display:none;pointer-events:none;z-index:999}
+
+        /* ── Ruler popup & Action ───────────────────────────────────────────── */
+        #rulerPopup{position:absolute;top:22px;left:22px;z-index:500;background:#fff;border:1px solid #c8c8c8;border-radius:7px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 12px;display:none;min-width:170px}
+        #rulerPopup .rp-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;font-size:11.5px;color:#444}
+        #rulerPopup select{padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:11px}
+        #rulerPopup input[type=color]{width:40px;height:24px;padding:1px;border:1px solid #ccc;border-radius:4px;cursor:pointer}
+        .ruler-wrap{position:relative}
+        .ctx-btn.grid-on{background:#0066cc;color:#fff;border-color:#0050aa}
+        .act-rec{flex:1;padding:7px;background:#fff;color:#c62828;border:1.5px solid #e2b4b4;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
+        .act-rec:hover{background:#fff5f5}
+        .act-rec.recording{background:#c62828;color:#fff;border-color:#a02020;animation:recblink 1.2s ease-in-out infinite}
+        @keyframes recblink{50%{opacity:.75}}
+        .act-clr{padding:7px 11px;background:#f0f0f0;color:#888;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:11px}
+        .act-clr:hover{background:#e4e4e4;color:#c62828}
+        .act-batch{width:100%;padding:7px;background:#5e35b1;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
+        .act-batch:hover{background:#4d2c93}
+        .act-batch:disabled{background:#e8e8e8;color:#aaa;cursor:not-allowed}
+
+        /* ── Progress overlay seleksi ───────────────────────────────────────── */
+        #selProgress{position:fixed;inset:0;background:rgba(20,25,35,.35);display:none;align-items:center;justify-content:center;z-index:2000;backdrop-filter:blur(1px)}
+        #selProgress .box{background:#fff;border-radius:10px;padding:20px 26px;box-shadow:0 10px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;align-items:center;gap:12px;min-width:220px}
+        #selProgress .spin{width:32px;height:32px;border:3px solid #e0e6ef;border-top-color:#0066cc;border-radius:50%;animation:selspin .8s linear infinite}
+        @keyframes selspin{to{transform:rotate(360deg)}}
+        #selProgress .lbl{font-size:12.5px;color:#333;font-weight:600}
+        #selProgress .bar{width:100%;height:5px;background:#e8edf3;border-radius:3px;overflow:hidden;display:none}
+        #selProgress .bar>i{display:block;height:100%;width:0;background:#0066cc;transition:width .1s}
     </style>
 </head>
 <body>
+<!-- Hidden file input -->
+<input type="file" id="imgInput" accept="image/png,image/jpeg,image/jpg" style="display:none">
+
+<!-- TOPBAR -->
 <div class="topbar">
-    <h1>Spot Color Tool</h1>
-    <a href="/ui"><button>← Kembali</button></a>
-    <span style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.7)" id="coordLabel"></span>
+    <span class="topbar-logo">PRINTING<span> AGENT</span></span>
+    <span style="font-size:11px;color:#888;font-weight:600">· Spot Color</span>
+    <div class="topbar-sep"></div>
+    <button class="upload-btn-top" onclick="document.getElementById('imgInput').click()">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M10 2.5a.5.5 0 0 1 .5.5v6.793l1.646-1.647a.5.5 0 0 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5a.5.5 0 1 1 .708-.708L9.5 9.793V3a.5.5 0 0 1 .5-.5zm-5 10a.5.5 0 0 0 0 1h10a.5.5 0 0 0 0-1H5z"/></svg>
+        Upload
+    </button>
+    <span id="imgNameLabel" style="font-size:10px;color:#666;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</span>
+    <div class="topbar-sep"></div>
+    <a href="/ui"><button class="tb-action">← Kembali</button></a>
+    <span style="flex:1"></span>
+    <span id="coordLabel" style="font-size:10px;color:#888;font-variant-numeric:tabular-nums"></span>
 </div>
 
 <div class="main">
-    <!-- LEFT PANEL -->
-    <div class="left-panel">
-        <div class="upload-row">
-            <input type="file" id="imgInput" accept="image/png,image/jpeg,image/jpg" style="display:none">
-            <button class="upload-btn" onclick="document.getElementById('imgInput').click()">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M10 3.5a.5.5 0 0 1 .5.5v5.5H16a.5.5 0 0 1 0 1h-5.5V16a.5.5 0 0 1-1 0v-5.5H4a.5.5 0 0 1 0-1h5.5V4a.5.5 0 0 1 .5-.5z"/><path d="M2 13.5A1.5 1.5 0 0 0 3.5 15h13a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2z"/></svg>
-                Upload Gambar
-            </button>
-            <div id="imgNameLabel">—</div>
+<!-- NARROW TOOLBOX -->
+<div class="toolbox">
+    <!-- Selection tools -->
+    <button class="tbBtn" data-tool="magicwand" data-tip="Magic Wand (W)" onclick="setTool('magicwand')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m4 4 16 16"/><path d="m9 9 6 6"/><path d="m15 4-1 1"/><path d="m4 15 1-1"/><path d="m16 4 1 1"/><path d="m5 15-1 1"/><path d="M10.5 2.5 9 4"/><path d="M2.5 10.5 4 9"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+    </button>
+    <button class="tbBtn" data-tool="colorselect" data-tip="Select by Color (S)" onclick="setTool('colorselect')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 13.5 5.5 5.5 5-5-5.5-5.5L2 13.5Z"/><path d="m9 9 3-3"/><path d="m12 6 1.5-1.5a2.12 2.12 0 0 1 3 3L15 9"/><path d="m15 9 5 5"/><path d="M21 20a1 1 0 1 1-2 0c0-.9 1-2.5 1-2.5S21 19 21 20Z"/></svg>
+    </button>
+    <div class="tbSep"></div>
+    <!-- Paint tools -->
+    <button class="tbBtn active" data-tool="brush" data-tip="Brush (B)" onclick="setTool('brush')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </button>
+    <button class="tbBtn" data-tool="eraser" data-tip="Eraser (E)" onclick="setTool('eraser')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6 10l8 8"/></svg>
+    </button>
+    <button class="tbBtn" data-tool="fill" data-tip="Fill (F)" onclick="setTool('fill')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.5 8.5a5.5 5.5 0 0 0 0 7.778 5.5 5.5 0 0 0 7.778 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 2-4 2-4s2 2.4 2 4Z"/></svg>
+    </button>
+    <div class="tbSep"></div>
+    <!-- Shape tools -->
+    <button class="tbBtn" data-tool="rect" data-tip="Rectangle (R)" onclick="setTool('rect')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+    </button>
+    <button class="tbBtn" data-tool="ellipse" data-tip="Ellipse" onclick="setTool('ellipse')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
+    </button>
+    <button class="tbBtn" data-tool="polygon" data-tip="Polygon (P)" onclick="setTool('polygon')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,3 21,8.5 18,19 6,19 3,8.5"/></svg>
+    </button>
+</div>
+
+<!-- CANVAS AREA -->
+<div class="canvas-area">
+    <!-- Context bar -->
+    <div class="ctx-bar" id="ctxBar">
+        <!-- Paint controls -->
+        <div class="ctx-paint" id="ctxPaint">
+            <label>Size</label>
+            <input type="range" id="brushSize" min="2" max="200" value="20" oninput="document.getElementById('brushVal').textContent=this.value">
+            <span class="ctx-val" id="brushVal">20</span>px
+            <div class="ctx-sep"></div>
+            <label>Opacity</label>
+            <input type="range" id="overlayOpacity" min="10" max="220" value="120" oninput="updateOverlayOpacity(this.value)">
+            <span class="ctx-val" id="opacityVal">120</span>
         </div>
-
-        <!-- PAINT -->
-        <div class="acc-header open" onclick="toggleAcc(this)">PAINT <span class="acc-arrow">▶</span></div>
-        <div class="acc-body open"><div class="acc-inner">
-            <div class="tool-grid">
-                <button class="iBtn active" data-tool="brush" onclick="setTool('brush')" title="Brush (B)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                    Brush
-                </button>
-                <button class="iBtn" data-tool="eraser" onclick="setTool('eraser')" title="Eraser (E)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6.0001 10 14 18"/></svg>
-                    Eraser
-                </button>
-                <button class="iBtn" data-tool="fill" onclick="setTool('fill')" title="Fill (F)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.5 8.5a5.5 5.5 0 0 0 0 7.778 5.5 5.5 0 0 0 7.778 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 2-4 2-4s2 2.4 2 4Z"/></svg>
-                    Fill
-                </button>
-            </div>
-            <div class="sl-row">
-                <label>Size</label>
-                <input type="range" id="brushSize" min="2" max="200" value="20" oninput="document.getElementById('brushVal').textContent=this.value+'px'">
-                <span id="brushVal">20px</span>
-            </div>
-        </div></div>
-
-        <!-- SHAPE -->
-        <div class="acc-header open" onclick="toggleAcc(this)">SHAPE <span class="acc-arrow">▶</span></div>
-        <div class="acc-body open"><div class="acc-inner">
-            <div class="tool-grid">
-                <button class="iBtn" data-tool="rect" onclick="setTool('rect')" title="Rectangle (R)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
-                    Rect
-                </button>
-                <button class="iBtn" data-tool="ellipse" onclick="setTool('ellipse')" title="Ellipse">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
-                    Ellipse
-                </button>
-                <button class="iBtn" data-tool="polygon" onclick="setTool('polygon')" title="Polygon (P)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,3 21,8.5 18,19 6,19 3,8.5"/></svg>
-                    Polygon
-                </button>
-            </div>
-        </div></div>
-
-        <!-- SELECTION -->
-        <div class="acc-header open" onclick="toggleAcc(this)">SELECTION <span class="acc-arrow">▶</span></div>
-        <div class="acc-body open"><div class="acc-inner">
-            <div class="tool-grid cols2">
-                <button class="iBtn" data-tool="magicwand" onclick="setTool('magicwand')" title="Magic Wand (W)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m15 4-1 1"/><path d="m4 15 1-1"/><path d="m4 4 16 16"/><path d="m16 4 1 1"/><path d="m5 15-1 1"/><path d="M10.5 2.5 9 4"/><path d="M2.5 10.5 4 9"/><path d="m9 9 6 6"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
-                    Magic Wand
-                </button>
-                <button class="iBtn" data-tool="colorselect" onclick="setTool('colorselect')" title="Select by Color (S)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 13.5 5.5 5.5 5-5-5.5-5.5L2 13.5Z"/><path d="m9 9 3-3"/><path d="m12 6 1.5-1.5a2.12 2.12 0 0 1 3 3L15 9"/><path d="m15 9 5 5"/><path d="M21 20a1 1 0 1 1-2 0c0-.9 1-2.5 1-2.5S21 19 21 20Z"/></svg>
-                    Sel.Color
-                </button>
-            </div>
-            <div class="sl-row" style="margin-top:3px">
-                <label>Tol</label>
-                <input type="range" id="tolerance" min="1" max="120" value="32" oninput="document.getElementById('tolVal').textContent=this.value">
-                <span id="tolVal">32</span>
-            </div>
-            <div class="sm-grid">
-                <button class="smBtn active" data-selmode="new"      onclick="setSelMode('new')"      title="New Selection">New</button>
-                <button class="smBtn"        data-selmode="add"      onclick="setSelMode('add')"      title="Add to Selection (Shift)">+Add</button>
-                <button class="smBtn"        data-selmode="subtract" onclick="setSelMode('subtract')" title="Subtract (Alt)">−Sub</button>
-            </div>
-            <div class="sel-actions">
-                <button class="applySelBtn" id="applySelBtn" onclick="applySelection()" disabled title="Apply selection to mask (Enter)">
-                    ✓ Apply
-                </button>
-                <button class="deselBtn" onclick="deselect()" title="Deselect (Ctrl+D / Esc)">
-                    ✕ Desel
-                </button>
-            </div>
-        </div></div>
-
-        <!-- SETTINGS -->
-        <div class="acc-header open" onclick="toggleAcc(this)">SETTINGS <span class="acc-arrow">▶</span></div>
-        <div class="acc-body open"><div class="acc-inner">
-            <div class="sl-row">
-                <label>Opacity</label>
-                <input type="range" id="overlayOpacity" min="10" max="220" value="120" oninput="updateOverlayOpacity(this.value)">
-                <span id="opacityVal">120</span>
-            </div>
-            <div class="sl-row">
-                <label>DPI</label>
-                <input type="number" id="dpiInput" value="300" min="72" max="1200" style="padding:3px 5px;font-size:11px">
-            </div>
-            <button class="clearBtn" onclick="clearMask()">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M8.5 4a.5.5 0 0 0-1 0V5H5a.5.5 0 0 0 0 1h10a.5.5 0 0 0 0-1h-2.5V4a.5.5 0 0 0-1 0V5h-3V4zM5.087 7l.842 8.421A1.5 1.5 0 0 0 7.42 17h5.16a1.5 1.5 0 0 0 1.49-1.579L14.913 7H5.087z"/></svg>
-                Hapus Mask
+        <!-- Selection controls -->
+        <div class="ctx-sel" id="ctxSel">
+            <label>Tolerance</label>
+            <input type="range" id="tolerance" min="1" max="120" value="32" oninput="document.getElementById('tolVal').textContent=this.value">
+            <span class="ctx-val" id="tolVal">32</span>
+            <div class="ctx-sep"></div>
+            <button class="ctx-sm active" data-selmode="new"      onclick="setSelMode('new')">New</button>
+            <button class="ctx-sm"        data-selmode="add"      onclick="setSelMode('add')">+Add</button>
+            <button class="ctx-sm"        data-selmode="subtract" onclick="setSelMode('subtract')">−Sub</button>
+            <div class="ctx-sep"></div>
+            <button class="ctx-btn" onclick="selectObject()" title="Seleksi semua object non-transparan (seperti Ctrl+klik thumbnail layer di Photoshop)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><circle cx="8" cy="8" r="4"/><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1z" opacity=".45"/></svg>
+                Object
             </button>
-        </div></div>
-    </div>
-
-    <!-- CANVAS -->
-    <div class="canvas-area">
-        <div class="canvas-toolbar">
-            <button onclick="zoom(1.25)" title="Zoom In">
-                <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M6.5 1a5.5 5.5 0 1 0 3.976 9.397l3.064 3.063.707-.707-3.063-3.064A5.5 5.5 0 0 0 6.5 1zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM6 4.5a.5.5 0 0 1 1 0V6h1.5a.5.5 0 0 1 0 1H7v1.5a.5.5 0 0 1-1 0V7H4.5a.5.5 0 0 1 0-1H6V4.5z"/></svg>
+            <button class="ctx-btn" onclick="selectInverse()" title="Select Inverse (Ctrl+Shift+I)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M0 0h16v16H0V0zm1 1v14h14V1H1z"/><path d="M4 4h8v8H4V4z"/></svg>
+                Inverse
             </button>
-            <button onclick="zoom(0.8)" title="Zoom Out">
-                <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M6.5 1a5.5 5.5 0 1 0 3.976 9.397l3.064 3.063.707-.707-3.063-3.064A5.5 5.5 0 0 0 6.5 1zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM4 6.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5z"/></svg>
-            </button>
-            <button onclick="fitCanvas()" title="Fit to window">Fit</button>
-            <button onclick="zoom(1,'reset')" title="100%">1:1</button>
-            <span id="zoomLabel" style="min-width:36px;text-align:center">100%</span>
-            <div class="tb-sep"></div>
-            <button id="undoBtn" onclick="undo()" disabled title="Undo (Ctrl+Z)">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd"/></svg>
+            <div class="ctx-sep"></div>
+            <input type="number" id="modifyPx" value="2" min="1" max="200" style="width:38px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:10px" title="Pixels">px
+            <button class="ctx-btn" onclick="contractSelection()" title="Contract selection inward by N pixels (Select › Modify › Contract)">Contract</button>
+            <button class="ctx-btn" onclick="expandSelection()" title="Expand selection outward by N pixels (Select › Modify › Expand)">Expand</button>
+            <label style="display:flex;align-items:center;gap:3px;font-size:10px;color:#555;cursor:pointer;white-space:nowrap" title="Isi lubang di dalam objek jadi siluet solid (mis. untuk white underbase)">
+                <input type="checkbox" id="solidFill" style="margin:0">Solid
+            </label>
+            <label style="display:flex;align-items:center;gap:3px;font-size:10px;color:#555;cursor:pointer;white-space:nowrap" title="Kecualikan area putih dari expand/contract">
+                <input type="checkbox" id="excludeWhite" style="margin:0">Kecualikan putih
+            </label>
+            <div class="ctx-sep"></div>
+            <button class="ctx-btn" id="applySelBtn" onclick="applySelection()" disabled title="Apply (Enter)">✓ Apply</button>
+            <button class="ctx-btn" onclick="deselect()" title="Deselect (Ctrl+D)">✕ Desel</button>
+        </div>
+        <!-- Always visible -->
+        <div class="ctx-always">
+            <div class="ctx-sep"></div>
+            <button class="ctx-btn" id="undoBtn" onclick="undo()" disabled>
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path fill-rule="evenodd" d="M6.293 1.293a1 1 0 0 1 1.414 1.414L4.414 6H12a4 4 0 0 1 0 8h-2a.5.5 0 0 1 0-1h2a3 3 0 0 0 0-6H4.414l3.293 3.293a1 1 0 0 1-1.414 1.414l-5-5a1 1 0 0 1 0-1.414l5-5z"/></svg>
                 Undo
             </button>
-            <button id="redoBtn" onclick="redo()" disabled title="Redo (Ctrl+Y)">
+            <button class="ctx-btn" id="redoBtn" onclick="redo()" disabled>
                 Redo
-                <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M12.207 2.232a.75.75 0 00.025 1.06L16.378 7.25H6.375a5.375 5.375 0 000 10.75H9.25a.75.75 0 000-1.5H6.375a3.875 3.875 0 010-7.75h10.003l-4.146 3.957a.75.75 0 001.036 1.085l5.5-5.25a.75.75 0 000-1.085l-5.5-5.25a.75.75 0 00-1.061.025z" clip-rule="evenodd"/></svg>
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path fill-rule="evenodd" d="M9.707 1.293a1 1 0 0 0-1.414 1.414L11.586 6H4a4 4 0 0 0 0 8h2a.5.5 0 0 0 0-1H4a3 3 0 0 1 0-6h7.586l-3.293 3.293a1 1 0 0 0 1.414 1.414l5-5a1 1 0 0 0 0-1.414l-5-5z"/></svg>
             </button>
-            <span style="flex:1"></span>
-            <span id="coordLabel" style="font-size:10px;color:#444;font-variant-numeric:tabular-nums"></span>
+            <div class="ctx-sep"></div>
+            <button class="ctx-btn" onclick="zoom(1.25)" title="Zoom In (+)">
+                <svg viewBox="0 0 14 14" fill="currentColor" width="11" height="11"><path d="M5.5 0a5.5 5.5 0 1 0 3.645 9.652l2.85 2.851.707-.707-2.852-2.851A5.5 5.5 0 0 0 5.5 0zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM5 3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V6H3.5a.5.5 0 0 1 0-1H5V3.5z"/></svg>
+            </button>
+            <button class="ctx-btn" onclick="zoom(0.8)" title="Zoom Out (-)">
+                <svg viewBox="0 0 14 14" fill="currentColor" width="11" height="11"><path d="M5.5 0a5.5 5.5 0 1 0 3.645 9.652l2.85 2.851.707-.707-2.852-2.851A5.5 5.5 0 0 0 5.5 0zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM3.5 5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"/></svg>
+            </button>
+            <button class="ctx-btn" onclick="fitCanvas()">Fit</button>
+            <button class="ctx-btn" onclick="zoom(1,'reset')">1:1</button>
+            <button class="ctx-btn" id="gridBtn" onclick="toggleGrid()" title="Tampilkan / sembunyikan grid">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M0 0h16v16H0V0zm1 1v4h4V1H1zm5 0v4h4V1H6zm5 0v4h4V1h-4zM1 6v4h4V6H1zm5 0v4h4V6H6zm5 0v4h4V6h-4zM1 11v4h4v-4H1zm5 0v4h4v-4H6zm5 0v4h4v-4h-4z"/></svg>
+                Grid
+            </button>
+            <span class="ctx-val" id="zoomLabel" style="min-width:34px">100%</span>
+            <div class="ctx-sep"></div>
+            <label style="font-size:10px;color:#666">DPI</label>
+            <input type="number" id="dpiInput" value="300" min="72" max="1200" style="width:50px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:10px">
+            <div class="ctx-sep"></div>
+            <button class="ctx-btn" onclick="clearMask()" style="color:#c33">
+                <svg viewBox="0 0 14 14" fill="currentColor" width="11" height="11"><path d="M5.5 2a.5.5 0 0 0-1 0V3H3a.5.5 0 0 0 0 1h8a.5.5 0 0 0 0-1H9V2a.5.5 0 0 0-1 0V3h-2V2zM3.087 5l.59 5.9A1 1 0 0 0 4.67 12h4.66a1 1 0 0 0 .994-.9L10.913 5H3.087z"/></svg>
+                Clear
+            </button>
         </div>
+    </div>
+
+    <!-- Ruler + Canvas scroll area -->
+    <div class="ruler-wrap">
+        <div class="ruler-corner" id="rulerCorner" onclick="toggleRulerPopup(event)" title="Klik: pengaturan satuan &amp; background" style="cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;color:#bbb" >⚙</div>
+        <canvas id="rulerH"></canvas>
+        <canvas id="rulerV"></canvas>
         <div class="canvas-wrap" id="canvasWrap">
             <div id="canvasContainer">
                 <canvas id="bgCanvas"></canvas>
                 <canvas id="drawCanvas"></canvas>
+                <canvas id="gridCanvas" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
                 <canvas id="selCanvas" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
             </div>
         </div>
+        <!-- Popup pengaturan ruler -->
+        <div id="rulerPopup">
+            <div class="rp-row"><span>Satuan</span>
+                <select id="unitSel" onchange="setRulerUnit(this.value)">
+                    <option value="px" selected>px</option>
+                    <option value="mm">mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                </select>
+            </div>
+            <div class="rp-row"><span>Background</span>
+                <input type="color" id="bgColorPick" value="#888888" oninput="setCanvasBg(this.value)">
+            </div>
+            <div class="rp-row"><span>Grid</span>
+                <input type="checkbox" id="gridChk" onchange="toggleGrid(this.checked)">
+            </div>
+        </div>
     </div>
+</div>
 
     <!-- RIGHT PANEL -->
     <div class="right-panel">
-        <div class="rp-label">Nama Channel</div>
-        <input type="text" id="spotName" value="Die Cut" placeholder="mis: Die Cut, UV Varnish">
-
-        <div class="rp-label">Mode Spot</div>
+        <div class="rp-label">Jenis Produk</div>
         <div class="spot-mode-group">
-            <button class="mode-btn active" data-mode="cut" onclick="setMode('cut')">
-                ✂ Die Cut
-                <div class="mode-desc">Potong / kontur</div>
+            <button class="mode-btn active" data-type="dtf" onclick="setProductType('dtf')">
+                DTF
+                <div class="mode-desc">White saja</div>
             </button>
-            <button class="mode-btn" data-mode="uv" onclick="setMode('uv')">
-                ✦ UV Varnish
-                <div class="mode-desc">Mengkilap</div>
-            </button>
-            <button class="mode-btn" data-mode="foil" onclick="setMode('foil')">
-                ★ Foil
-                <div class="mode-desc">Metalik</div>
-            </button>
-            <button class="mode-btn" data-mode="emboss" onclick="setMode('emboss')">
-                ◉ Emboss
-                <div class="mode-desc">Timbul</div>
+            <button class="mode-btn" data-type="uv" onclick="setProductType('uv')">
+                UV
+                <div class="mode-desc">White + Varnish</div>
             </button>
         </div>
 
-        <button class="add-ch-btn" id="addChBtn" onclick="addChannel()" disabled>
-            + Tambah Channel
-        </button>
-
-        <div class="rp-label">Channel List <span id="chCount" style="color:#5b5ef4">(0)</span></div>
-        <div id="channelList" style="display:flex;flex-direction:column;gap:4px;min-height:30px">
-            <div style="color:#444;font-size:10px;text-align:center;padding:6px">Belum ada channel</div>
+        <div class="rp-label">Channel <span style="font-weight:400;color:#aaa;text-transform:none;letter-spacing:0">— klik untuk edit</span></div>
+        <div id="channelList" style="display:flex;flex-direction:column;gap:5px;min-height:30px">
+            <div style="color:#bbb;font-size:11px;text-align:center;padding:6px">Upload gambar dulu</div>
         </div>
 
         <button class="gen-btn" id="genBtn" onclick="generatePDF()" disabled>
-            &#9654; Generate Spot PDF
+            &#11015; Generate &amp; Download PDF
         </button>
 
-        <div class="status-box" id="statusBox">Upload gambar, gambar area spot, klik "+ Tambah Channel".</div>
+        <div class="rp-label">Action <span style="font-weight:400;color:#aaa;text-transform:none;letter-spacing:0">— rekam &amp; terapkan ulang</span></div>
+        <div style="display:flex;gap:4px">
+            <button class="act-rec" id="recBtn" onclick="toggleRecord()">● Rekam</button>
+            <button class="act-clr" id="recClrBtn" onclick="clearRecording()" title="Hapus rekaman">✕</button>
+        </div>
+        <div id="recSteps" style="font-size:10px;color:#888;max-height:110px;overflow-y:auto;display:none;background:#f8f8f8;border:1px solid #eee;border-radius:4px;padding:5px 7px;line-height:1.7"></div>
+        <input type="file" id="batchInput" accept="image/png,image/jpeg" multiple style="display:none">
+        <button class="act-batch" id="batchBtn" onclick="document.getElementById('batchInput').click()" disabled title="Pilih beberapa file — action direplay ke tiap file lalu PDF diunduh otomatis">
+            &#9654; Terapkan ke Banyak File
+        </button>
 
-        <button class="dl-btn" id="dlBtn">&#11015; Download PDF</button>
+        <div class="status-box" id="statusBox">Upload gambar, pilih channel, lalu gambar / seleksi areanya.</div>
     </div>
 </div>
 
 <div id="polyHint">Klik untuk tambah titik • Double-klik / Enter untuk selesai • Kanan untuk hapus titik</div>
+
+<div id="selProgress">
+    <div class="box">
+        <div class="spin"></div>
+        <div class="lbl" id="selProgLbl">Memproses seleksi…</div>
+        <div class="bar" id="selProgBar"><i></i></div>
+    </div>
+</div>
 
 <script>
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -4089,7 +4277,10 @@ const bgCtx     = bgCanvas.getContext('2d');
 const drawCtx   = drawCanvas.getContext('2d');
 
 let currentTool  = 'brush';
-let currentMode  = 'cut';
+let currentMode  = 'white';
+let productType  = 'dtf';   // 'dtf' (White) | 'uv' (White + Varnish)
+let activeChannel = 0;      // index channel yang sedang diedit
+let channels     = [];      // [{name, mode, img: ImageData|null}]
 let selMode      = 'new';   // 'new' | 'add' | 'subtract'
 let zoomLevel    = 1;
 let imageFile    = null;
@@ -4109,70 +4300,285 @@ const MAX_HISTORY = 25;
 // Marching ants
 const selCanvas = document.getElementById('selCanvas');
 const selCtx    = selCanvas.getContext('2d');
-let antPixels   = new Int32Array(0);  // flat [x0,y0,x1,y1,...]
-let antPhase    = 0;
+let antLoops    = [];      // array of flat [x0,y0,x1,y1,...] loops (koord gambar)
+let antDashOffset = 0;     // offset dash (animasi jalan)
 let antRAF      = null;
-let antFrameTick = 0;      // slow-down counter
+let antFrameTick = 0;      // pembagi frame
 
 // Active selection (separate from drawn mask)
 let selectionMask = null;  // Uint8Array w*h, populated by magic wand / color select
 
-// Warna overlay per mode
+// Warna overlay per mode (untuk tampilan editor saja)
 const modeColors = {
-    cut:    [255, 0,   0  ],
-    uv:     [0,   200, 255],
-    foil:   [255, 215, 0  ],
-    emboss: [180, 100, 255],
+    white:   [255, 0,   200],  // magenta terang — kontras di atas desain apa pun
+    varnish: [0,   200, 255],  // cyan — pelapis kilap
 };
 
 // ─── Upload Gambar ──────────────────────────────────────────────────────────
-document.getElementById('imgInput').addEventListener('change', function(e){
+function loadImageFile(file){
+    return new Promise((resolve, reject)=>{
+        imageFile = file;
+        document.getElementById('imgNameLabel').textContent = file.name;
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = function(){
+            imageObj = img;
+            bgCanvas.width  = img.width;
+            bgCanvas.height = img.height;
+            drawCanvas.width  = img.width;
+            drawCanvas.height = img.height;
+            bgCtx.drawImage(img, 0, 0);
+            selCanvas.width  = img.width;
+            selCanvas.height = img.height;
+            clearMaskData();
+            _whiteMaskCache = null;   // reset cache mask putih
+            undoStack.length = 0; redoStack.length = 0; _updateUndoRedo();
+            _initChannels();          // bangun channel sesuai jenis produk
+            fitCanvas();
+            URL.revokeObjectURL(url);
+            resolve();
+        };
+        img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Gagal memuat ' + file.name)); };
+        img.src = url;
+    });
+}
+
+document.getElementById('imgInput').addEventListener('change', async function(e){
     const file = e.target.files[0];
     if(!file) return;
-    imageFile = file;
-    document.getElementById('imgNameLabel').textContent = file.name;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = function(){
-        imageObj = img;
-        bgCanvas.width  = img.width;
-        bgCanvas.height = img.height;
-        drawCanvas.width  = img.width;
-        drawCanvas.height = img.height;
-        bgCtx.drawImage(img, 0, 0);
-        selCanvas.width  = img.width;
-        selCanvas.height = img.height;
-        clearMaskData();
-        undoStack.length = 0; redoStack.length = 0; _updateUndoRedo();
-        channels = [];
-        _renderChannelList();
-        fitCanvas();
-        document.getElementById('addChBtn').disabled = false;
-        document.getElementById('statusBox').textContent = 'Gambar dimuat. Gambar area spot lalu klik Tambah Channel.';
-        document.getElementById('statusBox').className = 'status-box';
-    };
-    img.src = url;
+    await loadImageFile(file);
+    document.getElementById('statusBox').textContent = 'Gambar dimuat. Pilih channel lalu gambar / seleksi areanya.';
+    document.getElementById('statusBox').className = 'status-box';
 });
 
 // ─── Tool Selection ─────────────────────────────────────────────────────────
+const SEL_TOOLS = new Set(['magicwand','colorselect']);
+const PAINT_TOOLS = new Set(['brush','eraser','fill','rect','ellipse','polygon']);
+
 function setTool(t){
     currentTool = t;
-    document.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.classList.remove('active'));
-    document.querySelector(`[data-tool="${t}"]`).classList.add('active');
+    document.querySelectorAll('.tbBtn[data-tool]').forEach(b=>b.classList.remove('active'));
+    const btn = document.querySelector(`.tbBtn[data-tool="${t}"]`);
+    if(btn) btn.classList.add('active');
     if(t !== 'polygon') cancelPolygon();
+    // show/hide context bar sections
+    document.getElementById('ctxPaint').style.display = PAINT_TOOLS.has(t) ? 'flex' : 'none';
+    document.getElementById('ctxSel').style.display   = SEL_TOOLS.has(t)   ? 'flex' : 'none';
     updateCursor();
 }
 
-function setMode(m){
-    currentMode = m;
-    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelector(`[data-mode="${m}"]`).classList.add('active');
+// ─── Select Inverse ─────────────────────────────────────────────────────────
+function selectInverse(){
+    if(!imageObj) return;
+    _recAct({t:'inverse'});
+    const w = bgCanvas.width, h = bgCanvas.height;
+    if(!selectionMask){
+        selectionMask = new Uint8Array(w*h).fill(1);
+    } else {
+        for(let i=0; i<selectionMask.length; i++) selectionMask[i] = selectionMask[i] ? 0 : 1;
+    }
+    document.getElementById('applySelBtn').disabled = false;
+    recomputeAnts();
+}
+
+// ─── Select Object ───────────────────────────────────────────────────────────
+// Seperti Ctrl+klik thumbnail layer di Photoshop: seleksi SEMUA piksel
+// non-transparan (object), apapun warnanya. Ambang 50% alpha (konsisten ants).
+function _selectObjectImpl(){
+    const w = bgCanvas.width, h = bgCanvas.height;
+    const src = bgCtx.getImageData(0,0,w,h).data;
+    const m = new Uint8Array(w*h);
+    for(let i=0;i<w*h;i++) if(src[i*4+3] >= 128) m[i] = 1;
+    _mergeSelMask(m, selMode, w*h);
+}
+function selectObject(){
+    if(!imageObj) return;
+    _recAct({t:'object', mode:selMode, ..._selOpts()});
+    _runSelection('Menyeleksi object…', _selectObjectImpl);
+}
+
+// ─── Contract / Expand Selection ─────────────────────────────────────────────
+function _getModifyPx(){ return Math.max(1, parseInt(document.getElementById('modifyPx').value)||2); }
+
+// ─── Progress overlay untuk operasi seleksi berat ───────────────────────────
+let _selBusy = false;
+function _showSelProgress(label){
+    document.getElementById('selProgLbl').textContent = label || 'Memproses seleksi…';
+    document.getElementById('selProgBar').style.display = 'none';
+    document.getElementById('selProgress').style.display = 'flex';
+}
+function _hideSelProgress(){ document.getElementById('selProgress').style.display = 'none'; }
+
+// Jalankan operasi berat setelah overlay sempat tampil (2× rAF), lalu sembunyikan.
+function _runSelection(label, fn){
+    if(_selBusy) return;
+    // Gambar besar butuh feedback; kecil langsung saja tanpa overlay berkedip.
+    const big = imageObj && (bgCanvas.width * bgCanvas.height > 1500*1500);
+    if(!big){ fn(); return; }
+    _selBusy = true;
+    _showSelProgress(label);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        try { fn(); }
+        finally { _hideSelProgress(); _selBusy = false; }
+    }));
+}
+
+function contractSelection(){
+    if(!selectionMask || !imageObj) return;
+    _recAct({t:'contract', px:_getModifyPx(), exw:_isExcludeWhite()});
+    _runSelection('Mengecilkan seleksi…', ()=>_contractSelectionImpl());
+}
+function _contractSelectionImpl(){
+    const n = _getModifyPx();
+    const w = bgCanvas.width, h = bgCanvas.height;
+    // Separable min-filter (erosion): horizontal then vertical
+    const tmp = new Uint8Array(w*h);
+    for(let y=0; y<h; y++){
+        for(let x=0; x<w; x++){
+            let v=1;
+            for(let dx=-n; dx<=n; dx++){
+                const nx=x+dx;
+                if(nx<0||nx>=w||!selectionMask[y*w+nx]){v=0;break;}
+            }
+            tmp[y*w+x]=v;
+        }
+    }
+    const result = new Uint8Array(w*h);
+    for(let x=0; x<w; x++){
+        for(let y=0; y<h; y++){
+            let v=1;
+            for(let dy=-n; dy<=n; dy++){
+                const ny=y+dy;
+                if(ny<0||ny>=h||!tmp[ny*w+x]){v=0;break;}
+            }
+            result[y*w+x]=v;
+        }
+    }
+    // Area putih tidak boleh ikut menyusut/berubah bila dikecualikan
+    if(_isExcludeWhite()){
+        const wm = _getWhiteMask();
+        for(let i=0;i<result.length;i++) if(wm[i]) result[i] = selectionMask[i];
+    }
+    selectionMask=result;
+    document.getElementById('applySelBtn').disabled=false;
+    recomputeAnts();
+}
+
+function expandSelection(){
+    if(!selectionMask || !imageObj) return;
+    _recAct({t:'expand', px:_getModifyPx(), exw:_isExcludeWhite()});
+    _runSelection('Memperbesar seleksi…', ()=>_expandSelectionImpl());
+}
+function _expandSelectionImpl(){
+    const n = _getModifyPx();
+    const w = bgCanvas.width, h = bgCanvas.height;
+    const exw = _isExcludeWhite();
+    const wm  = exw ? _getWhiteMask() : null;
+
+    // Sumber dilasi: seleksi TANPA piksel putih (bila dikecualikan) —
+    // putih tidak boleh jadi sumber ekspansi ke sekitarnya.
+    let src = selectionMask;
+    if(exw){
+        src = new Uint8Array(w*h);
+        for(let i=0;i<w*h;i++) src[i] = (selectionMask[i] && !wm[i]) ? 1 : 0;
+    }
+
+    // Separable max-filter (dilation): horizontal then vertical
+    const tmp = new Uint8Array(w*h);
+    for(let y=0; y<h; y++){
+        for(let x=0; x<w; x++){
+            let v=0;
+            for(let dx=-n; dx<=n; dx++){
+                const nx=x+dx;
+                if(nx>=0&&nx<w&&src[y*w+nx]){v=1;break;}
+            }
+            tmp[y*w+x]=v;
+        }
+    }
+    const result = new Uint8Array(w*h);
+    for(let x=0; x<w; x++){
+        for(let y=0; y<h; y++){
+            let v=0;
+            for(let dy=-n; dy<=n; dy++){
+                const ny=y+dy;
+                if(ny>=0&&ny<h&&tmp[ny*w+x]){v=1;break;}
+            }
+            result[y*w+x]=v;
+        }
+    }
+    if(exw){
+        // Putih beku total: status seleksinya persis seperti sebelum expand
+        for(let i=0;i<w*h;i++) if(wm[i]) result[i] = selectionMask[i];
+    }
+    selectionMask=result;
+    document.getElementById('applySelBtn').disabled=false;
+    recomputeAnts();
+}
+
+// ─── Jenis Produk & Channel ─────────────────────────────────────────────────
+const TYPE_CHANNELS = {
+    dtf: [['White','white']],
+    uv:  [['White','white'], ['Varnish','varnish']],
+};
+
+function _initChannels(){
+    // bangun ulang channels sesuai productType, pertahankan mask lama by-name
+    const prev = {};
+    channels.forEach(c=>{ prev[c.name] = c.img; });
+    channels = TYPE_CHANNELS[productType].map(([name,mode])=>(
+        {name, mode, img: prev[name] || null}
+    ));
+    activeChannel = 0;
+    currentMode = channels[0].mode;
+    if(imageObj) _loadActiveChannel();
+    _renderChannelList();
+    if(imageObj) recomputeAnts();
+}
+
+function setProductType(type){
+    if(type === productType) return;
+    _recAct({t:'ptype', type});
+    if(imageObj) _saveActiveChannel();
+    productType = type;
+    document.querySelectorAll('.mode-btn[data-type]').forEach(b=>
+        b.classList.toggle('active', b.dataset.type === type));
+    _initChannels();
+    document.getElementById('statusBox').textContent =
+        type === 'uv' ? 'Mode UV: isi channel White dan Varnish.' : 'Mode DTF: isi channel White.';
+    document.getElementById('statusBox').className = 'status-box';
+}
+
+function selectChannel(i){
+    if(!imageObj || i === activeChannel || !channels[i]) return;
+    _recAct({t:'chan', i});
+    _saveActiveChannel();
+    activeChannel = i;
+    currentMode = channels[i].mode;
+    _loadActiveChannel();
+    _renderChannelList();
+    recomputeAnts();   // tampilkan seleksi channel ini
+}
+
+function _saveActiveChannel(){
+    if(!imageObj || !channels[activeChannel]) return;
+    if(selectionMask) applySelection();   // commit seleksi yang tertunda
+    channels[activeChannel].img = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
+}
+
+function _loadActiveChannel(){
+    selectionMask = null;
+    const ab = document.getElementById('applySelBtn');
+    if(ab) ab.disabled = true;
+    drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+    const im = channels[activeChannel] && channels[activeChannel].img;
+    if(im) drawCtx.putImageData(im, 0, 0);
 }
 
 function setSelMode(sm){
     selMode = sm;
-    document.querySelectorAll('.sel-mode-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelector(`[data-selmode="${sm}"]`).classList.add('active');
+    document.querySelectorAll('.ctx-sm[data-selmode]').forEach(b=>b.classList.remove('active'));
+    const btn = document.querySelector(`.ctx-sm[data-selmode="${sm}"]`);
+    if(btn) btn.classList.add('active');
 }
 
 function updateCursor(){
@@ -4200,7 +4606,7 @@ function updateOverlayOpacity(v){
 function zoom(factor, mode){
     if(!imageObj) return;
     if(mode === 'reset') zoomLevel = 1;
-    else zoomLevel = Math.min(Math.max(zoomLevel * factor, 0.05), 8);
+    else zoomLevel = Math.min(Math.max(zoomLevel * factor, 0.05), 16);
     applyZoom();
 }
 
@@ -4225,8 +4631,211 @@ function applyZoom(){
     drawCanvas.style.height = h + 'px';
     selCanvas.style.width   = w + 'px';
     selCanvas.style.height  = h + 'px';
+    const gc = document.getElementById('gridCanvas');
+    gc.style.width  = w + 'px';
+    gc.style.height = h + 'px';
     document.getElementById('zoomLabel').textContent = Math.round(zoomLevel*100)+'%';
+    drawRulers();
+    drawGrid();
 }
+
+// ─── Mouse Wheel Zoom (acuan di titik kursor) ────────────────────────────────
+document.getElementById('canvasWrap').addEventListener('wheel', e=>{
+    if(!imageObj) return;
+    e.preventDefault();
+    const wrap = document.getElementById('canvasWrap');
+    const rect = wrap.getBoundingClientRect();
+    const PAD = 20;  // padding di dalam canvas-wrap sebelum canvasContainer
+    // titik gambar (dalam piksel canvas) di bawah kursor sebelum zoom
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const imgX = (wrap.scrollLeft + mouseX - PAD) / zoomLevel;
+    const imgY = (wrap.scrollTop  + mouseY - PAD) / zoomLevel;
+    const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+    zoomLevel = Math.min(Math.max(zoomLevel * factor, 0.05), 16);
+    applyZoom();
+    // pertahankan titik gambar itu tetap di posisi kursor
+    wrap.scrollLeft = imgX * zoomLevel + PAD - mouseX;
+    wrap.scrollTop  = imgY * zoomLevel + PAD - mouseY;
+    drawRulers();
+}, {passive: false});
+
+// ─── Rulers ─────────────────────────────────────────────────────────────────
+function drawRulers(){
+    const rulerH = document.getElementById('rulerH');
+    const rulerV = document.getElementById('rulerV');
+    const wrap   = document.getElementById('canvasWrap');
+    if(!rulerH || !rulerV) return;
+
+    // Size canvases to fill available space
+    const wrapW = wrap.clientWidth;
+    const wrapH = wrap.clientHeight;
+    rulerH.width  = wrapW; rulerH.height = 20;
+    rulerV.width  = 20;    rulerV.height = wrapH;
+
+    const scrollL = wrap.scrollLeft;
+    const scrollT = wrap.scrollTop;
+    const PAD = 20; // padding in canvas-wrap
+
+    _drawHRuler(rulerH, scrollL, PAD);
+    _drawVRuler(rulerV, scrollT, PAD);
+}
+
+// ─── Satuan ruler ────────────────────────────────────────────────────────────
+let rulerUnit = 'px';   // 'px' | 'mm' | 'cm' | 'm'
+
+function _unitPerPx(){
+    if(rulerUnit === 'px') return 1;
+    const dpi = parseFloat(document.getElementById('dpiInput').value) || 300;
+    const mmPerPx = 25.4 / dpi;
+    if(rulerUnit === 'mm') return mmPerPx;
+    if(rulerUnit === 'cm') return mmPerPx / 10;
+    return mmPerPx / 1000;   // m
+}
+
+function setRulerUnit(u){
+    rulerUnit = u;
+    drawRulers();
+    drawGrid();
+}
+
+// Pilih step "cantik" dalam satuan aktif (1/2/2.5/5 × 10^n)
+function _niceStepUnits(rawUnits){
+    if(rawUnits <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(rawUnits)));
+    for(const m of [1, 2, 2.5, 5, 10]){
+        if(m * p >= rawUnits) return m * p;
+    }
+    return 10 * p;
+}
+
+function _fmtUnit(v){
+    // buang trailing zero: 1.5, 2, 0.25 …
+    return parseFloat(v.toFixed(4)).toString();
+}
+
+function _rulerStepPx(){
+    const upp = _unitPerPx();
+    const stepUnits = _niceStepUnits((60 / zoomLevel) * upp);
+    return { stepPx: stepUnits / upp, stepUnits, upp };
+}
+
+function _drawHRuler(canvas, scrollLeft, pad){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#4a4a4a';
+    ctx.fillRect(0,0,W,H);
+    if(!imageObj) return;
+    const { stepPx, stepUnits, upp } = _rulerStepPx();
+    const startIdx = Math.max(0, Math.floor((scrollLeft - pad) / zoomLevel / stepPx));
+    ctx.fillStyle = '#ccc';
+    ctx.font = '8px monospace';
+    ctx.textBaseline = 'top';
+    for(let n = startIdx; ; n++){
+        const xPx = n * stepPx;
+        const screenX = pad - scrollLeft + xPx * zoomLevel;
+        if(screenX > W) break;
+        if(screenX < 0) continue;
+        ctx.fillRect(screenX, H-6, 1, 6);
+        if(n % 5 === 0){
+            ctx.fillRect(screenX, H-10, 1, 10);
+            ctx.fillText(_fmtUnit(n * stepUnits), screenX+2, 1);
+        }
+    }
+}
+
+function _drawVRuler(canvas, scrollTop, pad){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#4a4a4a';
+    ctx.fillRect(0,0,W,H);
+    if(!imageObj) return;
+    const { stepPx, stepUnits } = _rulerStepPx();
+    const startIdx = Math.max(0, Math.floor((scrollTop - pad) / zoomLevel / stepPx));
+    ctx.fillStyle = '#ccc';
+    ctx.font = '8px monospace';
+    ctx.save();
+    ctx.rotate(-Math.PI/2);
+    for(let n = startIdx; ; n++){
+        const yPx = n * stepPx;
+        const screenY = pad - scrollTop + yPx * zoomLevel;
+        if(screenY > H) break;
+        if(screenY < 0) continue;
+        ctx.fillRect(-screenY, W-6, 1, 6);
+        if(n % 5 === 0){
+            ctx.fillRect(-screenY, W-10, 1, 10);
+            ctx.fillText(_fmtUnit(n * stepUnits), -screenY+2, 1);
+        }
+    }
+    ctx.restore();
+}
+
+// Update rulers on scroll
+document.getElementById('canvasWrap').addEventListener('scroll', ()=>{ drawRulers(); }, {passive:true});
+// Ganti DPI → skala satuan berubah
+document.getElementById('dpiInput').addEventListener('input', ()=>{ drawRulers(); drawGrid(); });
+
+// ─── Grid overlay ────────────────────────────────────────────────────────────
+const gridCanvas = document.getElementById('gridCanvas');
+const gridCtx    = gridCanvas.getContext('2d');
+let showGrid = false;
+
+function toggleGrid(force){
+    showGrid = (typeof force === 'boolean') ? force : !showGrid;
+    document.getElementById('gridBtn').classList.toggle('grid-on', showGrid);
+    const chk = document.getElementById('gridChk');
+    if(chk) chk.checked = showGrid;
+    drawGrid();
+}
+
+function drawGrid(){
+    if(!imageObj) return;
+    const w = bgCanvas.width, h = bgCanvas.height;
+    if(gridCanvas.width !== w || gridCanvas.height !== h){
+        gridCanvas.width = w; gridCanvas.height = h;
+    }
+    gridCtx.clearRect(0,0,w,h);
+    if(!showGrid) return;
+    const { stepPx } = _rulerStepPx();
+    const z = Math.max(zoomLevel, 1e-4);
+    gridCtx.lineWidth = 1 / z;
+    // garis minor
+    gridCtx.strokeStyle = 'rgba(0,120,215,0.18)';
+    gridCtx.beginPath();
+    for(let x = stepPx; x < w; x += stepPx){ gridCtx.moveTo(x, 0); gridCtx.lineTo(x, h); }
+    for(let y = stepPx; y < h; y += stepPx){ gridCtx.moveTo(0, y); gridCtx.lineTo(w, y); }
+    gridCtx.stroke();
+    // garis mayor (tiap 5 step)
+    gridCtx.strokeStyle = 'rgba(0,120,215,0.38)';
+    gridCtx.beginPath();
+    const major = stepPx * 5;
+    for(let x = major; x < w; x += major){ gridCtx.moveTo(x, 0); gridCtx.lineTo(x, h); }
+    for(let y = major; y < h; y += major){ gridCtx.moveTo(0, y); gridCtx.lineTo(w, y); }
+    gridCtx.stroke();
+}
+
+// ─── Ruler corner popup & background ────────────────────────────────────────
+function toggleRulerPopup(e){
+    e.stopPropagation();
+    const p = document.getElementById('rulerPopup');
+    p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+}
+document.addEventListener('click', e=>{
+    const p = document.getElementById('rulerPopup');
+    if(p.style.display === 'block' && !p.contains(e.target) && e.target.id !== 'rulerCorner'){
+        p.style.display = 'none';
+    }
+});
+
+function setCanvasBg(color){
+    document.getElementById('canvasWrap').style.background = color;
+    try{ localStorage.setItem('spotBgColor', color); }catch(_){}
+}
+// restore preferensi background
+try{
+    const savedBg = localStorage.getItem('spotBgColor');
+    if(savedBg){ setCanvasBg(savedBg); document.getElementById('bgColorPick').value = savedBg; }
+}catch(_){}
 
 // ─── Coordinate helper ──────────────────────────────────────────────────────
 function getCanvasPos(e){
@@ -4254,18 +4863,18 @@ drawCanvas.addEventListener('mousedown', e=>{
     }
     saveHistory();
     if(currentTool === 'fill'){
-        floodFill(x, y, effMode);
-        recomputeAnts();
+        _recAct({t:'fill', rx:x/drawCanvas.width, ry:y/drawCanvas.height, mode:effMode});
+        _runSelection('Memproses…', ()=>{ floodFill(x, y, effMode); recomputeAnts(); _renderChannelList(); });
         return;
     }
     if(currentTool === 'magicwand'){
-        magicWand(x, y, effMode);
-        recomputeAnts();
+        _recAct({t:'wand', rx:x/drawCanvas.width, ry:y/drawCanvas.height, mode:effMode, ..._selOpts()});
+        _runSelection('Menyeleksi (Magic Wand)…', ()=>magicWand(x, y, effMode));
         return;
     }
     if(currentTool === 'colorselect'){
-        selectByColor(x, y, effMode);
-        recomputeAnts();
+        _recAct({t:'color', rx:x/drawCanvas.width, ry:y/drawCanvas.height, mode:effMode, ..._selOpts()});
+        _runSelection('Menyeleksi (Select by Color)…', ()=>selectByColor(x, y, effMode));
         return;
     }
     isDrawing = true;
@@ -4333,7 +4942,7 @@ drawCanvas.addEventListener('mousemove', e=>{
 
 drawCanvas.addEventListener('mouseup', e=>{
     if(e.button !== 0) return;
-    if(isDrawing) recomputeAnts();
+    if(isDrawing){ recomputeAnts(); _renderChannelList(); }
     isDrawing = false;
     drawCtx.globalCompositeOperation = 'source-over';
     previewCanvas = null;
@@ -4341,23 +4950,41 @@ drawCanvas.addEventListener('mouseup', e=>{
 
 drawCanvas.addEventListener('mouseleave', ()=>{ isDrawing = false; drawCtx.globalCompositeOperation = 'source-over'; });
 
-// ─── Accordion ───────────────────────────────────────────────────────────────
-function toggleAcc(header){
-    header.classList.toggle('open');
-    const body = header.nextElementSibling;
-    body.classList.toggle('open');
+// ─── Init ─────────────────────────────────────────────────────────────────────
+setTool('brush');   // set initial ctx-bar state
+
+window.addEventListener('resize', ()=>{ if(imageObj) drawRulers(); });
+
+// ─── Select All (Ctrl+A) — seluruh kanvas, termasuk area transparan ─────────
+function selectAll(){
+    if(!imageObj) return;
+    _recAct({t:'all'});
+    const w = bgCanvas.width, h = bgCanvas.height;
+    selectionMask = new Uint8Array(w*h).fill(1);
+    document.getElementById('applySelBtn').disabled = false;
+    recomputeAnts();
+}
+
+function _isTypingTarget(e){
+    const t = e.target;
+    return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
 }
 
 // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
 document.addEventListener('keydown', e=>{
-    // Undo / Redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
     if((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey){ e.preventDefault(); undo(); return; }
     if((e.ctrlKey||e.metaKey) && (e.key==='y' || (e.key==='z'&&e.shiftKey))){ e.preventDefault(); redo(); return; }
-
-    // Ctrl+D = deselect
+    if((e.ctrlKey||e.metaKey) && (e.key==='a'||e.key==='A')){ e.preventDefault(); selectAll(); return; }
     if((e.ctrlKey||e.metaKey) && e.key==='d'){ e.preventDefault(); deselect(); return; }
+    if((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toUpperCase()==='I'){ e.preventDefault(); selectInverse(); return; }
 
-    // Tool shortcuts (ignore when Ctrl held)
+    // Spasi (tahan) → mode geser lembar kerja
+    if(e.code === 'Space' && !_isTypingTarget(e)){
+        e.preventDefault();
+        if(!spaceDown){ spaceDown = true; canvasWrapEl.style.cursor = 'grab'; }
+        return;
+    }
+
     if(e.ctrlKey || e.metaKey || e.altKey) return;
     if(e.key === 'Enter'){
         if(currentTool === 'polygon') finishPolygon();
@@ -4372,7 +4999,50 @@ document.addEventListener('keydown', e=>{
     if(e.key === 'p') setTool('polygon');
     if(e.key === 'w') setTool('magicwand');
     if(e.key === 's') setTool('colorselect');
+    if(e.key === '+' || e.key === '=') zoom(1.25);
+    if(e.key === '-') zoom(0.8);
 });
+
+document.addEventListener('keyup', e=>{
+    if(e.code === 'Space'){
+        spaceDown = false;
+        if(!isPanning) canvasWrapEl.style.cursor = '';
+    }
+});
+
+// ─── Pan lembar kerja: tahan Spasi + drag, atau klik-tengah + drag ──────────
+const canvasWrapEl = document.getElementById('canvasWrap');
+let spaceDown = false, isPanning = false;
+let panStartX = 0, panStartY = 0, panScrollL = 0, panScrollT = 0;
+
+canvasWrapEl.addEventListener('mousedown', e=>{
+    // klik tengah (button 1) atau spasi+klik kiri → mulai geser
+    if(e.button === 1 || (spaceDown && e.button === 0)){
+        isPanning = true;
+        panStartX = e.clientX; panStartY = e.clientY;
+        panScrollL = canvasWrapEl.scrollLeft; panScrollT = canvasWrapEl.scrollTop;
+        canvasWrapEl.style.cursor = 'grabbing';
+        e.preventDefault();
+        e.stopPropagation();   // jangan sampai memicu gambar/seleksi
+    }
+}, true);   // capture: dahulukan sebelum handler drawCanvas
+
+window.addEventListener('mousemove', e=>{
+    if(!isPanning) return;
+    canvasWrapEl.scrollLeft = panScrollL - (e.clientX - panStartX);
+    canvasWrapEl.scrollTop  = panScrollT - (e.clientY - panStartY);
+    drawRulers();
+});
+
+window.addEventListener('mouseup', e=>{
+    if(isPanning){
+        isPanning = false;
+        canvasWrapEl.style.cursor = spaceDown ? 'grab' : '';
+    }
+});
+
+// Cegah menu auto-scroll bawaan klik-tengah
+canvasWrapEl.addEventListener('auxclick', e=>{ if(e.button === 1) e.preventDefault(); });
 
 // ─── Brush helpers ──────────────────────────────────────────────────────────
 function getBrushRadius(){ return parseInt(document.getElementById('brushSize').value) / 2; }
@@ -4463,6 +5133,7 @@ function undo(){
     drawCtx.putImageData(undoStack.pop(), 0, 0);
     _updateUndoRedo();
     recomputeAnts();
+    _renderChannelList();
 }
 function redo(){
     if(!redoStack.length) return;
@@ -4470,6 +5141,7 @@ function redo(){
     drawCtx.putImageData(redoStack.pop(), 0, 0);
     _updateUndoRedo();
     recomputeAnts();
+    _renderChannelList();
 }
 function _updateUndoRedo(){
     document.getElementById('undoBtn').disabled = undoStack.length === 0;
@@ -4477,52 +5149,82 @@ function _updateUndoRedo(){
 }
 
 // ─── Marching Ants ───────────────────────────────────────────────────────────
-function recomputeAnts(){
-    if(!imageObj){ antPixels = new Int32Array(0); return; }
+// Bangun mask biner (Uint8Array) dari seleksi aktif / channel yang tergambar
+function _currentSelMask(){
     const w = drawCanvas.width, h = drawCanvas.height;
-    const MAXDIM = 900;
-    const scale  = Math.min(1, MAXDIM / Math.max(w, h));
-    const sw = Math.ceil(w * scale), sh = Math.ceil(h * scale);
-    const invScale = 1 / scale;
+    if(selectionMask) return selectionMask;
+    const d = drawCtx.getImageData(0,0,w,h).data;
+    const m = new Uint8Array(w*h);
+    for(let i=0;i<w*h;i++) if(d[i*4+3] > 10) m[i] = 1;
+    return m;
+}
 
-    let d;
-    if(selectionMask){
-        // Build scaled ImageData from selectionMask
-        const full = document.createElement('canvas');
-        full.width = w; full.height = h;
-        const fc = full.getContext('2d');
-        const fid = fc.createImageData(w, h);
-        for(let i = 0; i < w*h; i++){
-            if(selectionMask[i]){ fid.data[i*4+3] = 255; }
-        }
-        fc.putImageData(fid, 0, 0);
-        const tmp = document.createElement('canvas');
-        tmp.width = sw; tmp.height = sh;
-        const tc = tmp.getContext('2d');
-        tc.drawImage(full, 0, 0, sw, sh);
-        d = tc.getImageData(0, 0, sw, sh).data;
-    } else {
-        const tmp = document.createElement('canvas');
-        tmp.width = sw; tmp.height = sh;
-        const tc = tmp.getContext('2d');
-        tc.drawImage(drawCanvas, 0, 0, sw, sh);
-        d = tc.getImageData(0, 0, sw, sh).data;
-    }
-
-    const buf = [];
-    for(let y = 0; y < sh; y++){
-        for(let x = 0; x < sw; x++){
-            const i = (y * sw + x) * 4;
-            if(d[i+3] <= 10) continue;
-            const isEdge =
-                y===0    || d[((y-1)*sw+x)*4+3] <= 10 ||
-                y===sh-1 || d[((y+1)*sw+x)*4+3] <= 10 ||
-                x===0    || d[(y*sw+x-1)*4+3]   <= 10 ||
-                x===sw-1 || d[(y*sw+x+1)*4+3]   <= 10;
-            if(isEdge) buf.push(Math.round(x * invScale), Math.round(y * invScale));
+// Trace batas seleksi menjadi loop-loop poligon presisi (di tepi piksel).
+// Edge yang bersinggungan dengan tepi gambar (out-of-bounds) DILEWATI
+// → marching ants tidak menggambar bingkai gambar (req: tepi tidak diseleksi).
+function _traceBoundary(sel, w, h){
+    const NP = (w + 1);
+    const adj = new Map();          // pointId → array of neighbor pointId
+    const addEdge = (ax, ay, bx, by) => {
+        const a = ay*NP + ax, b = by*NP + bx;
+        (adj.get(a) || adj.set(a, []).get(a)).push(b);
+        (adj.get(b) || adj.set(b, []).get(b)).push(a);
+    };
+    for(let y=0; y<h; y++){
+        const row = y*w;
+        for(let x=0; x<w; x++){
+            if(!sel[row + x]) continue;
+            if(y>0   && !sel[row - w + x]) addEdge(x, y,   x+1, y);     // atas
+            if(y<h-1 && !sel[row + w + x]) addEdge(x, y+1, x+1, y+1);   // bawah
+            if(x>0   && !sel[row + x - 1]) addEdge(x, y,   x,   y+1);   // kiri
+            if(x<w-1 && !sel[row + x + 1]) addEdge(x+1, y, x+1, y+1);   // kanan
         }
     }
-    antPixels = new Int32Array(buf);
+    // Rangkai edge jadi loop
+    const loops = [];
+    const usedFrom = new Map();   // pointId → berapa neighbor sudah dipakai
+    const nextUnused = (p) => {
+        const arr = adj.get(p); if(!arr) return -1;
+        let idx = usedFrom.get(p) || 0;
+        while(idx < arr.length && arr[idx] < 0) idx++;
+        return idx < arr.length ? idx : -1;
+    };
+    for(const start of adj.keys()){
+        while(true){
+            const arr = adj.get(start);
+            let si = 0; while(si < arr.length && arr[si] < 0) si++;
+            if(si >= arr.length) break;
+            // mulai loop baru
+            const loop = [start % NP, (start / NP) | 0];
+            let cur = start, prev = -1;
+            while(true){
+                const carr = adj.get(cur);
+                let ni = -1;
+                for(let k=0;k<carr.length;k++){
+                    if(carr[k] >= 0 && carr[k] !== prev){ ni = k; break; }
+                }
+                if(ni === -1){
+                    for(let k=0;k<carr.length;k++){ if(carr[k] >= 0){ ni = k; break; } }
+                }
+                if(ni === -1) break;
+                const nb = carr[ni];
+                carr[ni] = -1;                       // tandai edge terpakai
+                const barr = adj.get(nb);            // hapus arah balik
+                for(let k=0;k<barr.length;k++){ if(barr[k] === cur){ barr[k] = -1; break; } }
+                loop.push(nb % NP, (nb / NP) | 0);
+                prev = cur; cur = nb;
+                if(cur === start) break;
+            }
+            if(loop.length >= 6) loops.push(loop);
+        }
+    }
+    return loops;
+}
+
+function recomputeAnts(){
+    if(!imageObj){ antLoops = []; return; }
+    const w = drawCanvas.width, h = drawCanvas.height;
+    antLoops = _traceBoundary(_currentSelMask(), w, h);
     if(!antRAF) _startAnts();
 }
 
@@ -4531,34 +5233,38 @@ function _startAnts(){ antRAF = requestAnimationFrame(_tickAnts); }
 function _tickAnts(){
     antRAF = requestAnimationFrame(_tickAnts);
     antFrameTick++;
-    if(antFrameTick % 5 === 0){   // ~12fps instead of 60fps → slow crawl
-        antPhase = (antPhase + 1) % 14;
+    if(antFrameTick % 2 === 0){        // ~30fps, gerak halus seperti Photoshop
+        antDashOffset -= 0.5;          // kecepatan jalan semut (px layar)
         _drawAnts();
     }
 }
 
+// Marching ants gaya Photoshop: garis putih solid + dash hitam berjalan,
+// tebal & panjang dash konstan di layar (dibagi zoom).
+const _ANT_DASH = 4;   // px layar
 function _drawAnts(){
     const w = selCanvas.width, h = selCanvas.height;
     selCtx.clearRect(0, 0, w, h);
-    const n = antPixels.length;
-    if(n === 0) return;
+    if(!antLoops.length) return;
+    const z = Math.max(zoomLevel, 1e-4);
 
-    const DASH = 7;
-    const pxSz = Math.max(1, Math.ceil(1 / Math.min(zoomLevel, 1)));
-
-    selCtx.beginPath();
-    for(let k = 0; k < n; k += 2){
-        if(((k/2 + antPhase) % (DASH*2)) < DASH) selCtx.rect(antPixels[k], antPixels[k+1], pxSz, pxSz);
+    const path = new Path2D();
+    for(const loop of antLoops){
+        path.moveTo(loop[0], loop[1]);
+        for(let i=2;i<loop.length;i+=2) path.lineTo(loop[i], loop[i+1]);
     }
-    selCtx.fillStyle = '#fff';
-    selCtx.fill();
+    selCtx.lineJoin = 'round';
+    selCtx.lineCap  = 'butt';
+    selCtx.lineWidth = 1 / z;                 // ~1px di layar
 
-    selCtx.beginPath();
-    for(let k = 0; k < n; k += 2){
-        if(((k/2 + antPhase) % (DASH*2)) >= DASH) selCtx.rect(antPixels[k], antPixels[k+1], pxSz, pxSz);
-    }
-    selCtx.fillStyle = '#000';
-    selCtx.fill();
+    selCtx.setLineDash([]);
+    selCtx.strokeStyle = '#ffffff';
+    selCtx.stroke(path);                       // dasar putih solid
+
+    selCtx.setLineDash([_ANT_DASH / z, _ANT_DASH / z]);
+    selCtx.lineDashOffset = antDashOffset / z;
+    selCtx.strokeStyle = '#000000';
+    selCtx.stroke(path);                       // dash hitam berjalan
 }
 
 // ─── Selection mode helper ───────────────────────────────────────────────────
@@ -4590,74 +5296,180 @@ function floodFill(sx, sy, sm='new'){
     const idx = (sy*w+sx)*4;
     const tr = d[idx], tg = d[idx+1], tb = d[idx+2], ta = d[idx+3];
 
-    const stack = [[sx,sy]];
     const visited = new Uint8Array(w*h);
     const selected = [];
-
-    while(stack.length){
-        const [cx,cy] = stack.pop();
-        if(cx<0||cy<0||cx>=w||cy>=h) continue;
-        const i = cy*w+cx;
-        if(visited[i]) continue;
-        visited[i]=1;
+    const stack = new Int32Array(w*h);   // stack indeks piksel (hemat GC)
+    let sp = 0;
+    const seed = sy*w+sx;
+    stack[sp++] = seed; visited[seed] = 1;
+    while(sp > 0){
+        const i = stack[--sp];
         const pi = i*4;
         if(Math.abs(d[pi]-tr)>30||Math.abs(d[pi+1]-tg)>30||Math.abs(d[pi+2]-tb)>30||Math.abs(d[pi+3]-ta)>30) continue;
         selected.push(i);
-        stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+        const x = i % w, y = (i/w)|0;
+        if(x>0   && !visited[i-1]){ visited[i-1]=1; stack[sp++]=i-1; }
+        if(x<w-1 && !visited[i+1]){ visited[i+1]=1; stack[sp++]=i+1; }
+        if(y>0   && !visited[i-w]){ visited[i-w]=1; stack[sp++]=i-w; }
+        if(y<h-1 && !visited[i+w]){ visited[i+w]=1; stack[sp++]=i+w; }
     }
     _applySelPixels(d, selected, sm);
     drawCtx.putImageData(imgData,0,0);
 }
 
-// ─── Magic Wand — only updates selectionMask, no color paint ────────────────
+// ─── Matcher gaya Photoshop ──────────────────────────────────────────────────
+// * Klik area TRANSPARAN (alpha < 128): yang diseleksi adalah "transparansi".
+//   RGB piksel transparan diabaikan (tidak bermakna) — semua piksel dengan
+//   opacity < 50% ikut terpilih, termasuk tekstur/pattern semi-transparan.
+//   Ants tepat di ambang 50% seperti Photoshop.
+// * Klik area OPAQUE: bandingkan RGB dengan toleransi; piksel semi-transparan
+//   (<50%) tidak ikut.
+function _makeMatcher(src, si, tol){
+    const tr = src[si], tg = src[si+1], tb = src[si+2], ta = src[si+3];
+    if(ta < 128){
+        return (pi) => src[pi+3] < 128;
+    }
+    return (pi) =>
+        src[pi+3] >= 128 &&
+        Math.abs(src[pi]-tr)   <= tol &&
+        Math.abs(src[pi+1]-tg) <= tol &&
+        Math.abs(src[pi+2]-tb) <= tol;
+}
+
+// ─── Magic Wand — contiguous, sifat Photoshop ────────────────────────────────
 function magicWand(sx, sy, sm='new'){
     const w = drawCanvas.width, h = drawCanvas.height;
     const tol = parseInt(document.getElementById('tolerance').value);
     const src  = bgCtx.getImageData(0,0,w,h).data;
-    const si   = (sy*w+sx)*4;
-    const tr = src[si], tg = src[si+1], tb = src[si+2];
+    const match = _makeMatcher(src, (sy*w+sx)*4, tol);
 
     const visited = new Uint8Array(w*h);
     const newSel  = new Uint8Array(w*h);
-    const stack   = [[sx,sy]];
-    while(stack.length){
-        const [cx,cy] = stack.pop();
-        if(cx<0||cy<0||cx>=w||cy>=h) continue;
-        const i = cy*w+cx;
-        if(visited[i]) continue;
-        visited[i]=1;
-        const pi = i*4;
-        if(Math.abs(src[pi]-tr)>tol||Math.abs(src[pi+1]-tg)>tol||Math.abs(src[pi+2]-tb)>tol) continue;
+    const stack   = new Int32Array(w*h);   // stack indeks piksel (hemat GC)
+    let sp = 0;
+    const seed = sy*w+sx;
+    stack[sp++] = seed; visited[seed] = 1;
+    while(sp > 0){
+        const i = stack[--sp];
+        if(!match(i*4)) continue;
         newSel[i]=1;
-        stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+        const x = i % w, y = (i/w)|0;
+        if(x>0   && !visited[i-1]){ visited[i-1]=1; stack[sp++]=i-1; }
+        if(x<w-1 && !visited[i+1]){ visited[i+1]=1; stack[sp++]=i+1; }
+        if(y>0   && !visited[i-w]){ visited[i-w]=1; stack[sp++]=i-w; }
+        if(y<h-1 && !visited[i+w]){ visited[i+w]=1; stack[sp++]=i+w; }
     }
     _mergeSelMask(newSel, sm, w*h);
 }
 
-// ─── Select by Color — only updates selectionMask, no color paint ────────────
+// ─── Select by Color — global, sifat Photoshop ──────────────────────────────
+// Klik transparan → SEMUA area transparan (termasuk lubang di dalam objek) ikut.
 function selectByColor(sx, sy, sm='new'){
     const w = drawCanvas.width, h = drawCanvas.height;
     const tol = parseInt(document.getElementById('tolerance').value);
     const src  = bgCtx.getImageData(0,0,w,h).data;
-    const si   = (sy*w+sx)*4;
-    const tr = src[si], tg = src[si+1], tb = src[si+2];
+    const match = _makeMatcher(src, (sy*w+sx)*4, tol);
 
     const newSel = new Uint8Array(w*h);
     for(let i=0; i<w*h; i++){
-        const pi = i*4;
-        if(Math.abs(src[pi]-tr)<=tol&&Math.abs(src[pi+1]-tg)<=tol&&Math.abs(src[pi+2]-tb)<=tol) newSel[i]=1;
+        if(match(i*4)) newSel[i]=1;
     }
     _mergeSelMask(newSel, sm, w*h);
 }
 
 // ─── Merge new selection into selectionMask based on mode ───────────────────
+// Remove isolated noise pixels from a binary Uint8Array mask (morphological open)
+function _cleanSelMask(mask, w, h){
+    const R = 2; // erode/dilate radius (5×5 → removes dots <4px)
+    // Erode
+    const tmp = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        let ok=1;
+        outer: for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+            const nx=x+dx,ny=y+dy;
+            if(nx<0||nx>=w||ny<0||ny>=h||!mask[ny*w+nx]){ok=0;break outer;}
+        }
+        tmp[y*w+x]=ok;
+    }
+    // Dilate
+    const out = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        let ok=0;
+        outer: for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+            const nx=x+dx,ny=y+dy;
+            if(nx>=0&&nx<w&&ny>=0&&ny<h&&tmp[ny*w+nx]){ok=1;break outer;}
+        }
+        out[y*w+x]=ok;
+    }
+    return out;
+}
+
+// Isi lubang di dalam objek: piksel non-terpilih yang TIDAK terhubung ke tepi
+// gambar = lubang interior → jadikan terpilih. Hasil: siluet solid, tidak ada
+// loop marching-ants di bagian dalam objek (req: bagian dalam tidak terseleksi).
+function _fillHoles(mask, w, h){
+    const outside = new Uint8Array(w*h);
+    const st = [];
+    for(let x=0;x<w;x++){
+        if(!mask[x]) st.push(x);
+        const b=(h-1)*w+x; if(!mask[b]) st.push(b);
+    }
+    for(let y=0;y<h;y++){
+        const l=y*w; if(!mask[l]) st.push(l);
+        const r=y*w+w-1; if(!mask[r]) st.push(r);
+    }
+    while(st.length){
+        const i = st.pop();
+        if(outside[i] || mask[i]) continue;
+        outside[i] = 1;
+        const x = i % w, y = (i / w) | 0;
+        if(x>0)   st.push(i-1);
+        if(x<w-1) st.push(i+1);
+        if(y>0)   st.push(i-w);
+        if(y<h-1) st.push(i+w);
+    }
+    const out = new Uint8Array(w*h);
+    for(let i=0;i<w*h;i++) out[i] = (mask[i] || !outside[i]) ? 1 : 0;
+    return out;
+}
+
+// Mask piksel putih (dari bgCanvas), di-cache per gambar
+let _whiteMaskCache = null;
+function _getWhiteMask(){
+    const w = bgCanvas.width, h = bgCanvas.height;
+    if(_whiteMaskCache && _whiteMaskCache.length === w*h) return _whiteMaskCache;
+    const d = bgCtx.getImageData(0,0,w,h).data;
+    const m = new Uint8Array(w*h);
+    for(let i=0;i<w*h;i++){
+        const p=i*4;
+        if(d[p]>=245 && d[p+1]>=245 && d[p+2]>=245) m[i]=1;
+    }
+    _whiteMaskCache = m;
+    return m;
+}
+function _isExcludeWhite(){
+    const cb = document.getElementById('excludeWhite');
+    return cb && cb.checked;
+}
+function _isSolid(){
+    const cb = document.getElementById('solidFill');
+    return cb && cb.checked;
+}
+// Sifat seleksi mengikuti Photoshop: hanya piksel yang benar-benar cocok yang
+// terpilih — TIDAK otomatis mengisi lubang / bagian dalam objek. Fill-holes
+// hanya bila opsi "Solid" dicentang.
+// Catatan: "Kecualikan putih" TIDAK membuang putih dari seleksi — putih tetap
+// terseleksi; opsi itu hanya membekukan putih saat contract/expand.
 function _mergeSelMask(newSel, sm, size){
+    const w = bgCanvas.width, h = bgCanvas.height;
+    let mask = newSel;
+    if(_isSolid())        mask = _fillHoles(mask, w, h);   // opsional: siluet solid
     if(sm==='add' && selectionMask){
-        for(let i=0;i<size;i++) if(newSel[i]) selectionMask[i]=1;
+        for(let i=0;i<size;i++) if(mask[i]) selectionMask[i]=1;
     } else if(sm==='subtract' && selectionMask){
-        for(let i=0;i<size;i++) if(newSel[i]) selectionMask[i]=0;
+        for(let i=0;i<size;i++) if(mask[i]) selectionMask[i]=0;
     } else {
-        selectionMask = newSel;
+        selectionMask = mask;
     }
     document.getElementById('applySelBtn').disabled = false;
     recomputeAnts();
@@ -4666,6 +5478,7 @@ function _mergeSelMask(newSel, sm, size){
 // ─── Apply selection to drawCanvas with current mode color ───────────────────
 function applySelection(){
     if(!selectionMask||!imageObj) return;
+    _recAct({t:'apply'});
     saveHistory();
     const w = drawCanvas.width, h = drawCanvas.height;
     const dst = drawCtx.getImageData(0,0,w,h);
@@ -4679,12 +5492,13 @@ function applySelection(){
     selectionMask = null;
     document.getElementById('applySelBtn').disabled = true;
     recomputeAnts();
+    _renderChannelList();
 }
 
 // ─── Deselect ────────────────────────────────────────────────────────────────
 function deselect(){
     selectionMask = null;
-    antPixels = new Int32Array(0);
+    antLoops = [];
     selCtx.clearRect(0,0,selCanvas.width,selCanvas.height);
     document.getElementById('applySelBtn').disabled = true;
 }
@@ -4692,105 +5506,103 @@ function deselect(){
 // ─── Clear mask ──────────────────────────────────────────────────────────────
 function clearMask(){
     if(!imageObj) return;
-    if(!confirm('Hapus semua area spot?')) return;
+    if(!confirm('Hapus area spot pada channel ini?')) return;
+    _recAct({t:'clear'});
     clearMaskData();
+    if(channels[activeChannel]) channels[activeChannel].img = null;
+    _renderChannelList();
 }
 
 function clearMaskData(){
     drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
     cancelPolygon();
     selectionMask = null;
-    antPixels = new Int32Array(0);
+    antLoops = [];
     selCtx.clearRect(0,0,selCanvas.width,selCanvas.height);
     const ab = document.getElementById('applySelBtn');
     if(ab) ab.disabled = true;
 }
 
 // ─── Channel List State ─────────────────────────────────────────────────────
-let channels = [];  // [{name, mode, maskB64}]
-
 const MODE_COLORS = {
-    cut:    '#e74c3c',
-    uv:     '#00bcd4',
-    foil:   '#f1c40f',
-    emboss: '#9b59b6',
+    white:   '#ff00c8',
+    varnish: '#00bcd4',
 };
 const MODE_LABELS = {
-    cut: 'Die Cut', uv: 'UV Varnish', foil: 'Foil/Gold', emboss: 'Emboss'
+    white: 'White', varnish: 'Varnish'
 };
 
-function _extractMaskB64(){
-    // Export drawCanvas → grayscale PNG (alpha→brightness), kembalikan base64 string
+// Deteksi cepat apakah data punya tinta (stride 4px agar ringan)
+function _dataHasInk(data){
+    for(let i=3;i<data.length;i+=16){ if(data[i]>10) return true; }
+    return false;
+}
+function _hasInk(img){ return img ? _dataHasInk(img.data) : false; }
+function _canvasHasInk(){
+    return _dataHasInk(drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height).data);
+}
+
+// ImageData → binary mask PNG base64 (alpha>10 → 255)
+function _imgToMaskB64(img){
     const mc = document.createElement('canvas');
-    mc.width = drawCanvas.width; mc.height = drawCanvas.height;
+    mc.width = img.width; mc.height = img.height;
     const mx = mc.getContext('2d');
-    mx.fillStyle='#000';
-    mx.fillRect(0,0,mc.width,mc.height);
-    const raw = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
-    const out = mx.getImageData(0,0,mc.width,mc.height);
-    for(let i=0;i<raw.data.length;i+=4){
-        const v = raw.data[i+3];
+    const out = mx.createImageData(img.width, img.height);
+    for(let i=0;i<img.data.length;i+=4){
+        const v = img.data[i+3] > 10 ? 255 : 0;
         out.data[i]=out.data[i+1]=out.data[i+2]=v; out.data[i+3]=255;
     }
     mx.putImageData(out,0,0);
-    // strip "data:image/png;base64,"
     return mc.toDataURL('image/png').split(',')[1];
-}
-
-function addChannel(){
-    if(!imageObj){ alert('Upload gambar dulu!'); return; }
-    const name = (document.getElementById('spotName').value.trim()) || 'Spot Color';
-    const maskData = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
-    const hasPixel = maskData.data.some((_,i)=>i%4===3 && maskData.data[i]>10);
-    if(!hasPixel){ alert('Gambar area spot pada canvas terlebih dahulu!'); return; }
-
-    const maskB64 = _extractMaskB64();
-    channels.push({ name, mode: currentMode, maskB64 });
-    _renderChannelList();
-    clearMaskData();  // kosongkan canvas untuk channel berikutnya
-    document.getElementById('statusBox').textContent =
-        `Channel "${name}" (${MODE_LABELS[currentMode]}) ditambahkan. Total: ${channels.length} channel.`;
-    document.getElementById('statusBox').className = 'status-box';
-}
-
-function removeChannel(idx){
-    channels.splice(idx,1);
-    _renderChannelList();
 }
 
 function _renderChannelList(){
     const list = document.getElementById('channelList');
-    const count = document.getElementById('chCount');
-    count.textContent = `(${channels.length})`;
-    document.getElementById('genBtn').disabled = channels.length === 0;
-    if(channels.length === 0){
-        list.innerHTML = '<div style="color:#bbb;font-size:11px;text-align:center;padding:6px">Belum ada channel</div>';
+    if(!channels.length){
+        list.innerHTML = '<div style="color:#bbb;font-size:11px;text-align:center;padding:6px">Upload gambar dulu</div>';
+        document.getElementById('genBtn').disabled = true;
         return;
     }
-    list.innerHTML = channels.map((ch,i)=>`
-        <div class="ch-item">
+    let anyInk = false;
+    list.innerHTML = channels.map((ch,i)=>{
+        const filled = (i === activeChannel) ? _canvasHasInk() : _hasInk(ch.img);
+        if(filled) anyInk = true;
+        return `<div class="ch-item ${i===activeChannel?'active':''}" onclick="selectChannel(${i})">
             <div class="ch-dot" style="background:${MODE_COLORS[ch.mode]||'#999'}"></div>
             <div class="ch-info">
                 <div class="ch-name">${ch.name}</div>
-                <div class="ch-mode">${MODE_LABELS[ch.mode]||ch.mode}</div>
+                <div class="ch-mode">${filled ? '✔ ada area' : 'kosong'}</div>
             </div>
-            <button class="ch-del" onclick="removeChannel(${i})">×</button>
-        </div>`
-    ).join('');
+            ${i===activeChannel?'<span class="ch-edit-tag">EDIT</span>':''}
+        </div>`;
+    }).join('');
+    document.getElementById('genBtn').disabled = !anyInk;
 }
 
 // ─── Generate PDF ────────────────────────────────────────────────────────────
 async function generatePDF(){
-    if(!imageFile || channels.length===0) return;
-    const dpi = parseInt(document.getElementById('dpiInput').value)||300;
+    if(!imageFile || !imageObj) return;
+    _saveActiveChannel();   // simpan channel aktif dulu
 
+    // hanya kirim channel yang ada isinya
+    const payloadChannels = [];
+    for(const ch of channels){
+        if(!_hasInk(ch.img)) continue;
+        payloadChannels.push({ name:ch.name, mode:ch.mode, mask:_imgToMaskB64(ch.img) });
+    }
+    if(payloadChannels.length === 0){
+        const sb = document.getElementById('statusBox');
+        sb.className='status-box err';
+        sb.textContent='Belum ada area yang digambar di channel manapun.';
+        return;
+    }
+
+    const dpi = parseInt(document.getElementById('dpiInput').value)||300;
     const genBtn   = document.getElementById('genBtn');
     const statusBox= document.getElementById('statusBox');
-    const dlBtn    = document.getElementById('dlBtn');
     genBtn.disabled=true; genBtn.textContent='Memproses...';
     statusBox.className='status-box';
-    statusBox.textContent=`Membuat PDF dengan ${channels.length} spot channel...`;
-    dlBtn.style.display='none';
+    statusBox.textContent=`Membuat PDF dengan ${payloadChannels.length} spot channel...`;
 
     try {
         // Convert image → base64
@@ -4804,7 +5616,7 @@ async function generatePDF(){
             image: imgB64,
             image_name: imageFile.name,
             dpi,
-            channels: channels.map(ch=>({ name:ch.name, mode:ch.mode, mask:ch.maskB64 }))
+            channels: payloadChannels
         };
 
         const res  = await fetch('/api/spot-color', {
@@ -4819,9 +5631,13 @@ async function generatePDF(){
             statusBox.className='status-box ok';
             statusBox.innerHTML = `PDF berhasil!<br><small>${data.filename}</small><br>`
                 + `<small>${data.n_channels} channel: ${chNames}</small>`;
-            dlBtn.style.display='block';
-            dlBtn.onclick=()=>window.open('/api/spot-color-download?file='+encodeURIComponent(data.filename));
-            dlBtn.textContent='⬇ Download ' + data.filename;
+            // Langsung download otomatis via anchor (tanpa tombol terpisah)
+            const a = document.createElement('a');
+            a.href = '/api/spot-color-download?file='+encodeURIComponent(data.filename);
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
         } else {
             statusBox.className='status-box err';
             statusBox.textContent='Error: '+(data.message||'Terjadi kesalahan');
@@ -4830,10 +5646,151 @@ async function generatePDF(){
         statusBox.className='status-box err';
         statusBox.textContent='Error: '+e.message;
     } finally {
-        genBtn.disabled = channels.length===0;
-        genBtn.textContent='Generate Spot PDF';
+        genBtn.innerHTML = '&#11015; Generate &amp; Download PDF';
+        _renderChannelList();   // sinkronkan status tombol
     }
 }
+
+// ═══ ACTION: rekam tindakan → terapkan ke banyak file ════════════════════════
+let actionSteps = [];
+let isRecording = false;
+let isReplaying = false;
+
+// snapshot opsi seleksi saat merekam (dipulihkan saat replay)
+function _selOpts(){
+    return {
+        tol:   parseInt(document.getElementById('tolerance').value) || 32,
+        solid: _isSolid(),
+        exw:   _isExcludeWhite(),
+    };
+}
+function _applySelOpts(s){
+    if(s.tol   !== undefined) document.getElementById('tolerance').value = s.tol;
+    if(s.solid !== undefined) document.getElementById('solidFill').checked = s.solid;
+    if(s.exw   !== undefined) document.getElementById('excludeWhite').checked = s.exw;
+}
+
+function _recAct(step){
+    if(!isRecording || isReplaying) return;
+    actionSteps.push(step);
+    _renderRecSteps();
+}
+
+const ACT_LABELS = {
+    ptype:'Jenis produk', chan:'Pilih channel', wand:'Magic Wand', color:'Select Color',
+    fill:'Fill', object:'Select Object', all:'Select All', inverse:'Inverse',
+    contract:'Contract', expand:'Expand', apply:'Apply', clear:'Clear', desel:'Deselect',
+};
+function _actLabel(s){
+    let l = ACT_LABELS[s.t] || s.t;
+    if(s.t==='ptype') l += ' → ' + s.type.toUpperCase();
+    if(s.t==='chan')  l += ' #' + (s.i+1);
+    if(s.t==='wand'||s.t==='color') l += ` @(${Math.round(s.rx*100)}%,${Math.round(s.ry*100)}%) tol ${s.tol}`;
+    if(s.t==='contract'||s.t==='expand') l += ` ${s.px}px`;
+    return l;
+}
+function _renderRecSteps(){
+    const box = document.getElementById('recSteps');
+    if(!actionSteps.length){
+        box.style.display = 'none';
+    } else {
+        box.style.display = 'block';
+        box.innerHTML = actionSteps.map((s,i)=>`${i+1}. ${_actLabel(s)}`).join('<br>');
+        box.scrollTop = box.scrollHeight;
+    }
+    document.getElementById('batchBtn').disabled = isRecording || !actionSteps.length;
+}
+
+function toggleRecord(){
+    isRecording = !isRecording;
+    const btn = document.getElementById('recBtn');
+    if(isRecording){
+        actionSteps = [];
+        btn.textContent = '■ Stop';
+        btn.classList.add('recording');
+        const sb = document.getElementById('statusBox');
+        sb.className = 'status-box';
+        sb.textContent = 'Merekam… lakukan seleksi seperti biasa. (Goresan brush tidak direkam.)';
+    } else {
+        btn.textContent = '● Rekam';
+        btn.classList.remove('recording');
+        const sb = document.getElementById('statusBox');
+        sb.className = 'status-box ok';
+        sb.textContent = `Rekaman selesai: ${actionSteps.length} langkah. Klik "Terapkan ke Banyak File".`;
+    }
+    _renderRecSteps();
+}
+function clearRecording(){
+    actionSteps = [];
+    if(isRecording) toggleRecord();
+    _renderRecSteps();
+}
+
+// ─── Replay satu langkah (sinkron, tanpa overlay) ────────────────────────────
+function replayStep(s){
+    const w = drawCanvas.width, h = drawCanvas.height;
+    switch(s.t){
+        case 'ptype':    setProductType(s.type); break;
+        case 'chan':     selectChannel(s.i); break;
+        case 'wand':     _applySelOpts(s); magicWand(Math.round(s.rx*w), Math.round(s.ry*h), s.mode); break;
+        case 'color':    _applySelOpts(s); selectByColor(Math.round(s.rx*w), Math.round(s.ry*h), s.mode); break;
+        case 'fill':     saveHistory(); floodFill(Math.round(s.rx*w), Math.round(s.ry*h), s.mode); recomputeAnts(); break;
+        case 'object':   _applySelOpts(s); selMode = s.mode || 'new'; _selectObjectImpl(); break;
+        case 'all':      selectAll(); break;
+        case 'inverse':  selectInverse(); break;
+        case 'contract': document.getElementById('modifyPx').value = s.px;
+                         document.getElementById('excludeWhite').checked = !!s.exw;
+                         _contractSelectionImpl(); break;
+        case 'expand':   document.getElementById('modifyPx').value = s.px;
+                         document.getElementById('excludeWhite').checked = !!s.exw;
+                         _expandSelectionImpl(); break;
+        case 'apply':    if(selectionMask) applySelection(); break;
+        case 'clear':    clearMaskData(); if(channels[activeChannel]) channels[activeChannel].img=null; break;
+        case 'desel':    deselect(); break;
+    }
+}
+
+// ─── Batch: terapkan action ke banyak file ───────────────────────────────────
+document.getElementById('batchInput').addEventListener('change', async function(e){
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if(!files.length || !actionSteps.length) return;
+    if(isRecording) toggleRecord();
+
+    const sb = document.getElementById('statusBox');
+    isReplaying = true;
+    let ok = 0, fail = 0;
+    try{
+        for(let fi = 0; fi < files.length; fi++){
+            const f = files[fi];
+            try{
+                sb.className = 'status-box';
+                sb.textContent = `[${fi+1}/${files.length}] ${f.name}: memuat…`;
+                await loadImageFile(f);
+                await new Promise(r=>requestAnimationFrame(r));
+
+                sb.textContent = `[${fi+1}/${files.length}] ${f.name}: replay ${actionSteps.length} langkah…`;
+                for(const s of actionSteps){
+                    replayStep(s);
+                    await new Promise(r=>requestAnimationFrame(r));   // beri nafas UI
+                }
+                _saveActiveChannel();
+                _renderChannelList();
+
+                sb.textContent = `[${fi+1}/${files.length}] ${f.name}: generate PDF…`;
+                await generatePDF();
+                ok++;
+            }catch(err){
+                fail++;
+                console.error('Batch gagal untuk', f.name, err);
+            }
+        }
+        sb.className = fail ? 'status-box err' : 'status-box ok';
+        sb.textContent = `Batch selesai: ${ok} berhasil${fail ? ', '+fail+' gagal' : ''} dari ${files.length} file.`;
+    } finally {
+        isReplaying = false;
+    }
+});
 </script>
 </body>
 </html>
@@ -4860,7 +5817,7 @@ def api_spot_color():
         for ch in channels_raw:
             mb = base64.b64decode(ch["mask"])
             channels.append({"name": ch.get("name", "Spot Color"),
-                              "mode": ch.get("mode", "cut"),
+                              "mode": ch.get("mode", "white"),
                               "mask_bytes": mb})
 
         result = execute("spot_color", {
@@ -4885,6 +5842,461 @@ def api_spot_color_download():
     if not os.path.exists(filepath):
         return ("File not found", 404)
     return send_file(filepath, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+
+@app.route("/ui/api-docs")
+def ui_api_docs():
+    return render_template_string(r"""
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Docs — Printing Agent</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;color:#222}
+.topbar{background:#fff;height:52px;padding:0 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e0e0e0;position:sticky;top:0;z-index:20}
+.logo{font-size:16px;font-weight:800;color:#1a1a1a}.logo span{color:#0066cc}
+.topbar a{margin-left:auto;font-size:12px;color:#0066cc;text-decoration:none;border:1px solid #cfd8e3;padding:5px 12px;border-radius:5px}
+.wrap{display:grid;grid-template-columns:220px 1fr;max-width:1200px;margin:0 auto;gap:24px;padding:24px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+/* sidebar */
+.side{position:sticky;top:76px;align-self:start;background:#fff;border:1px solid #e4e4e4;border-radius:10px;padding:12px;max-height:calc(100vh - 100px);overflow-y:auto}
+.side .s-t{font-size:10px;font-weight:700;text-transform:uppercase;color:#999;letter-spacing:.6px;margin:10px 6px 5px}
+.side a{display:block;padding:6px 8px;font-size:12.5px;color:#333;text-decoration:none;border-radius:6px}
+.side a:hover{background:#f0f5ff;color:#0066cc}
+/* main */
+.main{min-width:0}
+.sec{background:#fff;border:1px solid #e4e4e4;border-radius:12px;padding:22px;margin-bottom:22px;scroll-margin-top:76px}
+.sec h2{font-size:17px;display:flex;align-items:center;gap:9px;margin-bottom:4px}
+.sec h2 .dot{width:10px;height:10px;border-radius:50%}
+.sec > p{font-size:12.5px;color:#777;margin-bottom:14px}
+.ep{border:1px solid #e8e8e8;border-radius:9px;margin-top:14px;overflow:hidden}
+.ep-h{display:flex;align-items:center;gap:9px;padding:10px 13px;background:#fafbfc;cursor:pointer;user-select:none}
+.badge{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:4px;color:#fff;letter-spacing:.4px;flex-shrink:0}
+.badge.POST{background:#2e7d32}.badge.GET{background:#1565c0}
+.ep-h code{font-size:12.5px;font-weight:600;color:#1a1a1a}
+.ep-h .cv{margin-left:auto;color:#bbb;font-size:11px;transition:transform .15s}
+.ep.open .ep-h .cv{transform:rotate(90deg)}
+.ep-b{display:none;padding:14px 15px;border-top:1px solid #eee}
+.ep.open .ep-b{display:block}
+.ep-desc{font-size:12.5px;color:#555;margin-bottom:11px}
+.lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#999;letter-spacing:.6px;margin:13px 0 6px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:6px 8px;background:#f5f7f9;color:#666;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px}
+td{padding:6px 8px;border-top:1px solid #f0f0f0;vertical-align:top}
+td code{background:#f4f6f8;padding:1px 5px;border-radius:3px;font-size:11.5px;color:#c7254e}
+.req{color:#c62828;font-weight:700}.opt{color:#999}
+pre{background:#1e2530;color:#d8e0ea;font-size:11.5px;padding:12px;border-radius:7px;overflow-x:auto;line-height:1.55;font-family:Consolas,monospace}
+/* tester */
+.tester{background:#f6f9fc;border:1px solid #dbe6f0;border-radius:8px;padding:13px;margin-top:13px}
+.tester .t-t{font-size:11px;font-weight:800;color:#0066cc;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.tf{display:grid;grid-template-columns:130px 1fr;gap:7px 10px;align-items:center;margin-bottom:6px}
+.tf label{font-size:12px;color:#444}
+.tf input[type=text],.tf input[type=number],.tf select,.tester textarea{width:100%;padding:6px 8px;border:1px solid #ccd5de;border-radius:5px;font-size:12px;background:#fff}
+.tf input[type=color]{width:44px;height:28px;padding:1px;border:1px solid #ccd5de;border-radius:5px;background:#fff}
+.tf input[type=file]{font-size:11.5px}
+.tester textarea{font-family:Consolas,monospace;min-height:110px;resize:vertical}
+.run{background:#0066cc;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:12.5px;font-weight:700;cursor:pointer;margin-top:9px}
+.run:hover{background:#0055aa}.run:disabled{background:#9bb8d4;cursor:wait}
+.t-out{margin-top:11px;display:none}
+.t-meta{font-size:11px;margin-bottom:6px;display:flex;gap:12px}
+.t-meta .ok{color:#2e7d32;font-weight:700}.t-meta .err{color:#c62828;font-weight:700}
+.t-out pre{max-height:340px;overflow:auto}
+.arts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.arts a,.arts button{font-size:11.5px;padding:5px 12px;border-radius:5px;border:1px solid #0066cc;color:#0066cc;background:#fff;cursor:pointer;text-decoration:none;font-weight:600}
+.arts a:hover,.arts button:hover{background:#eaf3ff}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">PRINTING<span> AGENT</span> · API Docs</span>
+  <a href="/ui">← Menu Utama</a>
+</div>
+<div class="wrap">
+  <nav class="side" id="sideNav"></nav>
+  <div class="main" id="mainCol"></div>
+</div>
+
+<script>
+const HOST = location.origin;
+
+// ─── Definisi dokumentasi ──────────────────────────────────────────────────
+const SECTIONS = [
+{
+ id:'spot-color', title:'Spot Color Tool', color:'#e91e63',
+ intro:'Membuat PDF berisi spot color channel terpisah (White / Varnish) di atas artwork. Mask putih = area kena spot, hitam = kosong.',
+ eps:[
+  {method:'POST', path:'/api/spot-color', ctype:'application/json',
+   desc:'Generate PDF spot color multi-channel. Semua binary dikirim base64.',
+   params:[
+    ['image','string (base64)','wajib','Gambar utama JPG/PNG, di-encode base64'],
+    ['image_name','string','opsional','Nama file asli. Default: design.jpg'],
+    ['dpi','integer','opsional','Resolusi fisik output. Default: 300'],
+    ['channels','array','wajib','Daftar spot channel'],
+    ['channels[].name','string','opsional','Nama channel, mis. "White". Default: Spot Color'],
+    ['channels[].mode','string','opsional','"white" atau "varnish". Default: white'],
+    ['channels[].mask','string (base64)','wajib','PNG grayscale: putih=area spot, hitam=kosong'],
+   ],
+   curl:`curl -X POST ${HOST}/api/spot-color \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "image": "<base64-gambar>",
+    "image_name": "desain.png",
+    "dpi": 300,
+    "channels": [
+      {"name": "White", "mode": "white", "mask": "<base64-mask-png>"}
+    ]
+  }'`,
+   resp:`{
+  "status": "success",
+  "filename": "spot_ab12cd34.pdf",
+  "n_channels": 1,
+  "channels": [{"name": "White", "mode": "white"}]
+}`,
+   tester:{kind:'spot'}
+  },
+  {method:'GET', path:'/api/spot-color-download',
+   desc:'Download file PDF hasil generate.',
+   params:[['file','string (query)','wajib','Nama file dari respons /api/spot-color']],
+   curl:`curl -o hasil.pdf "${HOST}/api/spot-color-download?file=spot_ab12cd34.pdf"`,
+   tester:{kind:'get', base:'/api/spot-color-download', download:true,
+     fields:[['file','text','','nama file, mis. spot_ab12cd34.pdf']]}
+  },
+ ]
+},
+{
+ id:'image-contour', title:'Image Contour', color:'#ff6f00',
+ intro:'Membuat garis potong (CutContour) otomatis dari PNG transparan atau PDF. Output: SVG + PDF dengan spot color CutContour terpisah dari artwork.',
+ eps:[
+  {method:'POST', path:'/ui/image-contour', ctype:'multipart/form-data',
+   desc:'Deteksi kontur objek & hasilkan cut line. Bentuk standar (lingkaran/kotak/rounded-rect) otomatis di-snap ke geometri eksak.',
+   params:[
+    ['file','file','wajib','PNG (transparan/solid) atau PDF'],
+    ['dpi','number','opsional','Resolusi render & ukuran fisik. Default: 300'],
+    ['offset_mm','number','opsional','Jarak kontur dari objek (mm). Default: 0'],
+    ['smoothing','number','opsional','Kehalusan B-spline. Default: 5000'],
+    ['min_area','number','opsional','Buang objek < px² (resolusi asli). Default: 500'],
+    ['line_color','string','opsional','Warna garis hex. Default: #ff00c8'],
+    ['line_width','number','opsional','Tebal garis px. Default: 1.5'],
+    ['max_dim','number','opsional','Resolusi proses. Default: 1400'],
+    ['bg_color','string','opsional','Warna bg (PNG tanpa alpha). Auto dari pojok'],
+    ['bg_tolerance','number','opsional','Toleransi warna bg. Default: 28'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/image-contour \\
+  -F "file=@stiker.png" -F "dpi=300" -F "offset_mm=1.4" \\
+  -F "smoothing=1500" -F "min_area=600"`,
+   resp:`{
+  "status": "success",
+  "loops": 3, "points": 480,
+  "svg": "<svg...>", "svg_export": "<svg...>",
+  "pdf_base64": "<base64>",
+  "width_cm": 10.5, "height_cm": 7.2, "dpi": 300
+}`,
+   tester:{kind:'multipart', path:'/ui/image-contour', fields:[
+    ['file','file','','PNG / PDF'],
+    ['dpi','number','300',''],
+    ['offset_mm','number','1.4',''],
+    ['smoothing','number','1500',''],
+    ['min_area','number','600',''],
+    ['line_color','color','#ff00c8',''],
+    ['line_width','number','0.5',''],
+    ['max_dim','number','1400',''],
+   ]}
+  },
+ ]
+},
+{
+ id:'merge-pdf', title:'Merge PDF', color:'#c62828',
+ intro:'Menggabungkan dua file PDF menjadi satu.',
+ eps:[
+  {method:'POST', path:'/ui/merge', ctype:'multipart/form-data',
+   desc:'Gabungkan file1 + file2 → output (disimpan di temp server).',
+   params:[
+    ['file1','file','wajib','PDF pertama'],
+    ['file2','file','wajib','PDF kedua'],
+    ['output','string','wajib','Nama file hasil, mis. gabungan.pdf'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/merge \\
+  -F "file1=@a.pdf" -F "file2=@b.pdf" -F "output=gabungan.pdf"`,
+   resp:`{"status": "success", "output": "C:\\\\...\\\\Temp\\\\gabungan.pdf"}`,
+   tester:{kind:'multipart', path:'/ui/merge', fields:[
+    ['file1','file','','PDF pertama'],
+    ['file2','file','','PDF kedua'],
+    ['output','text','gabungan.pdf',''],
+   ]}
+  },
+ ]
+},
+{
+ id:'image-info', title:'Image Info', color:'#00838f',
+ intro:'Membaca metadata gambar: dimensi, DPI, color mode, ukuran fisik.',
+ eps:[
+  {method:'POST', path:'/ui/upload-image', ctype:'multipart/form-data',
+   desc:'Upload gambar ke temp server → dapat filepath untuk endpoint lain.',
+   params:[['file','file','wajib','JPG/PNG/TIFF/WEBP/BMP']],
+   curl:`curl -X POST ${HOST}/ui/upload-image -F "file=@foto.jpg"`,
+   resp:`{"status":"success","filepath":"C:\\\\...\\\\draftcalc_xxx.jpg","color_mode":"RGB","bytes":102400}`,
+   tester:{kind:'multipart', path:'/ui/upload-image', fields:[['file','file','','Gambar']]}
+  },
+  {method:'POST', path:'/ui/read-info', ctype:'application/json | multipart',
+   desc:'Baca info gambar. Kirim JSON {"filepath": "..."} untuk file di server, atau upload langsung via multipart (field "filepath"/"file").',
+   params:[
+    ['filepath','string JSON','wajib*','Path absolut file di server'],
+    ['filepath','file multipart','wajib*','Alternatif: upload file langsung'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/read-info \\
+  -H "Content-Type: application/json" \\
+  -d '{"filepath": "D:\\\\gambar\\\\foto.jpg"}'`,
+   resp:`{"status":"success","width_px":3000,"height_px":2000,"dpi":300,"color_mode":"RGB", ...}`,
+   tester:{kind:'json', path:'/ui/read-info', fields:[['filepath','text','','path absolut di server']]}
+  },
+ ]
+},
+{
+ id:'pdf-info', title:'PDF Info', color:'#5e35b1',
+ intro:'Membaca metadata & struktur PDF: jumlah halaman, ukuran, gambar di dalamnya.',
+ eps:[
+  {method:'POST', path:'/ui/read-pdf-info', ctype:'multipart/form-data',
+   desc:'Upload PDF langsung, atau kirim JSON {"filepath": "..."} untuk file di server.',
+   params:[
+    ['filepath','file','wajib*','Upload file PDF (field multipart)'],
+    ['filepath','string JSON','wajib*','Alternatif: path di server via body JSON'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/read-pdf-info -F "filepath=@dokumen.pdf"`,
+   resp:`{"status":"success","pages":3,"page_width_mm":210, ...}`,
+   tester:{kind:'multipart', path:'/ui/read-pdf-info', fields:[['filepath','file','','File PDF']]}
+  },
+ ]
+},
+{
+ id:'image-tools', title:'Image Tools', color:'#0066cc',
+ intro:'Kumpulan operasi gambar: processing, render CMYK, export master CMYK, imposition PDF. Payload JSON diteruskan langsung ke task engine.',
+ eps:[
+  {method:'POST', path:'/ui/image-processing', ctype:'application/json',
+   desc:'Operasi pemrosesan gambar (resize, convert, dll) sesuai payload task.',
+   params:[['(payload)','object','wajib','JSON payload untuk task image_processing']],
+   curl:`curl -X POST ${HOST}/ui/image-processing \\
+  -H "Content-Type: application/json" -d '{"filepath":"D:\\\\in.jpg", ...}'`,
+   tester:{kind:'jsonraw', path:'/ui/image-processing', example:'{\n  "filepath": "D:\\\\gambar\\\\input.jpg"\n}'}
+  },
+  {method:'POST', path:'/ui/render-cmyk', ctype:'application/json',
+   desc:'Render preview CMYK dari gambar.',
+   params:[['(payload)','object','wajib','JSON payload untuk task render_cmyk']],
+   curl:`curl -X POST ${HOST}/ui/render-cmyk -H "Content-Type: application/json" -d '{...}'`,
+   tester:{kind:'jsonraw', path:'/ui/render-cmyk', example:'{\n  "filepath": "D:\\\\gambar\\\\input.jpg"\n}'}
+  },
+  {method:'POST', path:'/ui/export-cmyk-master', ctype:'application/json',
+   desc:'Export master CMYK (TIFF/PDF) siap cetak.',
+   params:[['(payload)','object','wajib','JSON payload untuk task export_cmyk_master']],
+   curl:`curl -X POST ${HOST}/ui/export-cmyk-master -H "Content-Type: application/json" -d '{...}'`,
+   tester:{kind:'jsonraw', path:'/ui/export-cmyk-master', example:'{\n  "filepath": "D:\\\\gambar\\\\input.jpg"\n}'}
+  },
+  {method:'POST', path:'/ui/export-pdf-imposition', ctype:'application/json',
+   desc:'Susun imposition beberapa item ke lembar PDF.',
+   params:[['(payload)','object','wajib','JSON payload untuk task export_pdf_imposition']],
+   curl:`curl -X POST ${HOST}/ui/export-pdf-imposition -H "Content-Type: application/json" -d '{...}'`,
+   tester:{kind:'jsonraw', path:'/ui/export-pdf-imposition', example:'{\n  "items": []\n}'}
+  },
+ ]
+},
+{
+ id:'file-explorer', title:'File Explorer', color:'#455a64',
+ intro:'Akses berkas di server: listing folder, stat file, dan info detail (otomatis pakai reader gambar/PDF sesuai ekstensi).',
+ eps:[
+  {method:'GET', path:'/api/list',
+   desc:'Daftar isi folder.',
+   params:[['path','string (query)','opsional','Path absolut atau relatif BASE_DIR. Kosong = BASE_DIR']],
+   curl:`curl "${HOST}/api/list?path=D:\\\\gambar"`,
+   resp:`{"current_path":"D:\\\\gambar","items":[{"name":"a.jpg","type":"file","size":1024,"last_modified":"..."}]}`,
+   tester:{kind:'get', base:'/api/list', fields:[['path','text','','path folder']]}
+  },
+  {method:'GET', path:'/api/stat',
+   desc:'Info dasar satu file/folder.',
+   params:[['filepath','string (query)','wajib','Path absolut']],
+   curl:`curl "${HOST}/api/stat?filepath=D:\\\\gambar\\\\a.jpg"`,
+   tester:{kind:'get', base:'/api/stat', fields:[['filepath','text','','path file']]}
+  },
+  {method:'GET', path:'/api/file-info',
+   desc:'Info detail: PDF → reader PDF, gambar → reader gambar, lainnya → ukuran.',
+   params:[['filepath','string (query)','wajib','Path absolut']],
+   curl:`curl "${HOST}/api/file-info?filepath=D:\\\\dok\\\\file.pdf"`,
+   tester:{kind:'get', base:'/api/file-info', fields:[['filepath','text','','path file']]}
+  },
+ ]
+},
+];
+
+// ─── Render ────────────────────────────────────────────────────────────────
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const side = document.getElementById('sideNav');
+const main = document.getElementById('mainCol');
+
+SECTIONS.forEach(sec=>{
+  side.insertAdjacentHTML('beforeend',
+    `<div class="s-t" style="color:${sec.color}">${esc(sec.title)}</div>` +
+    sec.eps.map((ep,i)=>`<a href="#${sec.id}-${i}">${ep.method} ${esc(ep.path)}</a>`).join(''));
+
+  let html = `<div class="sec" id="${sec.id}">
+    <h2><span class="dot" style="background:${sec.color}"></span>${esc(sec.title)}</h2>
+    <p>${esc(sec.intro)}</p>`;
+  sec.eps.forEach((ep,i)=>{
+    html += `<div class="ep" id="${sec.id}-${i}">
+      <div class="ep-h" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ${ep.method}">${ep.method}</span>
+        <code>${esc(ep.path)}</code>
+        ${ep.ctype?`<span style="font-size:10px;color:#999">${esc(ep.ctype)}</span>`:''}
+        <span class="cv">▶</span>
+      </div>
+      <div class="ep-b">
+        <div class="ep-desc">${esc(ep.desc)}</div>
+        <div class="lbl">Parameter</div>
+        <table><tr><th>Nama</th><th>Tipe</th><th>Wajib</th><th>Keterangan</th></tr>
+        ${ep.params.map(p=>`<tr><td><code>${esc(p[0])}</code></td><td>${esc(p[1])}</td>
+          <td class="${p[2]==='wajib'||p[2]==='wajib*'?'req':'opt'}">${esc(p[2])}</td><td>${esc(p[3])}</td></tr>`).join('')}
+        </table>
+        <div class="lbl">Contoh Request</div>
+        <pre>${esc(ep.curl||'')}</pre>
+        ${ep.resp?`<div class="lbl">Contoh Response</div><pre>${esc(ep.resp)}</pre>`:''}
+        <div class="tester" data-sec="${sec.id}" data-idx="${i}">
+          <div class="t-t">⚡ Test API</div>
+          <div class="t-fields"></div>
+          <button class="run">▶ Kirim Request</button>
+          <div class="t-out"><div class="t-meta"></div><pre class="t-json"></pre><div class="arts"></div></div>
+        </div>
+      </div>
+    </div>`;
+  });
+  main.insertAdjacentHTML('beforeend', html + '</div>');
+});
+
+// ─── Tester engine ─────────────────────────────────────────────────────────
+function buildFields(t, box, tester){
+  if(tester.kind==='spot'){
+    box.innerHTML = `
+      <div class="tf"><label>Gambar utama</label><input type="file" data-f="image" accept="image/png,image/jpeg"></div>
+      <div class="tf"><label>Mask channel (PNG)</label><input type="file" data-f="mask" accept="image/png"></div>
+      <div class="tf"><label>Nama channel</label><input type="text" data-f="name" value="White"></div>
+      <div class="tf"><label>Mode</label><select data-f="mode"><option value="white">white</option><option value="varnish">varnish</option></select></div>
+      <div class="tf"><label>DPI</label><input type="number" data-f="dpi" value="300"></div>`;
+    return;
+  }
+  if(tester.kind==='jsonraw'){
+    box.innerHTML = `<textarea data-f="raw">${esc(tester.example||'{}')}</textarea>`;
+    return;
+  }
+  box.innerHTML = (tester.fields||[]).map(f=>{
+    const [name,type,def,ph] = f;
+    let inp;
+    if(type==='file')   inp = `<input type="file" data-f="${name}">`;
+    else if(type==='color') inp = `<input type="color" data-f="${name}" value="${def}">`;
+    else if(type==='number') inp = `<input type="number" data-f="${name}" value="${def}" step="any">`;
+    else inp = `<input type="text" data-f="${name}" value="${def}" placeholder="${esc(ph||'')}">`;
+    return `<div class="tf"><label>${esc(name)}</label>${inp}</div>`;
+  }).join('');
+}
+
+document.querySelectorAll('.tester').forEach(t=>{
+  const sec = SECTIONS.find(s=>s.id===t.dataset.sec);
+  const ep  = sec.eps[t.dataset.idx];
+  buildFields(t, t.querySelector('.t-fields'), ep.tester);
+  t.querySelector('.run').addEventListener('click', ()=>runTest(t, ep));
+});
+
+const fileToB64 = f => new Promise((res,rej)=>{
+  const r=new FileReader(); r.onload=e=>res(e.target.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f);
+});
+
+function pretty(o){
+  return JSON.stringify(o,(k,v)=>(typeof v==='string'&&v.length>300)?v.slice(0,120)+`…(dipotong, ${v.length} chars)`:v,2);
+}
+
+async function runTest(t, ep){
+  const T = ep.tester, btn = t.querySelector('.run'), out = t.querySelector('.t-out');
+  const meta = t.querySelector('.t-meta'), jbox = t.querySelector('.t-json'), arts = t.querySelector('.arts');
+  const val = n => { const e=t.querySelector(`[data-f="${n}"]`); return e?e.value:''; };
+  const fil = n => { const e=t.querySelector(`[data-f="${n}"]`); return e&&e.files[0]; };
+  btn.disabled = true; out.style.display='none'; arts.innerHTML='';
+  const t0 = performance.now();
+  try{
+    let resp;
+    if(T.kind==='get'){
+      const q = new URLSearchParams();
+      (T.fields||[]).forEach(f=>{ if(val(f[0])) q.set(f[0], val(f[0])); });
+      const url = T.base + '?' + q.toString();
+      if(T.download){ window.open(url); btn.disabled=false; return; }
+      resp = await fetch(url);
+    } else if(T.kind==='multipart'){
+      const fd = new FormData();
+      for(const f of (T.fields||[])){
+        if(f[1]==='file'){ const file=fil(f[0]); if(file) fd.append(f[0], file); }
+        else if(val(f[0])!=='') fd.append(f[0], val(f[0]));
+      }
+      resp = await fetch(T.path, {method:'POST', body:fd});
+    } else if(T.kind==='json'){
+      const obj = {};
+      (T.fields||[]).forEach(f=>{ if(val(f[0])!=='') obj[f[0]] = val(f[0]); });
+      resp = await fetch(T.path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj)});
+    } else if(T.kind==='jsonraw'){
+      let obj; try{ obj = JSON.parse(val('raw')); }catch(e){ throw new Error('JSON tidak valid: '+e.message); }
+      resp = await fetch(T.path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj)});
+    } else if(T.kind==='spot'){
+      const img = fil('image'), mask = fil('mask');
+      if(!img || !mask) throw new Error('Pilih gambar utama dan mask dulu.');
+      const [ib, mb] = await Promise.all([fileToB64(img), fileToB64(mask)]);
+      const body = { image: ib, image_name: img.name, dpi: parseInt(val('dpi'))||300,
+        channels: [{name: val('name')||'White', mode: val('mode'), mask: mb}] };
+      resp = await fetch('/api/spot-color', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    }
+    const ms = Math.round(performance.now()-t0);
+    const text = await resp.text();
+    let json = null; try{ json = JSON.parse(text); }catch(e){}
+    meta.innerHTML = `<span class="${resp.ok?'ok':'err'}">HTTP ${resp.status}</span><span style="color:#888">${ms} ms</span>`;
+    jbox.textContent = json ? pretty(json) : text.slice(0,3000);
+    if(json){
+      if(json.pdf_base64) addArt(arts, 'Download PDF', ()=>dlB64(json.pdf_base64,'application/pdf','kontur.pdf'));
+      if(json.svg_export) addArt(arts, 'Download SVG', ()=>dlText(json.svg_export,'image/svg+xml','kontur.svg'));
+      if(json.filename && /\.pdf$/i.test(json.filename))
+        arts.insertAdjacentHTML('beforeend', `<a href="/api/spot-color-download?file=${encodeURIComponent(json.filename)}">Download ${esc(json.filename)}</a>`);
+      if(json.filepath) addArt(arts, 'Salin filepath', ()=>navigator.clipboard.writeText(json.filepath));
+    }
+    out.style.display='block';
+  }catch(e){
+    meta.innerHTML = `<span class="err">GAGAL</span>`;
+    jbox.textContent = e.message;
+    out.style.display='block';
+  }finally{
+    btn.disabled = false;
+  }
+}
+function addArt(box, label, fn){
+  const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); box.appendChild(b);
+}
+function dlB64(b64, mime, name){
+  const bin=atob(b64), arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  dlBlob(new Blob([arr],{type:mime}), name);
+}
+function dlText(txt, mime, name){ dlBlob(new Blob([txt],{type:mime}), name); }
+function dlBlob(blob, name){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// buka endpoint dari hash (#spot-color atau #spot-color-0)
+if(location.hash){
+  const el = document.querySelector(location.hash);
+  if(el){
+    if(el.classList.contains('ep')) el.classList.add('open');
+    else el.querySelector('.ep')?.classList.add('open');
+    el.scrollIntoView();
+  }
+}
+</script>
+</body>
+</html>
+    """)
 
 
 if __name__ == "__main__":

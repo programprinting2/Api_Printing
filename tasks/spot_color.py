@@ -27,16 +27,12 @@ _CALRGB_STR = """[ /CalRGB <<
 
 # Preview RGB per mode (tint=1 → warna ini, tint=0 → white)
 _MODE_RGB = {
-    "cut":    (1.0, 0.0, 0.0),
-    "uv":     (0.0, 0.78, 1.0),
-    "foil":   (1.0, 0.84, 0.0),
-    "emboss": (0.55, 0.0, 1.0),
+    "white":   (0.72, 0.72, 0.74),  # abu terang — preview tinta putih
+    "varnish": (0.0,  0.78, 1.0),   # cyan — preview pelapis kilap
 }
 _MODE_NAMES = {
-    "cut":    "Die Cut",
-    "uv":     "UV Varnish",
-    "foil":   "Foil Gold",
-    "emboss": "Emboss",
+    "white":   "White",
+    "varnish": "Varnish",
 }
 
 # PS template: proses B dulu, G kedua, R terakhir (agar urutan stack benar)
@@ -72,14 +68,44 @@ def _lookup_identity() -> bytes:
     return bytes(range(256))   # pixel 0→tint 0 (no ink), pixel 255→tint 1 (full ink)
 
 
+def _despeckle_main(img: Image.Image) -> Image.Image:
+    """Hapus bintik gelap kecil (JPEG artifact/debu) dari gambar utama.
+    Speck = connected component gelap < min_px, diganti dengan nilai median lokal
+    sehingga aman untuk background non-putih."""
+    from scipy.ndimage import label
+    from PIL import ImageFilter
+    arr = np.array(img)
+    dark = (arr < 200).any(axis=2)
+    lab, n = label(dark)
+    if n == 0:
+        return img
+    sizes = np.bincount(lab.ravel())
+    sizes[0] = 0
+    min_px = max(50, int(arr.shape[0] * arr.shape[1] * 0.00005))
+    speck = np.isin(lab, np.nonzero((sizes > 0) & (sizes < min_px))[0])
+    if not speck.any():
+        return img
+    med = np.array(img.filter(ImageFilter.MedianFilter(7)))
+    arr[speck] = med[speck]
+    return Image.fromarray(arr)
+
+
 def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str):
     """
     image_path : path gambar utama
     channels   : list of dict {name, mode, mask_np}
     """
     main_img = Image.open(image_path)
-    if main_img.mode not in ("RGB",):
-        main_img = main_img.convert("RGB")
+    if main_img.mode != "RGB":
+        # PNG transparan: composite ke putih, jangan biarkan alpha jadi hitam
+        if main_img.mode in ("RGBA", "LA", "PA") or "transparency" in main_img.info:
+            rgba = main_img.convert("RGBA")
+            bg = Image.new("RGB", rgba.size, (255, 255, 255))
+            bg.paste(rgba, mask=rgba.split()[3])
+            main_img = bg
+        else:
+            main_img = main_img.convert("RGB")
+    main_img = _despeckle_main(main_img)
     w_px, h_px = main_img.size
     w_pt = w_px / dpi * 72.0
     h_pt = h_px / dpi * 72.0
@@ -94,7 +120,7 @@ def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str)
         name   = ch["name"]
         mode   = ch["mode"]
         mask_np = ch["mask_np"]
-        r, g, b = _MODE_RGB.get(mode, (1.0, 0.0, 0.0))
+        r, g, b = _MODE_RGB.get(mode, (0.72, 0.72, 0.74))
         name_enc = _encode_name(name)
         im_name  = f"Im{idx}"
 
@@ -124,10 +150,30 @@ def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str)
         doc.update_object(xref_idx,
             f"[ /Indexed {xref_sep} 0 R 255 {xref_lut} 0 R ]")
 
-        # Spot image XObject — raw bytes, fitz compress saat save
+        # Spot image XObject — clean binary mask, small blobs removed
+        from scipy.ndimage import label as ndlabel
         mask_img = Image.fromarray(mask_np.astype(np.uint8)).convert("L")
-        mask_img = mask_img.resize((w_px, h_px), Image.LANCZOS)
-        mask_raw = mask_img.tobytes()
+        mask_img = mask_img.resize((w_px, h_px), Image.NEAREST)
+
+        # Hard binarize
+        mask_arr = np.array(mask_img)
+        binary   = (mask_arr > 127)
+
+        # Label connected components, remove blobs smaller than min_blob_px
+        # min_blob_px = 0.01% of image area (scales with image size)
+        min_blob_px = max(200, int(w_px * h_px * 0.0001))
+        labeled, num_features = ndlabel(binary)
+        if num_features > 0:
+            sizes = np.bincount(labeled.ravel())   # sizes[0] = background
+            sizes[0] = 0                           # ignore background label
+            keep = sizes >= min_blob_px
+            clean = keep[labeled]                  # True where blob is large enough
+        else:
+            clean = binary
+
+        mask_out = np.where(clean, np.uint8(255), np.uint8(0))
+        mask_img  = Image.fromarray(mask_out, mode="L")
+        mask_raw  = mask_img.tobytes()
 
         xref_simg = doc.get_new_xref()
         doc.update_object(xref_simg, f"""<<
@@ -224,8 +270,8 @@ def run(data: dict) -> dict:
     if not channels_raw:
         # Legacy single-channel
         mask_bytes = data.get("mask_bytes")
-        spot_name  = data.get("spot_name") or _MODE_NAMES.get(data.get("spot_mode", "cut"), "Spot Color")
-        spot_mode  = data.get("spot_mode", "cut")
+        spot_name  = data.get("spot_name") or _MODE_NAMES.get(data.get("spot_mode", "white"), "Spot Color")
+        spot_mode  = data.get("spot_mode", "white")
         if not mask_bytes:
             return {"status": "error", "message": "mask_bytes / channels kosong"}
         channels_raw = [{"name": spot_name, "mode": spot_mode, "mask_bytes": mask_bytes}]
@@ -250,7 +296,7 @@ def run(data: dict) -> dict:
                 mb = base64.b64decode(mb)
             channels.append({
                 "name":    ch.get("name", "Spot Color"),
-                "mode":    ch.get("mode", "cut"),
+                "mode":    ch.get("mode", "white"),
                 "mask_np": _mask_to_np(mb),
             })
 

@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$j = $input | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -match '\\.py$' -and $f -match 'Api_Printing') { & 'D:\\Api_Printing\\restart_service.ps1' } 2>$null",
+            "timeout": 15,
+            "statusMessage": "Merestart printing agent...",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

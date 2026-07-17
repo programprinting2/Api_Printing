@@ -6,6 +6,7 @@ from tasks.render_cmyk import render_cmyk
 from tasks.cmyk_master import export_cmyk_master
 from tasks.export_pdf_imposition import export_pdf_imposition
 from tasks.spot_color import run as spot_color_run
+from tasks.finishing_editor import run as finishing_editor_run
 import concurrent.futures
 import threading
 
@@ -18,6 +19,7 @@ TASK_MAP = {
     "export_cmyk_master": export_cmyk_master,
     "export_pdf_imposition": export_pdf_imposition,
     "spot_color": spot_color_run,
+    "finishing_process": finishing_editor_run,
 }
 
 # Shared thread pool for running tasks asynchronously with a timeout

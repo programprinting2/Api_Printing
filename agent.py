@@ -51,7 +51,7 @@ if not _cors_enabled:
         return response
 
 # Simple base directory for the lightweight file explorer (change as needed)
-BASE_DIR = r"F:\\PESANAN\2026"
+BASE_DIR = r"F:\PESANAN\2026"
 
 
 def safe_join(base, path):
@@ -140,6 +140,13 @@ def ui_main():
                     <span class="meta"><div class="name">Image Contour</div><div class="desc">Buat garis kontur / cut line dari gambar</div></span>
                     <span class="arrow">→</span>
                 </div>
+                <div class="tool" data-href="/ui/finishing-editor">
+                    <span class="ico" style="background:#00897b">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/><path d="M4 12h16"/></svg>
+                    </span>
+                    <span class="meta"><div class="name">Finishing Editor</div><div class="desc">Tambahkan indikator plong, lebihan, dan pesan pada gambar</div></span>
+                    <span class="arrow">→</span>
+                </div>
             </div>
         </div>
 
@@ -206,6 +213,7 @@ def ui_main():
     const API_MAP = {
         '/ui/spot-color':        'spot-color',
         '/ui/image-contour':     'image-contour',
+        '/ui/finishing-editor':  'finishing-editor',
         '/ui/image-tools':       'image-tools',
         '/ui/read-info-form':    'image-info',
         '/ui/merge':             'merge-pdf',
@@ -662,7 +670,16 @@ def api_list():
         full_path = BASE_DIR
 
     if not os.path.exists(full_path):
-        return jsonify({"error": "Path not found", "path": full_path}), 404
+        fallback = full_path
+        while fallback and not os.path.exists(fallback):
+            parent = os.path.dirname(fallback)
+            if parent == fallback:
+                break
+            fallback = parent
+        if os.path.exists(fallback) and os.path.isdir(fallback):
+            full_path = fallback
+        else:
+            return jsonify({"current_path": "", "items": [], "warning": "Path not found"})
 
     items = []
     for name in sorted(os.listdir(full_path)):
@@ -1134,397 +1151,392 @@ def ui_drives():
 @app.route("/ui/file-dialog-component")
 def ui_file_dialog_component():
     js_code = """
-// File Dialog Component - Full File Explorer
+// File Dialog Component - Windows Explorer style picker
 if (!window.fileDialogComponent) {
     window.fileDialogComponent = true;
-    
-    // Inject CSS
+
+    const SEP = String.fromCharCode(92); // backslash
+    function stripSep(s){ while(s.length && s.charAt(s.length - 1) === SEP) s = s.slice(0, -1); return s; }
+
     const style = document.createElement('style');
     style.textContent = `
-        .modal-overlay {
-            position: fixed;
-            left: 0;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.6);
-            display: none;
-            z-index: 10000;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-overlay.active {
-            display: flex;
-        }
-        
-        .modal-dialog {
-            background: white;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 1000px;
-            max-height: 80vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .modal-header h3 {
-            margin: 0;
-            font-size: 18px;
-            color: #333;
-        }
-        
-        .modal-close {
-            background: transparent;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-        }
-        
-        .modal-close:hover {
-            color: #333;
-        }
-        
-        .modal-body {
-            flex: 1;
-            overflow: hidden;
-            padding: 0;
-            display: flex;
-        }
-        
-        .explorer-sidebar {
-            width: 220px;
-            border-right: 1px solid #e0e0e0;
-            padding: 16px;
-            overflow-y: auto;
-            background: #f8f9fa;
-        }
-        
-        .explorer-main {
-            flex: 1;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            min-width: 0;
-        }
-        
-        .explorer-drives {
-            list-style: none;
-            padding: 0;
-            margin: 0 0 20px 0;
-        }
-        
-        .explorer-drives li {
-            padding: 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            color: #333;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-        
-        .explorer-drives li:hover {
-            background: #e8ecff;
-            color: #0066cc;
-        }
-        
-        .sidebar-label {
-            font-size: 11px;
-            color: #999;
-            text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .current-path {
-            font-size: 11px;
-            color: #666;
-            word-break: break-all;
-            line-height: 1.3;
-        }
-        
-        .explorer-toolbar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        
-        .explorer-toolbar button {
-            background: #0066cc;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        
-        .explorer-toolbar button:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-        
-        .explorer-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        
-        .explorer-table thead {
-            position: sticky;
-            top: 0;
-            background: white;
-            z-index: 10;
-        }
-        
-        .explorer-table th {
-            padding: 8px;
-            text-align: left;
-            border-bottom: 2px solid #e0e0e0;
-            color: #666;
-            font-weight: 600;
-            background: white;
-        }
-        
-        .explorer-table td {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .explorer-table tr:hover {
-            background: #f8fbff;
-        }
-        
-        .explorer-file-name {
-            cursor: pointer;
-            color: #333;
-            flex: 1;
-        }
-        
-        .explorer-file-name:hover {
-            color: #0066cc;
-            text-decoration: underline;
-        }
-        
-        .explorer-file-type {
-            color: #999;
-            font-size: 11px;
-        }
-        
-        .explorer-file-size {
-            color: #999;
-            text-align: right;
-            width: 80px;
-        }
-        
-        .explorer-file-date {
-            color: #999;
-            width: 130px;
-            font-size: 11px;
-        }
-        
-        .explorer-table-container {
-            flex: 1;
-            overflow: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-        }
+        .fd-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; z-index:10000; align-items:center; justify-content:center; }
+        .fd-overlay.active{ display:flex; }
+        .fd-dialog{ background:#fff; border-radius:10px; width:92%; max-width:1120px; height:86vh; display:flex; flex-direction:column;
+            box-shadow:0 24px 70px rgba(0,0,0,0.35); overflow:hidden; font-family:'Segoe UI',system-ui,sans-serif; }
+        .fd-header{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #e6e6e6; background:#fafbfc; }
+        .fd-header h3{ margin:0; font-size:15px; color:#222; font-weight:600; }
+        .fd-close{ background:transparent; border:none; font-size:20px; line-height:1; cursor:pointer; color:#777; padding:4px 8px; border-radius:5px; }
+        .fd-close:hover{ background:#eee; color:#222; }
+
+        .fd-nav{ display:flex; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid #eee; background:#fff; }
+        .fd-navbtn{ width:32px; height:30px; border:1px solid #dcdfe3; background:#fff; border-radius:5px; cursor:pointer;
+            color:#555; font-size:15px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fd-navbtn:hover:not(:disabled){ background:#eef4ff; border-color:#0066cc; color:#0066cc; }
+        .fd-navbtn:disabled{ opacity:0.4; cursor:default; }
+        .fd-crumbs{ flex:1; display:flex; align-items:center; gap:2px; overflow-x:auto; white-space:nowrap; background:#f6f7f9;
+            border:1px solid #dcdfe3; border-radius:5px; padding:5px 8px; min-height:30px; font-size:13px; }
+        .fd-crumb{ padding:2px 6px; border-radius:4px; cursor:pointer; color:#333; }
+        .fd-crumb:hover{ background:#e4ecfa; color:#0066cc; }
+        .fd-crumb-sep{ color:#aaa; padding:0 1px; }
+        .fd-search{ width:220px !important; max-width:220px !important; flex-shrink:0; border:1px solid #dcdfe3; border-radius:5px; padding:6px 10px; font-size:13px; box-sizing:border-box; }
+        .fd-search:focus{ outline:none; border-color:#0066cc; }
+
+        .fd-body{ flex:1; display:flex; min-height:0; }
+        .fd-sidebar{ width:200px; border-right:1px solid #eee; background:#f8f9fb; overflow-y:auto; padding:12px 8px; flex-shrink:0; }
+        .fd-side-label{ font-size:10.5px; color:#98a2ad; text-transform:uppercase; letter-spacing:0.06em; font-weight:700; margin:6px 8px 6px; }
+        .fd-drive{ display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:6px; cursor:pointer; color:#333; font-size:13px; }
+        .fd-drive:hover{ background:#e8eefc; color:#0066cc; }
+        .fd-drive .ic{ font-size:15px; }
+
+        .fd-main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+        .fd-listwrap{ flex:1; overflow:auto; }
+        .fd-table{ width:100%; border-collapse:collapse; font-size:13px; }
+        .fd-table thead th{ position:sticky; top:0; background:#fff; z-index:2; text-align:left; padding:9px 10px;
+            border-bottom:1px solid #e2e5e9; color:#667080; font-weight:600; cursor:pointer; user-select:none; white-space:nowrap; }
+        .fd-table thead th:hover{ color:#0066cc; }
+        .fd-table thead th .arrow{ font-size:10px; margin-left:3px; color:#0066cc; }
+        .fd-col-size{ width:110px; text-align:right !important; }
+        .fd-col-type{ width:130px; }
+        .fd-col-date{ width:170px; }
+        .fd-table td{ padding:7px 10px; border-bottom:1px solid #f2f3f5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fd-row{ cursor:pointer; }
+        .fd-row:hover{ background:#f3f8ff; }
+        .fd-row.selected{ background:#dbeafe !important; }
+        .fd-row.disabled{ color:#b0b6bd; }
+        .fd-row.disabled .fd-name{ color:#b0b6bd; }
+        .fd-name{ display:flex; align-items:center; gap:8px; overflow:hidden; }
+        .fd-name .ic{ font-size:15px; flex-shrink:0; }
+        .fd-name .txt{ overflow:hidden; text-overflow:ellipsis; }
+        .fd-size{ text-align:right; color:#667080; }
+        .fd-type, .fd-date{ color:#8a929b; font-size:12px; }
+        .fd-empty{ padding:40px; text-align:center; color:#98a2ad; font-size:13px; }
+        .fd-loading{ padding:40px; text-align:center; color:#0066cc; font-size:13px; }
+
+        .fd-footer{ display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid #e6e6e6; background:#fafbfc; }
+        .fd-selinfo{ flex:1; font-size:13px; color:#444; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .fd-selinfo b{ color:#111; }
+        .fd-hint{ font-size:11px; color:#98a2ad; }
+        .fd-btn{ padding:8px 18px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid #dcdfe3; background:#fff; color:#444; }
+        .fd-btn:hover{ background:#f0f0f0; }
+        .fd-btn.primary{ background:#0066cc; border-color:#0066cc; color:#fff; }
+        .fd-btn.primary:hover{ background:#0052a3; }
+        .fd-btn.primary:disabled{ background:#cbd5e1; border-color:#cbd5e1; cursor:default; }
     `;
     document.head.appendChild(style);
-    
-    // Inject HTML
+
+    const IMAGE_EXTS = ['jpg','jpeg','png','gif','bmp','webp','tiff','tif','ico'];
+
     const modalHTML = `
-        <div class="modal-overlay" id="fileDialogModal">
-            <div class="modal-dialog">
-                <div class="modal-header">
-                    <h3>Pilih File</h3>
-                    <button class="modal-close" onclick="closeFileDialog()">✕</button>
-                </div>
-                <div class="modal-body">
-                    <div class="explorer-sidebar">
-                        <div class="sidebar-label">Drives</div>
-                        <ul class="explorer-drives" id="fileDialogDrives"></ul>
-                        
-                        <div class="sidebar-label" style="margin-top: 20px;">Current Path</div>
-                        <div class="current-path" id="fileDialogCurrentPath">Root</div>
-                    </div>
-                    <div class="explorer-main">
-                        <div class="explorer-toolbar">
-                            <button onclick="fileDialogRefresh()">🔄 Refresh</button>
-                            <button onclick="fileDialogUpFolder()">⬅️ Up</button>
-                        </div>
-                        <div class="explorer-table-container">
-                            <table class="explorer-table">
-                                <thead>
-                                    <tr>
-                                        <th style="flex: 1;">Name</th>
-                                        <th style="width: 80px;">Size</th>
-                                        <th style="width: 130px;">Modified</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="fileDialogFileTable"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+        <div class="fd-overlay" id="fdOverlay">
+          <div class="fd-dialog" role="dialog" aria-label="Pilih File">
+            <div class="fd-header">
+              <h3>Pilih File</h3>
+              <button class="fd-close" title="Tutup" onclick="closeFileDialog()">&times;</button>
             </div>
+            <div class="fd-nav">
+              <button class="fd-navbtn" id="fdBack" title="Kembali">&#8592;</button>
+              <button class="fd-navbtn" id="fdFwd" title="Maju">&#8594;</button>
+              <button class="fd-navbtn" id="fdUp" title="Naik satu folder">&#8593;</button>
+              <button class="fd-navbtn" id="fdReload" title="Muat ulang">&#8635;</button>
+              <div class="fd-crumbs" id="fdCrumbs"></div>
+              <input class="fd-search" id="fdSearch" type="text" placeholder="Cari di folder ini..." />
+            </div>
+            <div class="fd-body">
+              <div class="fd-sidebar">
+                <div class="fd-side-label">Drive</div>
+                <div id="fdDrives"></div>
+              </div>
+              <div class="fd-main">
+                <div class="fd-listwrap">
+                  <table class="fd-table">
+                    <thead>
+                      <tr>
+                        <th data-sort="name">Nama <span class="arrow" id="fdArrname"></span></th>
+                        <th data-sort="size" class="fd-col-size">Ukuran <span class="arrow" id="fdArrsize"></span></th>
+                        <th data-sort="type" class="fd-col-type">Tipe <span class="arrow" id="fdArrtype"></span></th>
+                        <th data-sort="date" class="fd-col-date">Diubah <span class="arrow" id="fdArrdate"></span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="fdBody"></tbody>
+                  </table>
+                  <div class="fd-empty" id="fdEmpty" style="display:none;">Folder kosong.</div>
+                  <div class="fd-loading" id="fdLoading" style="display:none;">Memuat...</div>
+                </div>
+              </div>
+            </div>
+            <div class="fd-footer">
+              <div class="fd-selinfo" id="fdSelInfo">Belum ada file dipilih</div>
+              <span class="fd-hint">Hanya file gambar yang bisa dipilih</span>
+              <button class="fd-btn" onclick="closeFileDialog()">Batal</button>
+              <button class="fd-btn primary" id="fdPick" disabled>Pilih</button>
+            </div>
+          </div>
         </div>
     `;
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Global state
-    window.fileDialogCurrentPath = "";
-    window.fileDialogCallback = null;
-    
-    // Global functions
-    window.openFileDialog = function(callback) {
-        window.fileDialogCallback = callback || null;
-        document.getElementById('fileDialogModal').classList.add('active');
-        fileDialogLoadDrives();
-        fileDialogLoadFolder("");
+
+    const fd = {
+        callback: null, path: '', items: [], selected: null,
+        sortKey: 'name', sortAsc: true, history: [], histIndex: -1,
     };
-    
-    window.closeFileDialog = function() {
-        document.getElementById('fileDialogModal').classList.remove('active');
-        window.fileDialogCurrentPath = "";
+    window.fileDialogCurrentPath = '';
+    window.fileDialogCallback = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function isImage(name){
+        const ext = String(name.split('.').pop() || '').toLowerCase();
+        return IMAGE_EXTS.includes(ext);
+    }
+    function extLabel(item){
+        if(item.type === 'folder') return 'Folder';
+        const ext = String(item.name.split('.').pop() || '').toUpperCase();
+        return ext ? ext + ' File' : 'File';
+    }
+    function fmtBytes(bytes){
+        if(bytes === null || bytes === undefined) return '';
+        if(bytes < 1024) return bytes + ' B';
+        const u = ['KB','MB','GB','TB']; let s = bytes, i = -1;
+        do { s /= 1024; i++; } while(s >= 1024 && i < u.length - 1);
+        return s.toFixed(1) + ' ' + u[i];
+    }
+    function iconFor(item){
+        if(item.type === 'folder') return '📁';
+        if(isImage(item.name)) return '🖼️';
+        const ext = String(item.name.split('.').pop() || '').toLowerCase();
+        if(ext === 'pdf') return '📕';
+        if(['zip','rar','7z','tar','gz'].includes(ext)) return '🗜️';
+        return '📄';
+    }
+    function escapeHtml(s){
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    window.openFileDialog = function(callback){
+        fd.callback = callback || null;
+        window.fileDialogCallback = fd.callback;
+        fd.selected = null; fd.history = []; fd.histIndex = -1;
+        $('fdSearch').value = '';
+        $('fdOverlay').classList.add('active');
+        $('fdOverlay').focus();
+        updateSelInfo();
+        loadDrives();
+        navigate('', true);
+    };
+
+    window.closeFileDialog = function(){
+        $('fdOverlay').classList.remove('active');
+        fd.callback = null;
         window.fileDialogCallback = null;
     };
-    
-    window.fileDialogLoadDrives = async function() {
-        try {
+
+    async function loadDrives(){
+        try{
             const res = await fetch('/ui/drives');
             const data = await res.json();
-            const ul = document.getElementById('fileDialogDrives');
-            ul.innerHTML = '';
-            
-            (data.drives || []).forEach(drive => {
-                const li = document.createElement('li');
-                li.textContent = drive;
-                li.addEventListener('click', () => fileDialogLoadFolder(drive));
-                ul.appendChild(li);
+            const host = $('fdDrives');
+            host.innerHTML = '';
+            (data.drives || []).forEach(drv => {
+                const el = document.createElement('div');
+                el.className = 'fd-drive';
+                el.innerHTML = '<span class="ic">💾</span><span>' + escapeHtml(drv) + '</span>';
+                el.addEventListener('click', () => navigate(drv, true));
+                host.appendChild(el);
             });
-        } catch(e) {
-            console.error('Error loading drives:', e);
-        }
-    };
-    
-    window.fileDialogFormatBytes = function(bytes) {
-        if(bytes === null || bytes === undefined) return '-';
-        if(bytes < 1024) return bytes + ' B';
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let size = bytes;
-        let i = 0;
-        while(size >= 1024 && i < units.length - 1) {
-            size /= 1024;
-            i++;
-        }
-        return size.toFixed(1) + ' ' + units[i];
-    };
-    
-    window.fileDialogLoadFolder = async function(path) {
-        try {
-            const q = '/api/list?path=' + encodeURIComponent(path || '');
-            const res = await fetch(q);
-            
-            if(!res.ok) {
-                const msg = await res.text();
-                alert('Error: ' + msg);
+        }catch(e){ console.error('drives', e); }
+    }
+
+    async function navigate(path, pushHist){
+        $('fdLoading').style.display = 'block';
+        $('fdEmpty').style.display = 'none';
+        try{
+            const res = await fetch('/api/list?path=' + encodeURIComponent(path || ''));
+            const data = res.ok ? await res.json() : { items: [] };
+            if(data.warning && (!data.items || data.items.length === 0)){
+                fd.path = '';
+                fd.items = [];
+                fd.selected = null;
+                updateSelInfo();
+                renderCrumbs();
+                renderList();
+                updateNavButtons();
+                $('fdEmpty').style.display = 'block';
+                $('fdEmpty').textContent = 'Folder tidak ditemukan. Pilih drive/folder lain.';
                 return;
             }
-            
-            const data = await res.json();
-            window.fileDialogCurrentPath = data.current_path || '';
-            document.getElementById('fileDialogCurrentPath').textContent = window.fileDialogCurrentPath || 'Root';
-            
-            const tbody = document.getElementById('fileDialogFileTable');
-            tbody.innerHTML = '';
-            
-            // Add up row if not root
-            if(window.fileDialogCurrentPath) {
-                const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
-                tr.innerHTML = '<td colspan="3" style="color: #0066cc; font-weight: 600;">📁 .. (Up)</td>';
-                tr.addEventListener('click', () => {
-                    const parts = window.fileDialogCurrentPath.split('\\\\').filter(Boolean);
-                    parts.pop();
-                    fileDialogLoadFolder(parts.join('\\\\'));
-                });
-                tbody.appendChild(tr);
+            fd.path = data.current_path || '';
+            window.fileDialogCurrentPath = fd.path;
+            fd.items = data.items || [];
+            fd.selected = null;
+            updateSelInfo();
+            if(pushHist){
+                fd.history = fd.history.slice(0, fd.histIndex + 1);
+                fd.history.push(fd.path);
+                fd.histIndex = fd.history.length - 1;
             }
-            
-            // Add files/folders
-            (data.items || []).forEach(item => {
-                const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
-                
-                const isFolder = item.type === 'folder';
-                const icon = isFolder ? '📁' : '📄';
-                const name = icon + ' ' + item.name;
-                
-                const nameCell = document.createElement('td');
-                nameCell.className = 'explorer-file-name';
-                nameCell.textContent = name;
-                
-                const sizeCell = document.createElement('td');
-                sizeCell.className = 'explorer-file-size';
-                sizeCell.textContent = isFolder ? '-' : fileDialogFormatBytes(item.size);
-                
-                const dateCell = document.createElement('td');
-                dateCell.className = 'explorer-file-date';
-                dateCell.textContent = item.last_modified || '-';
-                
-                nameCell.addEventListener('click', () => {
-                    if(isFolder) {
-                        const newPath = window.fileDialogCurrentPath ? window.fileDialogCurrentPath + '\\\\' + item.name : item.name;
-                        fileDialogLoadFolder(newPath);
-                    } else {
-                        // Only allow image files
-                        const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.ico'];
-                        const ext = ('.' + item.name.split('.').pop()).toLowerCase();
-                        if(imageExts.includes(ext)) {
-                            const filePath = window.fileDialogCurrentPath ? window.fileDialogCurrentPath + '\\\\' + item.name : item.name;
-                            if(window.fileDialogCallback) {
-                                window.fileDialogCallback(filePath);
-                            }
-                            closeFileDialog();
-                        } else {
-                            alert('Hanya file gambar yang bisa dipilih (.jpg, .png, .gif, .bmp, .webp, dll)');
-                        }
-                    }
-                });
-                
-                tr.appendChild(nameCell);
-                tr.appendChild(sizeCell);
-                tr.appendChild(dateCell);
-                tbody.appendChild(tr);
-            });
-        } catch(e) {
-            alert('Error: ' + e.message);
+            renderCrumbs();
+            renderList();
+            updateNavButtons();
+        }catch(e){
+            console.warn('File dialog navigate error:', e);
+        }finally{
+            $('fdLoading').style.display = 'none';
         }
-    };
-    
-    window.fileDialogRefresh = function() {
-        fileDialogLoadFolder(window.fileDialogCurrentPath);
-    };
-    
-    window.fileDialogUpFolder = function() {
-        const parts = window.fileDialogCurrentPath.split('\\\\').filter(Boolean);
+    }
+
+    function updateNavButtons(){
+        $('fdBack').disabled = fd.histIndex <= 0;
+        $('fdFwd').disabled = fd.histIndex >= fd.history.length - 1;
+        $('fdUp').disabled = fd.path.split(SEP).filter(Boolean).length <= 1;
+    }
+
+    function renderCrumbs(){
+        const host = $('fdCrumbs');
+        host.innerHTML = '';
+        const parts = fd.path.split(SEP).filter(Boolean);
+        let acc = '';
+        parts.forEach((p, i) => {
+            acc = i === 0 ? (p + SEP) : (stripSep(acc) + SEP + p);
+            const seg = acc;
+            if(i > 0){
+                const sep = document.createElement('span');
+                sep.className = 'fd-crumb-sep'; sep.textContent = '›';
+                host.appendChild(sep);
+            }
+            const c = document.createElement('span');
+            c.className = 'fd-crumb'; c.textContent = p;
+            c.addEventListener('click', () => navigate(seg, true));
+            host.appendChild(c);
+        });
+    }
+
+    function sortedItems(){
+        const filter = $('fdSearch').value.trim().toLowerCase();
+        let list = fd.items.slice();
+        if(filter) list = list.filter(it => it.name.toLowerCase().includes(filter));
+        const key = fd.sortKey, dir = fd.sortAsc ? 1 : -1;
+        list.sort((a, b) => {
+            if(a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+            let av, bv;
+            if(key === 'size'){ av = a.size || 0; bv = b.size || 0; }
+            else if(key === 'date'){ av = a.last_modified || ''; bv = b.last_modified || ''; }
+            else if(key === 'type'){ av = extLabel(a); bv = extLabel(b); }
+            else { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
+            if(av < bv) return -1 * dir;
+            if(av > bv) return 1 * dir;
+            return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+        });
+        return list;
+    }
+
+    function renderList(){
+        const tbody = $('fdBody');
+        tbody.innerHTML = '';
+        const list = sortedItems();
+        $('fdEmpty').style.display = list.length ? 'none' : 'block';
+
+        ['name','size','type','date'].forEach(k => { const el = $('fdArr' + k); if(el) el.textContent = ''; });
+        const arrEl = $('fdArr' + fd.sortKey);
+        if(arrEl) arrEl.textContent = fd.sortAsc ? '▲' : '▼';
+
+        list.forEach(item => {
+            const isFolder = item.type === 'folder';
+            const selectable = isFolder || isImage(item.name);
+            const tr = document.createElement('tr');
+            tr.className = 'fd-row' + (selectable ? '' : ' disabled');
+
+            const tdName = document.createElement('td');
+            tdName.innerHTML = '<div class="fd-name"><span class="ic">' + iconFor(item) + '</span><span class="txt">' + escapeHtml(item.name) + '</span></div>';
+            const tdSize = document.createElement('td');
+            tdSize.className = 'fd-size'; tdSize.textContent = isFolder ? '' : fmtBytes(item.size);
+            const tdType = document.createElement('td');
+            tdType.className = 'fd-type'; tdType.textContent = extLabel(item);
+            const tdDate = document.createElement('td');
+            tdDate.className = 'fd-date'; tdDate.textContent = item.last_modified || '';
+
+            tr.appendChild(tdName); tr.appendChild(tdSize); tr.appendChild(tdType); tr.appendChild(tdDate);
+            tr.addEventListener('click', () => selectRow(tr, item));
+            tr.addEventListener('dblclick', () => openItem(item));
+            tbody.appendChild(tr);
+        });
+    }
+
+    function selectRow(tr, item){
+        document.querySelectorAll('#fdBody .fd-row.selected').forEach(r => r.classList.remove('selected'));
+        tr.classList.add('selected');
+        fd.selected = item;
+        updateSelInfo();
+    }
+
+    function updateSelInfo(){
+        const info = $('fdSelInfo');
+        const pick = $('fdPick');
+        if(fd.selected && fd.selected.type !== 'folder' && isImage(fd.selected.name)){
+            info.innerHTML = 'File: <b>' + escapeHtml(fd.selected.name) + '</b>';
+            pick.disabled = false;
+        } else if(fd.selected && fd.selected.type === 'folder'){
+            info.innerHTML = 'Folder: <b>' + escapeHtml(fd.selected.name) + '</b> (klik ganda untuk buka)';
+            pick.disabled = true;
+        } else if(fd.selected){
+            info.innerHTML = '<span style="color:#c62828">' + escapeHtml(fd.selected.name) + '</span> — bukan file gambar';
+            pick.disabled = true;
+        } else {
+            info.textContent = 'Belum ada file dipilih';
+            pick.disabled = true;
+        }
+    }
+
+    function joinPath(name){
+        return fd.path ? (stripSep(fd.path) + SEP + name) : name;
+    }
+
+    function openItem(item){
+        if(item.type === 'folder') navigate(joinPath(item.name), true);
+        else if(isImage(item.name)) confirmPick(item);
+    }
+
+    function confirmPick(item){
+        const full = joinPath(item.name);
+        const cb = fd.callback;
+        closeFileDialog();
+        if(cb) cb(full);
+    }
+
+    function goUp(){
+        const parts = fd.path.split(SEP).filter(Boolean);
+        if(parts.length <= 1) return;
         parts.pop();
-        fileDialogLoadFolder(parts.join('\\\\'));
-    };
+        let target = parts.join(SEP);
+        if(parts.length === 1) target = parts[0] + SEP;
+        navigate(target, true);
+    }
+
+    $('fdBack').addEventListener('click', () => { if(fd.histIndex > 0){ fd.histIndex--; navigate(fd.history[fd.histIndex], false); } });
+    $('fdFwd').addEventListener('click', () => { if(fd.histIndex < fd.history.length - 1){ fd.histIndex++; navigate(fd.history[fd.histIndex], false); } });
+    $('fdUp').addEventListener('click', goUp);
+    $('fdReload').addEventListener('click', () => navigate(fd.path, false));
+    $('fdSearch').addEventListener('input', renderList);
+    $('fdPick').addEventListener('click', () => { if(fd.selected && isImage(fd.selected.name)) confirmPick(fd.selected); });
+    document.querySelectorAll('.fd-table thead th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const k = th.getAttribute('data-sort');
+            if(fd.sortKey === k) fd.sortAsc = !fd.sortAsc; else { fd.sortKey = k; fd.sortAsc = true; }
+            renderList();
+        });
+    });
+    $('fdOverlay').addEventListener('keydown', (e) => {
+        if(e.key === 'Escape'){ closeFileDialog(); }
+        else if(e.key === 'Enter' && fd.selected){ openItem(fd.selected); }
+        else if(e.key === 'Backspace' && document.activeElement !== $('fdSearch')){ e.preventDefault(); goUp(); }
+    });
+    $('fdOverlay').setAttribute('tabindex', '-1');
+    $('fdOverlay').addEventListener('mousedown', (e) => { if(e.target === $('fdOverlay')) closeFileDialog(); });
+
+    // legacy-compatible helpers
+    window.fileDialogRefresh = () => navigate(fd.path, false);
+    window.fileDialogUpFolder = goUp;
+    window.fileDialogLoadFolder = (p) => navigate(p, true);
 }
 """
     return Response(js_code, mimetype="application/javascript")
@@ -3903,6 +3915,1069 @@ def image_tools():
     )
 
 
+@app.route("/ui/finishing-process", methods=["POST"])
+def ui_finishing_process():
+    try:
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"status": "error", "message": "Missing JSON body"}), 400
+
+        result = execute("finishing_process", payload, timeout_seconds=120)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/ui/finishing-editor")
+def ui_finishing_editor():
+    return render_template_string(
+        r"""
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finishing Editor — Printing Agent</title>
+<style>
+  :root{
+    --bg-base:#eef0f3;
+    --bg-panel:#ffffff;
+    --bg-inset:#f6f8fa;
+    --line:rgba(0,0,0,0.045);
+    --line-strong:#d9dee5;
+    --cyan:#0066cc;
+    --cyan-dim:#7aa7d4;
+    --amber:#e67e22;
+    --text:#222222;
+    --text-dim:#667080;
+    --text-faint:#98a2ad;
+    --ruler:36px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg-base);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:22px 24px 16px;
+    border-bottom:1px solid var(--line-strong);
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  header .mark{
+    font-family:var(--mono); font-size:12px; color:var(--cyan);
+    border:1px solid var(--cyan-dim); padding:3px 8px; border-radius:3px; letter-spacing:0.08em;
+  }
+  header h1{ font-size:19px; margin:0; font-weight:600; }
+  header p{ margin:0; color:var(--text-dim); font-size:13px; font-family:var(--mono); }
+  header .back{
+    margin-left:auto; color:var(--text-dim); text-decoration:none; font-size:13px;
+    border:1px solid var(--line-strong); padding:6px 12px; border-radius:5px;
+  }
+  header .back:hover{border-color:var(--cyan); color:var(--cyan);}
+
+  .layout{ display:grid; grid-template-columns:320px 1fr; gap:0; min-height:calc(100vh - 76px); }
+  @media (max-width: 880px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{ background:var(--bg-panel); border-right:1px solid var(--line-strong); padding:20px; overflow-y:auto; }
+  .drop-zone{
+    border:1.5px dashed var(--cyan-dim); border-radius:6px; padding:22px 14px; text-align:center; cursor:pointer;
+    transition:border-color .15s, background .15s; background:var(--bg-inset);
+  }
+  .drop-zone:hover{ border-color:var(--cyan); background:rgba(0,102,204,0.05); }
+  .drop-zone .icon{ font-family:var(--mono); font-size:22px; color:var(--cyan); display:block; margin-bottom:8px; }
+  .drop-zone .t1{font-size:13.5px; color:var(--text);}
+  .drop-zone .t2{font-size:11.5px; color:var(--text-faint); margin-top:4px; font-family:var(--mono); word-break:break-all;}
+
+  .error-msg{
+    margin-top:10px; padding:9px 12px; border-radius:5px;
+    background:rgba(198,40,40,0.06); border:1px solid rgba(198,40,40,0.35);
+    color:#c62828; font-size:12px; font-family:var(--mono); display:none;
+  }
+
+  .section{margin-top:22px;}
+  .section-label{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; color:var(--text-faint);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+  .control{margin-bottom:14px;}
+  .control label{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-bottom:6px; }
+  .control label span.val{ font-family:var(--mono); color:var(--cyan); }
+  .control-hint{ font-size:11px; color:var(--text-faint); margin-bottom:10px; line-height:1.5; }
+  input[type=number], input[type=text]{
+    width:100%; background:var(--bg-inset); color:var(--text); border:1px solid var(--line-strong);
+    padding:7px 8px; border-radius:4px; font-family:var(--mono); font-size:12.5px;
+  }
+  select{
+    width:100%; background:var(--bg-inset); color:var(--text); border:1px solid var(--line-strong);
+    padding:7px 8px; border-radius:4px; font-family:var(--sans); font-size:12.5px;
+  }
+  input[type=color]{
+    width:44px; height:32px; border:1px solid var(--line-strong); border-radius:4px;
+    background:var(--bg-inset); padding:2px; cursor:pointer; flex-shrink:0;
+  }
+  .checkbox-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); margin-bottom:12px; }
+  .checkbox-row input{accent-color:var(--cyan);}
+  .color-row{ display:flex; gap:10px; align-items:center; }
+  .color-row .control{ flex:1; margin-bottom:0; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
+
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:12px 14px; border-radius:6px; border:1.5px solid var(--line-strong);
+    background:var(--bg-inset); margin-bottom:12px; cursor:pointer; user-select:none;
+    transition:border-color .12s, background .12s;
+  }
+  .toggle-row:hover{ border-color:var(--cyan-dim); }
+  .toggle-row.on{ border-color:var(--amber); background:rgba(232,162,61,0.1); }
+  .toggle-row .lbl{ font-size:13.5px; color:var(--text-dim); font-weight:600; }
+  .toggle-row.on .lbl{ color:var(--amber); }
+  .toggle-row .state{ font-family:var(--mono); font-size:10px; letter-spacing:0.06em; color:var(--text-faint); margin-right:2px; }
+  .toggle-row.on .state{ color:var(--amber); }
+  .switch{ position:relative; width:42px; height:22px; flex-shrink:0; pointer-events:none; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch .slider{ position:absolute; inset:0; cursor:pointer; background:#cfd6dd; border-radius:22px; transition:.15s; }
+  .switch .slider:before{
+    content:""; position:absolute; height:16px; width:16px; left:3px; top:3px;
+    background:#ffffff; border-radius:50%; transition:.15s;
+  }
+  .switch input:checked + .slider{ background:var(--amber); }
+  .switch input:checked + .slider:before{ transform:translateX(20px); background:#1A1305; }
+
+  .body-fields{ display:none; }
+  .body-fields.show{ display:block; }
+
+  .btn-primary{
+    width:100%; background:var(--amber); color:#1A1305; border:none; padding:12px; border-radius:5px;
+    font-weight:700; font-size:13.5px; cursor:pointer; margin-top:6px;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:disabled{background:var(--bg-inset); color:var(--text-faint); cursor:not-allowed;}
+  .btn-secondary{
+    width:100%; background:transparent; color:var(--text-dim); border:1px solid var(--line-strong);
+    padding:10px; border-radius:5px; font-size:12.5px; cursor:pointer; margin-top:8px;
+  }
+  .btn-secondary:hover{border-color:var(--cyan); color:var(--cyan);}
+
+  .stage{ padding:24px; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .empty-state{
+    flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-faint);
+    font-family:var(--mono); font-size:13px; text-align:center; line-height:1.8;
+  }
+
+  .pane{
+    background:var(--bg-inset); border:1px solid var(--line-strong); border-radius:6px;
+    overflow:hidden; display:flex; flex-direction:column; min-width:0;
+  }
+  .pane-label{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase;
+    padding:9px 12px; color:var(--cyan); border-bottom:1px solid var(--line-strong);
+    display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .zoom-bar{ display:flex; align-items:center; gap:6px; }
+  .zoom-bar button{
+    background:transparent; border:1px solid var(--line-strong); color:var(--text-dim);
+    width:28px; height:28px; border-radius:4px; cursor:pointer; font-family:var(--mono); font-size:14px;
+  }
+  .zoom-bar button:hover{ border-color:var(--cyan); color:var(--cyan); }
+  .zoom-bar .zoom-val{ font-family:var(--mono); font-size:11px; color:var(--text-dim); min-width:48px; text-align:center; }
+
+  .mode-badge{
+    font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.06em;
+    padding:3px 9px; border-radius:4px; border:1px solid transparent;
+  }
+  .mode-badge.rgb{ background:rgba(0,102,204,0.12); color:var(--cyan); border-color:var(--cyan-dim); }
+  .mode-badge.cmyk{ background:rgba(31,122,71,0.12); color:#1f7a47; border-color:rgba(31,122,71,0.45); }
+  .mode-badge.warn{ background:rgba(198,40,40,0.1); color:#c62828; border-color:rgba(198,40,40,0.45); }
+
+  .viewport{
+    display:grid;
+    grid-template-columns: var(--ruler) 1fr;
+    grid-template-rows: var(--ruler) 1fr;
+    min-height:420px;
+    max-height:70vh;
+  }
+  .ruler-corner{
+    background:#e9ecf0; border-right:1px solid var(--line-strong); border-bottom:1px solid var(--line-strong);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:9px; color:var(--text-faint);
+  }
+  .ruler-x, .ruler-y{ position:relative; overflow:hidden; background:#e9ecf0; }
+  .ruler-x{ border-bottom:1px solid var(--line-strong); }
+  .ruler-y{ border-right:1px solid var(--line-strong); }
+  .ruler-x canvas, .ruler-y canvas{ display:block; width:100%; height:100%; }
+
+  .composite-wrap{
+    position:relative; overflow:auto; background:#e9ecf0;
+    display:flex; align-items:flex-start; justify-content:flex-start; padding:16px;
+  }
+  .composite{
+    position:relative; line-height:0; box-shadow:0 0 0 1px rgba(79,209,232,0.15);
+    flex-shrink:0;
+  }
+  .composite img{ display:block; width:100%; height:100%; }
+  .composite canvas{ display:block; }
+
+  .stats-bar{
+    display:flex; gap:24px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--text-dim);
+    border-top:1px solid var(--line-strong); padding-top:14px;
+  }
+  .stats-bar b{color:var(--cyan); font-weight:600;}
+  .stats-bar .stat{display:flex; flex-direction:column; gap:2px;}
+  .stats-bar .stat-label{color:var(--text-faint); font-size:10px; letter-spacing:0.08em; text-transform:uppercase;}
+
+  .actions-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .actions-row .btn-primary, .actions-row .btn-secondary{width:auto; flex:1; min-width:160px; margin-top:0;}
+
+  details{ border:1px solid var(--line-strong); border-radius:6px; background:var(--bg-inset); }
+  details summary{ padding:10px 14px; cursor:pointer; font-family:var(--mono); font-size:12px; color:var(--text-dim); }
+  details pre{
+    margin:0; padding:14px; border-top:1px solid var(--line-strong); font-family:var(--mono); font-size:11px;
+    color:var(--text-dim); max-height:220px; overflow:auto; white-space:pre-wrap; word-break:break-all;
+  }
+
+  .spinner{
+    display:inline-block; width:14px; height:14px; border:2px solid rgba(0,0,0,0.25); border-top-color:#1A1305;
+    border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; margin-right:7px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="mark">PRINTING AGENT</span>
+  <h1>Finishing Editor</h1>
+  <p>Plong · Lebihan · Pesan — indikator finishing pada gambar cetak</p>
+  <a class="back" href="/ui">&larr; Menu</a>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <div class="drop-zone" id="dropZone">
+      <span class="icon">&#9107;</span>
+      <div class="t1" id="dropZoneTitle">Klik untuk pilih gambar</div>
+      <div class="t2" id="dropZoneSub">.JPG / .JPEG · proses di agent :9001</div>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="section">
+      <div class="section-label">Finishing Template</div>
+      <div class="control" style="margin-bottom:0;">
+        <select id="finishingTemplate">
+          <option>NON FINISHING</option>
+          <option>POLOS</option>
+          <option>LP4</option>
+          <option>LIPAT</option>
+          <option>DOUBLE SIDE</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Ukuran &amp; Resolusi</div>
+      <div class="control">
+        <label>DPI <span class="val" id="valDpi">300</span></label>
+        <input type="number" id="ctrlDpi" min="36" max="1200" step="1" value="300">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="toggle-row" id="plongToggleBox">
+        <div class="lbl">Aktifkan Plong</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="state">NONAKTIF</span>
+          <label class="switch"><input type="checkbox" id="plongEnable"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="body-fields" id="plongFields">
+        <div class="checkbox-row"><input type="checkbox" id="plongFold4" /> <label for="plongFold4">Lipat Plong 4</label></div>
+        <div class="control-hint">Jumlah lubang plong per sisi (terdistribusi rata). Isi 0 untuk sisi tanpa plong.</div>
+        <div class="field-row">
+          <div class="control"><label>Atas (jml)</label><input id="jml_plong_atas" type="number" min="0" step="1" value="2" /></div>
+          <div class="control"><label>Bawah (jml)</label><input id="jml_plong_bawah" type="number" min="0" step="1" value="2" /></div>
+          <div class="control"><label>Kiri (jml)</label><input id="jml_plong_kiri" type="number" min="0" step="1" value="2" /></div>
+          <div class="control"><label>Kanan (jml)</label><input id="jml_plong_kanan" type="number" min="0" step="1" value="2" /></div>
+        </div>
+        <div class="control"><label>Jarak dari tepi (cm)</label><input id="plongInset" type="number" step="0.1" value="2" /></div>
+        <div class="color-row">
+          <input type="color" id="plongColor" value="#ffffff" />
+          <div class="control"><label>Warna Plong</label></div>
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;margin-left:8px;white-space:nowrap"><input type="checkbox" id="plongAutoContrast" checked /> Auto kontras</label>
+        </div>
+        <div class="control">
+          <label>Bentuk Plong</label>
+          <select id="bentukPlong"><option value="circle">Bulat</option><option value="square">Kotak</option></select>
+        </div>
+        <div class="field-row">
+          <div class="control"><label>Diameter Lebar (cm)</label><input id="diameter_lebar" type="number" step="0.1" value="1.0" /></div>
+          <div class="control"><label>Diameter Panjang (cm)</label><input id="diameter_panjang" type="number" step="0.1" value="1.0" /></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="toggle-row" id="lebihanToggleBox">
+        <div class="lbl">Aktifkan Lebihan</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="state">NONAKTIF</span>
+          <label class="switch"><input type="checkbox" id="lebihanEnable"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="body-fields" id="lebihanFields">
+        <div class="control">
+          <label>Lebihan Keliling (cm) <span class="val" id="valLebihanAll">2.5</span></label>
+          <input id="lebihanAll" type="number" step="0.1" value="2.5" />
+        </div>
+        <div class="checkbox-row"><input type="checkbox" id="lebihanCustomSides" /> <label for="lebihanCustomSides">Atur sisi berbeda</label></div>
+        <div class="field-row" id="lebihanSidesGrid" style="display:none;">
+          <div class="control"><label>Atas (cm)</label><input id="lebTop" type="number" step="0.1" value="2.5" /></div>
+          <div class="control"><label>Bawah (cm)</label><input id="lebBottom" type="number" step="0.1" value="2.5" /></div>
+          <div class="control"><label>Kiri (cm)</label><input id="lebLeft" type="number" step="0.1" value="2.5" /></div>
+          <div class="control"><label>Kanan (cm)</label><input id="lebRight" type="number" step="0.1" value="2.5" /></div>
+        </div>
+        <div class="color-row">
+          <input type="color" id="lebBackground" value="#ffffff" />
+          <div class="control"><label>Warna Background</label></div>
+        </div>
+        <div class="color-row">
+          <input type="color" id="lebLineColor" value="#d3d3d3" />
+          <div class="control"><label>Warna Garis</label></div>
+        </div>
+        <div class="control"><label>Ukuran Garis (cm)</label><input id="lebLineSize" type="number" step="0.05" value="0.1" /></div>
+        <div class="control"><label>Kualitas Expot (%)</label><input id="lebQuality" type="number" min="1" max="100" value="80" /></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="toggle-row" id="pesanToggleBox">
+        <div class="lbl">Aktifkan Pesan</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="state">NONAKTIF</span>
+          <label class="switch"><input type="checkbox" id="pesanEnable"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="body-fields" id="pesanFields">
+        <div class="checkbox-row"><input type="checkbox" id="pesanSatuKiri" /> <label for="pesanSatuKiri">1 pesan saja (kiri)</label></div>
+        <div class="control"><label>Pesan Text</label><input id="pesanText" type="text" placeholder="mis. LP4" /></div>
+        <div class="control"><label>Ukuran (cm)</label><input id="pesanSize" type="number" step="0.1" value="0.8" /></div>
+        <div class="color-row">
+          <input type="color" id="pesanColor" value="#000000" />
+          <div class="control"><label>Warna Pesan</label></div>
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;margin-left:8px;white-space:nowrap"><input type="checkbox" id="pesanAutoContrast" checked /> Auto kontras</label>
+        </div>
+        <div class="field-row">
+          <div class="control"><label>Posisi X (cm)</label><input id="pesanX" type="number" step="0.1" value="3" /></div>
+          <div class="control"><label>Posisi Y (cm)</label><input id="pesanY" type="number" step="0.1" value="1" /></div>
+        </div>
+        <div class="control">
+          <label>Posisi</label>
+          <select id="pesanPos"><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btnProcess" disabled>Proses</button>
+    <button class="btn-secondary" id="btnReset">Reset</button>
+  </div>
+
+  <div class="stage">
+    <div class="empty-state" id="emptyState">
+      &#9472;&#9472;&#9472; belum ada gambar &#9472;&#9472;&#9472;<br>
+      klik panel kiri untuk memilih file JPG
+    </div>
+
+    <div id="resultArea" style="display:none; flex:1; flex-direction:column; gap:16px;">
+      <div class="pane">
+        <div class="pane-label">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span id="paneLabel">Preview</span>
+            <span class="mode-badge" id="modeBadge" style="display:none;"></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <span id="sizeLabel"></span>
+            <div class="zoom-bar">
+              <button type="button" id="btnRotateLeft" title="Putar kiri 90&deg;">&#8634;</button>
+              <button type="button" id="btnRotateRight" title="Putar kanan 90&deg;">&#8635;</button>
+              <span class="zoom-val" id="rotVal" title="Rotasi">0&deg;</span>
+              <button type="button" id="btnZoomOut" title="Zoom out">&minus;</button>
+              <span class="zoom-val" id="zoomVal">100%</span>
+              <button type="button" id="btnZoomIn" title="Zoom in">+</button>
+              <button type="button" id="btnZoomReset" title="Reset zoom" style="width:auto;padding:0 8px;font-size:11px;">Fit</button>
+            </div>
+          </div>
+        </div>
+        <div class="viewport" id="viewport">
+          <div class="ruler-corner">cm</div>
+          <div class="ruler-x"><canvas id="rulerX"></canvas></div>
+          <div class="ruler-y"><canvas id="rulerY"></canvas></div>
+          <div class="composite-wrap" id="compositeWrap">
+            <div class="composite" id="composite">
+              <img id="imgMain" alt="sumber" style="display:none;">
+              <canvas id="fxCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-bar" id="statsBar"></div>
+
+      <div class="actions-row">
+        <button class="btn-primary" id="btnOpenFolder" disabled>Buka Folder Hasil</button>
+        <button class="btn-secondary" id="btnReprocess">Proses ulang dengan setting ini</button>
+      </div>
+
+      <details>
+        <summary>Lihat respons server (JSON)</summary>
+        <pre id="rawJson"></pre>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const state = {
+    filepath: null,
+    widthPx: 0, heightPx: 0,
+    widthCm: 0, heightCm: 0,
+    dpi: 300,
+    colorMode: '',
+    rotation: 0,
+    finalWcm: 0, finalHcm: 0,
+    zoom: 1,
+    fitScale: 1,
+    resultPath: null,
+    resultUrl: null,
+    busy: false
+  };
+
+  const dropZone = document.getElementById('dropZone');
+  const dropZoneTitle = document.getElementById('dropZoneTitle');
+  const dropZoneSub = document.getElementById('dropZoneSub');
+  const errorMsg = document.getElementById('errorMsg');
+  const btnProcess = document.getElementById('btnProcess');
+  const btnReset = document.getElementById('btnReset');
+  const btnReprocess = document.getElementById('btnReprocess');
+  const btnOpenFolder = document.getElementById('btnOpenFolder');
+  const emptyState = document.getElementById('emptyState');
+  const resultArea = document.getElementById('resultArea');
+  const imgMain = document.getElementById('imgMain');
+  const composite = document.getElementById('composite');
+  const compositeWrap = document.getElementById('compositeWrap');
+  const sizeLabel = document.getElementById('sizeLabel');
+  const paneLabel = document.getElementById('paneLabel');
+  const statsBar = document.getElementById('statsBar');
+  const rawJsonEl = document.getElementById('rawJson');
+  const rulerX = document.getElementById('rulerX');
+  const rulerY = document.getElementById('rulerY');
+  const zoomVal = document.getElementById('zoomVal');
+  const rotVal = document.getElementById('rotVal');
+  const modeBadge = document.getElementById('modeBadge');
+  const ctrlDpi = document.getElementById('ctrlDpi');
+  const valDpi = document.getElementById('valDpi');
+
+  const fxCanvas = document.getElementById('fxCanvas');
+  let imgLoaded = false;
+  imgMain.addEventListener('load', ()=>{ imgLoaded = true; renderLive(); });
+  imgMain.addEventListener('error', ()=>{ imgLoaded = false; });
+
+  ctrlDpi.addEventListener('input', ()=> valDpi.textContent = ctrlDpi.value);
+
+  function setColorModeBadge(mode){
+    state.colorMode = mode || '';
+    const m = String(mode || '').toUpperCase();
+    if(m === 'RGB'){ modeBadge.textContent = 'RGB'; modeBadge.className = 'mode-badge rgb'; }
+    else if(m === 'CMYK'){ modeBadge.textContent = 'CMYK'; modeBadge.className = 'mode-badge cmyk'; }
+    else { modeBadge.textContent = 'MODE: ' + (m || '?'); modeBadge.className = 'mode-badge warn'; }
+    modeBadge.style.display = mode ? 'inline-block' : 'none';
+  }
+
+  function setRotation(deg){
+    state.rotation = ((deg % 360) + 360) % 360;
+    rotVal.textContent = state.rotation + '°';
+    renderLive();
+  }
+  document.getElementById('btnRotateLeft').addEventListener('click', ()=> setRotation(state.rotation - 90));
+  document.getElementById('btnRotateRight').addEventListener('click', ()=> setRotation(state.rotation + 90));
+
+  function showError(msg){ errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
+  function clearError(){ errorMsg.style.display = 'none'; }
+
+  function bindToggle(checkboxId, boxId, fieldsId){
+    const cb = document.getElementById(checkboxId);
+    const box = document.getElementById(boxId);
+    const fields = document.getElementById(fieldsId);
+    const stateEl = box.querySelector('.state');
+    function sync(){
+      box.classList.toggle('on', cb.checked);
+      fields.classList.toggle('show', cb.checked);
+      if(stateEl) stateEl.textContent = cb.checked ? 'AKTIF' : 'NONAKTIF';
+    }
+    cb.addEventListener('change', ()=>{ sync(); scheduleLive(); });
+    box.addEventListener('click', (e)=>{
+      if(e.target === cb) return;
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event('change'));
+    });
+    sync();
+  }
+  bindToggle('plongEnable', 'plongToggleBox', 'plongFields');
+  bindToggle('lebihanEnable', 'lebihanToggleBox', 'lebihanFields');
+  bindToggle('pesanEnable', 'pesanToggleBox', 'pesanFields');
+
+  // Live preview: any control change re-renders instantly (no need to press Proses)
+  document.querySelector('.panel').addEventListener('input', scheduleLive);
+  document.querySelector('.panel').addEventListener('change', scheduleLive);
+
+  document.getElementById('lebihanAll').addEventListener('input', (e)=>{
+    document.getElementById('valLebihanAll').textContent = e.target.value;
+  });
+  document.getElementById('lebihanCustomSides').addEventListener('change', (e)=>{
+    document.getElementById('lebihanSidesGrid').style.display = e.target.checked ? 'grid' : 'none';
+  });
+
+  const TEMPLATE_PRESETS = {
+    'NON FINISHING': {},
+    'POLOS': { lebihan: true, pesan: true, pesanText: 'POLOS' },
+    'LP4': { plong: true, plongFold4: true, pesan: true, pesanText: 'LP4' },
+    'LIPAT': { lebihan: true, pesan: true, pesanText: 'LIPAT' },
+    'DOUBLE SIDE': { pesan: true, pesanText: 'DOUBLE SIDE' },
+  };
+  document.getElementById('finishingTemplate').addEventListener('change', (ev)=>{
+    ['plongEnable','lebihanEnable','pesanEnable'].forEach((id)=>{
+      const cb = document.getElementById(id);
+      cb.checked = false;
+      cb.dispatchEvent(new Event('change'));
+    });
+    document.getElementById('plongFold4').checked = false;
+    document.getElementById('pesanText').value = '';
+
+    const preset = TEMPLATE_PRESETS[ev.target.value] || {};
+    if(preset.plong){ const cb=document.getElementById('plongEnable'); cb.checked=true; cb.dispatchEvent(new Event('change')); }
+    if(preset.plongFold4) document.getElementById('plongFold4').checked = true;
+    if(preset.lebihan){ const cb=document.getElementById('lebihanEnable'); cb.checked=true; cb.dispatchEvent(new Event('change')); }
+    if(preset.pesan){ const cb=document.getElementById('pesanEnable'); cb.checked=true; cb.dispatchEvent(new Event('change')); }
+    if(preset.pesanText) document.getElementById('pesanText').value = preset.pesanText;
+  });
+
+  document.getElementById('pesanPos').addEventListener('change', (ev)=>{
+    if(ev.target.value === 'vertical'){
+      document.getElementById('pesanX').value = 1;
+      document.getElementById('pesanY').value = 3;
+    } else {
+      document.getElementById('pesanX').value = 3;
+      document.getElementById('pesanY').value = 1;
+    }
+    scheduleLive();
+  });
+
+  document.getElementById('plongFold4').addEventListener('change', (ev)=>{
+    if(ev.target.checked){
+      ['jml_plong_atas','jml_plong_bawah','jml_plong_kiri','jml_plong_kanan'].forEach(id=>{
+        document.getElementById(id).value = 2;
+      });
+    }
+    scheduleLive();
+  });
+
+  function pickFile(){
+    function onPicked(fp){
+      clearError();
+      state.filepath = fp;
+      dropZoneTitle.textContent = 'Gambar dipilih';
+      dropZoneSub.textContent = fp;
+      loadFileInfo(fp);
+    }
+    if(typeof openFileDialog === 'function'){
+      openFileDialog(onPicked);
+      return;
+    }
+    const existing = document.querySelector('script[src="/ui/file-dialog-component"]');
+    if(!existing){
+      const s = document.createElement('script');
+      s.src = '/ui/file-dialog-component';
+      s.onload = ()=>{ if(typeof openFileDialog === 'function') openFileDialog(onPicked); };
+      document.body.appendChild(s);
+    } else {
+      existing.addEventListener('load', ()=>{ if(typeof openFileDialog === 'function') openFileDialog(onPicked); });
+    }
+  }
+  dropZone.addEventListener('click', pickFile);
+
+  function loadFileInfo(fp){
+    fetch('/api/file-info?filepath=' + encodeURIComponent(fp))
+      .then(r => r.json())
+      .then(info => {
+        if(info.status === 'error' && !info.dimensions){
+          showError('Gagal membaca info gambar: ' + (info.message || 'unknown'));
+          return;
+        }
+        const dims = String(info.dimensions || '0x0').split('x');
+        state.widthPx = parseInt(dims[0], 10) || 0;
+        state.heightPx = parseInt(dims[1], 10) || 0;
+        const dpiParts = String(info.dpi || '300x300').split('x');
+        state.dpi = parseFloat(dpiParts[0]) || 300;
+        ctrlDpi.value = Math.round(state.dpi);
+        valDpi.textContent = ctrlDpi.value;
+        state.widthCm = info.width_cm || 0;
+        state.heightCm = info.height_cm || 0;
+        state.resultPath = null;
+        state.resultUrl = null;
+        state.zoom = 1;
+        setRotation(0);
+        setColorModeBadge(info.color_mode);
+
+        paneLabel.textContent = 'Preview (live)';
+        imgLoaded = false;
+        imgMain.src = '/ui/thumbnail?filepath=' + encodeURIComponent(fp) + '&t=' + Date.now();
+        emptyState.style.display = 'none';
+        resultArea.style.display = 'flex';
+        btnProcess.disabled = false;
+        btnOpenFolder.disabled = true;
+        rawJsonEl.textContent = '';
+
+        updateSizeLabel(info);
+      })
+      .catch(e => showError('Gagal membaca info gambar: ' + e.message));
+  }
+
+  function updateSizeLabel(info){
+    sizeLabel.textContent = state.widthCm + '×' + state.heightCm + ' cm  ·  ' + state.widthPx + '×' + state.heightPx + 'px  ·  ' + Math.round(state.dpi) + ' DPI';
+    const cm = String(info.color_mode || '').toUpperCase();
+    const modeColor = cm === 'RGB' ? '#0066cc' : (cm === 'CMYK' ? '#1f7a47' : '#c62828');
+    const modeText = cm || '-';
+    statsBar.innerHTML =
+      '<div class="stat"><span class="stat-label">Ukuran</span><b>' + state.widthCm + ' × ' + state.heightCm + ' cm</b></div>' +
+      '<div class="stat"><span class="stat-label">Resolusi</span><b>' + state.widthPx + ' × ' + state.heightPx + ' px</b></div>' +
+      '<div class="stat"><span class="stat-label">DPI</span><b>' + Math.round(state.dpi) + '</b></div>' +
+      '<div class="stat"><span class="stat-label">Mode Warna</span><b style="color:' + modeColor + '">' + modeText + '</b></div>' +
+      '<div class="stat"><span class="stat-label">File Size</span><b>' + (info.size_mb || '-') + ' MB</b></div>';
+  }
+
+  function setZoom(z){
+    state.zoom = Math.max(0.2, Math.min(8, z));
+    zoomVal.textContent = Math.round(state.zoom * 100) + '%';
+    renderLive();
+  }
+  document.getElementById('btnZoomIn').addEventListener('click', ()=> setZoom(state.zoom * 1.25));
+  document.getElementById('btnZoomOut').addEventListener('click', ()=> setZoom(state.zoom / 1.25));
+  document.getElementById('btnZoomReset').addEventListener('click', ()=> setZoom(1));
+
+  compositeWrap.addEventListener('wheel', (e)=>{
+    if(!state.widthPx) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    setZoom(state.zoom * factor);
+  }, { passive:false });
+
+  function isRotatedSideways(){ return state.rotation === 90 || state.rotation === 270; }
+
+  function cnum(id, def){
+    const el = document.getElementById(id);
+    if(!el) return def;
+    const v = parseFloat(String(el.value).replace(',', '.'));
+    return isNaN(v) ? def : v;
+  }
+  function cint(id, def){ return Math.max(0, Math.round(cnum(id, def))); }
+
+  function computeLayout(){
+    const rotated = isRotatedSideways();
+    const imgWcm = rotated ? state.heightCm : state.widthCm;
+    const imgHcm = rotated ? state.widthCm : state.heightCm;
+    const lebOn = document.getElementById('lebihanEnable').checked;
+    let L = 0, R = 0, T = 0, B = 0;
+    if(lebOn){
+      const custom = document.getElementById('lebihanCustomSides').checked;
+      const all = cnum('lebihanAll', 0);
+      T = custom ? cnum('lebTop', all) : all;
+      B = custom ? cnum('lebBottom', all) : all;
+      L = custom ? cnum('lebLeft', all) : all;
+      R = custom ? cnum('lebRight', all) : all;
+    }
+    return { imgWcm, imgHcm, L, R, T, B, finalWcm: imgWcm + L + R, finalHcm: imgHcm + T + B, lebOn };
+  }
+
+  function distribute(n, a, b){
+    if(n <= 0) return [];
+    if(n === 1) return [(a + b) / 2];
+    const step = (b - a) / (n - 1);
+    const out = [];
+    for(let i = 0; i < n; i++) out.push(a + i * step);
+    return out;
+  }
+
+  function sampleLuminance(ctx, x, y, r){
+    r = Math.max(Math.round(r), 1);
+    const sx = Math.max(0, Math.round(x - r)), sy = Math.max(0, Math.round(y - r));
+    const sw = Math.min(r * 2, ctx.canvas.width - sx), sh = Math.min(r * 2, ctx.canvas.height - sy);
+    if(sw <= 0 || sh <= 0) return 255;
+    const d = ctx.getImageData(sx, sy, sw, sh).data;
+    let sum = 0, n = 0;
+    for(let i = 0; i < d.length; i += 16){ sum += 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]; n++; }
+    return n ? sum / n : 255;
+  }
+  function contrastColor(ctx, x, y, r){ return sampleLuminance(ctx, x, y, r) > 128 ? '#000000' : '#ffffff'; }
+
+  function drawPlong(ctx, ax, ay, aw, ah, c){
+    const inset = cnum('plongInset', 2) * c;
+    const bentuk = document.getElementById('bentukPlong').value;
+    const autoContrast = document.getElementById('plongAutoContrast').checked;
+    const baseColor = document.getElementById('plongColor').value;
+    const dLebar = cnum('diameter_lebar', 1) * c;
+    const dPanjang = cnum('diameter_panjang', 1) * c;
+    const sampleR = Math.max(dLebar, dPanjang) / 2;
+    let snapshot = null;
+    if(autoContrast){ snapshot = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height); }
+    function sampleSnap(x, y, r){
+      r = Math.max(Math.round(r), 1);
+      const sx = Math.max(0, Math.round(x - r)), sy = Math.max(0, Math.round(y - r));
+      const w = snapshot.width, d = snapshot.data;
+      const ex = Math.min(sx + r*2, w), ey = Math.min(sy + r*2, snapshot.height);
+      let sum = 0, n = 0;
+      for(let py = sy; py < ey; py += 4){ for(let px = sx; px < ex; px += 4){ const i = (py * w + px) * 4; sum += 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]; n++; } }
+      return n ? (sum/n > 128 ? '#000000' : '#ffffff') : '#000000';
+    }
+    function shape(x, y){
+      ctx.fillStyle = autoContrast ? sampleSnap(x, y, sampleR) : baseColor;
+      if(bentuk === 'square') ctx.fillRect(x - dLebar/2, y - dPanjang/2, dLebar, dPanjang);
+      else { ctx.beginPath(); ctx.arc(x, y, Math.max(dLebar/2, 1), 0, Math.PI*2); ctx.fill(); }
+    }
+    distribute(cint('jml_plong_atas', 0), ax + inset, ax + aw - inset).forEach(x => shape(x, ay + inset));
+    distribute(cint('jml_plong_bawah', 0), ax + inset, ax + aw - inset).forEach(x => shape(x, ay + ah - inset));
+    distribute(cint('jml_plong_kiri', 0), ay + inset, ay + ah - inset).forEach(y => shape(ax + inset, y));
+    distribute(cint('jml_plong_kanan', 0), ay + inset, ay + ah - inset).forEach(y => shape(ax + aw - inset, y));
+
+    if(document.getElementById('plongFold4').checked){
+      const tick = Math.max(1 * c, 4);
+      const lw = Math.max(0.03 * c, 2);
+      const cx = ax + aw/2, cy = ay + ah/2;
+      ctx.strokeStyle = '#000'; ctx.lineWidth = lw; ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(cx, ay); ctx.lineTo(cx, ay + tick);
+      ctx.moveTo(cx, ay + ah - tick); ctx.lineTo(cx, ay + ah);
+      ctx.moveTo(ax, cy); ctx.lineTo(ax + tick, cy);
+      ctx.moveTo(ax + aw - tick, cy); ctx.lineTo(ax + aw, cy);
+      ctx.stroke();
+    }
+  }
+
+  function drawLebGaris(ctx, W, H, c){
+    const color = document.getElementById('lebLineColor').value;
+    const lw = Math.max(cnum('lebLineSize', 0.1) * c, 1);
+    const dash = Math.max(0.5 * c, 3);
+    ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.setLineDash([dash, dash]);
+    ctx.strokeRect(lw/2, lw/2, W - lw, H - lw);
+    ctx.setLineDash([]);
+  }
+
+  function drawPesan(ctx, W, H, c){
+    const text = String(document.getElementById('pesanText').value || '').trim();
+    if(!text) return;
+    const fontPx = Math.max(cnum('pesanSize', 0.8) * c, 6);
+    const baseColor = document.getElementById('pesanColor').value;
+    const autoContrast = document.getElementById('pesanAutoContrast').checked;
+    const posX = cnum('pesanX', 1) * c;
+    const posY = cnum('pesanY', 3) * c;
+    const vertical = document.getElementById('pesanPos').value === 'vertical';
+    const satuKiri = document.getElementById('pesanSatuKiri').checked;
+    ctx.font = fontPx + 'px Arial, sans-serif';
+    ctx.textBaseline = 'top';
+    const tw = ctx.measureText(text).width;
+    function stamp(x, y){
+      ctx.fillStyle = autoContrast ? contrastColor(ctx, x, y, fontPx) : baseColor;
+      if(vertical){
+        ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI/2); ctx.fillText(text, 0, 0); ctx.restore();
+      } else {
+        ctx.fillText(text, x, y);
+      }
+    }
+    stamp(posX, vertical ? posY + tw : posY);
+    if(!satuKiri){
+      if(vertical) stamp(W - fontPx - posX, H - posY);
+      else stamp(W - tw - posX, H - fontPx - posY);
+    }
+  }
+
+  function renderLive(){
+    const ctx = fxCanvas.getContext('2d');
+    if(!state.widthPx || !state.heightPx || !imgLoaded){
+      fxCanvas.width = 1; fxCanvas.height = 1;
+      composite.style.width = '1px'; composite.style.height = '1px';
+      return;
+    }
+    const lay = computeLayout();
+    state.finalWcm = lay.finalWcm;
+    state.finalHcm = lay.finalHcm;
+
+    const wrapW = Math.max(100, compositeWrap.clientWidth - 32);
+    const wrapH = Math.max(100, Math.min(window.innerHeight * 0.58, compositeWrap.clientHeight || 500));
+    const nativeCmToPx = state.widthCm ? (state.widthPx / state.widthCm) : 120;
+    const fitCmToPx = Math.min(wrapW / lay.finalWcm, wrapH / lay.finalHcm);
+    let cmToPx = Math.min(fitCmToPx, nativeCmToPx) * state.zoom;
+    // cap canvas size for performance
+    let W = Math.round(lay.finalWcm * cmToPx), H = Math.round(lay.finalHcm * cmToPx);
+    const CAP = 3000;
+    if(W > CAP || H > CAP){ const k = CAP / Math.max(W, H); cmToPx *= k; W = Math.round(lay.finalWcm * cmToPx); H = Math.round(lay.finalHcm * cmToPx); }
+    W = Math.max(1, W); H = Math.max(1, H);
+
+    fxCanvas.width = W; fxCanvas.height = H;
+    composite.style.width = W + 'px'; composite.style.height = H + 'px';
+
+    ctx.clearRect(0, 0, W, H);
+    const c = cmToPx;
+    const ax = lay.L * c, ay = lay.T * c, aw = lay.imgWcm * c, ah = lay.imgHcm * c;
+
+    if(lay.lebOn){ ctx.fillStyle = document.getElementById('lebBackground').value; ctx.fillRect(0, 0, W, H); }
+
+    // draw source image (own orientation, scaled) rotated into image area
+    const dispW0 = state.widthCm * c, dispH0 = state.heightCm * c;
+    ctx.save();
+    ctx.translate(ax + aw/2, ay + ah/2);
+    ctx.rotate(state.rotation * Math.PI / 180);
+    ctx.drawImage(imgMain, -dispW0/2, -dispH0/2, dispW0, dispH0);
+    ctx.restore();
+
+    if(document.getElementById('plongEnable').checked) drawPlong(ctx, ax, ay, aw, ah, c);
+    if(lay.lebOn) drawLebGaris(ctx, W, H, c);
+    if(document.getElementById('pesanEnable').checked) drawPesan(ctx, W, H, c);
+
+    sizeLabel.textContent = lay.finalWcm.toFixed(1) + '×' + lay.finalHcm.toFixed(1) + ' cm  ·  ' + Math.round(state.dpi) + ' DPI';
+    drawRulers();
+  }
+
+  let liveTimer = null;
+  function scheduleLive(){ clearTimeout(liveTimer); liveTimer = setTimeout(renderLive, 40); }
+
+  let savedTimer = null;
+  function showSaved(path){
+    paneLabel.textContent = 'Preview (live) — ✓ tersimpan';
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(()=>{ paneLabel.textContent = 'Preview (live)'; }, 2500);
+  }
+
+  function drawRulers(){
+    const xHost = rulerX.parentElement;
+    const yHost = rulerY.parentElement;
+    const xW = xHost.clientWidth, xH = xHost.clientHeight;
+    const yW = yHost.clientWidth, yH = yHost.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+
+    rulerX.width = Math.max(1, Math.floor(xW * dpr));
+    rulerX.height = Math.max(1, Math.floor(xH * dpr));
+    rulerY.width = Math.max(1, Math.floor(yW * dpr));
+    rulerY.height = Math.max(1, Math.floor(yH * dpr));
+
+    const ctxX = rulerX.getContext('2d');
+    const ctxY = rulerY.getContext('2d');
+    ctxX.setTransform(dpr,0,0,dpr,0,0);
+    ctxY.setTransform(dpr,0,0,dpr,0,0);
+    ctxX.clearRect(0,0,xW,xH);
+    ctxY.clearRect(0,0,yW,yH);
+
+    const compRect = composite.getBoundingClientRect();
+    const wrapRect = compositeWrap.getBoundingClientRect();
+    const offsetLeft = compRect.left - wrapRect.left + compositeWrap.scrollLeft;
+    const offsetTop = compRect.top - wrapRect.top + compositeWrap.scrollTop;
+    const dispW = compRect.width, dispH = compRect.height;
+    if(!dispW || !dispH || !state.widthCm) return;
+
+    const effWcm = state.finalWcm || (isRotatedSideways() ? state.heightCm : state.widthCm);
+    const effHcm = state.finalHcm || (isRotatedSideways() ? state.widthCm : state.heightCm);
+    const cmToX = dispW / effWcm;
+    const cmToY = dispH / effHcm;
+
+    function niceStep(cmToPx, minPx){
+      const rawStep = minPx / Math.max(cmToPx, 0.0001);
+      const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+      const residual = rawStep / magnitude;
+      let niceResidual;
+      if(residual > 5) niceResidual = 10;
+      else if(residual > 2) niceResidual = 5;
+      else if(residual > 1) niceResidual = 2;
+      else niceResidual = 1;
+      return niceResidual * magnitude;
+    }
+    function fmtCm(v, step){ return step >= 1 ? String(Math.round(v)) : v.toFixed(1); }
+
+    ctxX.fillStyle = '#667080';
+    ctxX.strokeStyle = 'rgba(0,102,204,0.45)';
+    ctxX.font = '10px ui-monospace, monospace';
+    ctxX.textAlign = 'center';
+    ctxX.textBaseline = 'top';
+    const maxX = effWcm;
+    const stepX = niceStep(cmToX, 40);
+    for(let cm=0; cm<=maxX + stepX*0.5; cm+=stepX){
+      const x = offsetLeft + cm * cmToX;
+      if(x < -20 || x > xW + 20) continue;
+      ctxX.beginPath(); ctxX.moveTo(x, xH); ctxX.lineTo(x, xH-12); ctxX.stroke();
+      ctxX.fillText(fmtCm(cm, stepX), x, 4);
+    }
+
+    ctxY.fillStyle = '#667080';
+    ctxY.strokeStyle = 'rgba(0,102,204,0.45)';
+    ctxY.font = '10px ui-monospace, monospace';
+    ctxY.textAlign = 'right';
+    ctxY.textBaseline = 'middle';
+    const maxY = effHcm;
+    const stepY = niceStep(cmToY, 28);
+    for(let cm=0; cm<=maxY + stepY*0.5; cm+=stepY){
+      const y = offsetTop + cm * cmToY;
+      if(y < -20 || y > yH + 20) continue;
+      ctxY.beginPath(); ctxY.moveTo(yW, y); ctxY.lineTo(yW-12, y); ctxY.stroke();
+      ctxY.save(); ctxY.translate(yW-14, y); ctxY.rotate(-Math.PI/2); ctxY.textAlign='center'; ctxY.fillText(fmtCm(cm, stepY), 0, 0); ctxY.restore();
+    }
+  }
+  compositeWrap.addEventListener('scroll', drawRulers);
+  window.addEventListener('resize', ()=>{ if(state.widthPx) renderLive(); });
+
+  function collectPayload(){
+    const customSides = document.getElementById('lebihanCustomSides').checked;
+    return {
+      filepath: state.filepath,
+      dpi: ctrlDpi.value,
+      rotation: state.rotation,
+      plong: {
+        enable: document.getElementById('plongEnable').checked,
+        fold4: document.getElementById('plongFold4').checked,
+        jml_atas: document.getElementById('jml_plong_atas').value,
+        jml_bawah: document.getElementById('jml_plong_bawah').value,
+        jml_kiri: document.getElementById('jml_plong_kiri').value,
+        jml_kanan: document.getElementById('jml_plong_kanan').value,
+        inset: document.getElementById('plongInset').value,
+        warna_plong: document.getElementById('plongColor').value,
+        auto_contrast: document.getElementById('plongAutoContrast').checked,
+        bentuk_plong: document.getElementById('bentukPlong').value,
+        diameter_lebar: document.getElementById('diameter_lebar').value,
+        diameter_panjang: document.getElementById('diameter_panjang').value,
+      },
+      lebihan: {
+        enable: document.getElementById('lebihanEnable').checked,
+        all: document.getElementById('lebihanAll').value,
+        top: customSides ? document.getElementById('lebTop').value : document.getElementById('lebihanAll').value,
+        bottom: customSides ? document.getElementById('lebBottom').value : document.getElementById('lebihanAll').value,
+        left: customSides ? document.getElementById('lebLeft').value : document.getElementById('lebihanAll').value,
+        right: customSides ? document.getElementById('lebRight').value : document.getElementById('lebihanAll').value,
+        warna_background: document.getElementById('lebBackground').value,
+        warna_garis: document.getElementById('lebLineColor').value,
+        ukuran_garis: document.getElementById('lebLineSize').value,
+        quality: document.getElementById('lebQuality').value,
+      },
+      pesan: {
+        enable: document.getElementById('pesanEnable').checked,
+        satu_kiri: document.getElementById('pesanSatuKiri').checked,
+        text: document.getElementById('pesanText').value,
+        ukuran: document.getElementById('pesanSize').value,
+        warna: document.getElementById('pesanColor').value,
+        auto_contrast: document.getElementById('pesanAutoContrast').checked,
+        pos_x: document.getElementById('pesanX').value,
+        pos_y: document.getElementById('pesanY').value,
+        posisi: document.getElementById('pesanPos').value,
+      },
+    };
+  }
+
+  async function runPipeline(){
+    if(!state.filepath){ showError('Pilih gambar terlebih dahulu.'); return; }
+    if(state.busy) return;
+    state.busy = true;
+    clearError();
+    btnProcess.disabled = true;
+    btnProcess.innerHTML = '<span class="spinner"></span>Memproses...';
+
+    try{
+      const res = await fetch('/ui/finishing-process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collectPayload()),
+      });
+      const data = await res.json();
+      rawJsonEl.textContent = JSON.stringify(data, null, 2);
+      if(!res.ok || data.status !== 'success'){
+        throw new Error(data.message || ('Server error ' + res.status));
+      }
+      state.resultPath = data.output_path;
+      state.resultUrl = data.output_url;
+      btnOpenFolder.disabled = false;
+      // live canvas already shows the composited result; just note it's saved
+      showSaved(data.output_path);
+    } catch(err){
+      showError('Gagal memproses: ' + err.message);
+    } finally {
+      state.busy = false;
+      btnProcess.disabled = !state.filepath;
+      btnProcess.textContent = 'Proses';
+    }
+  }
+
+  btnProcess.addEventListener('click', runPipeline);
+  btnReprocess.addEventListener('click', runPipeline);
+
+  btnOpenFolder.addEventListener('click', async ()=>{
+    if(!state.resultPath) return;
+    try{
+      await fetch('/api/open-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filepath: state.resultPath }),
+      });
+    } catch(e){ console.warn(e); }
+  });
+
+  btnReset.addEventListener('click', ()=>{
+    state.filepath = null;
+    state.widthPx = 0; state.heightPx = 0;
+    state.widthCm = 0; state.heightCm = 0;
+    state.resultPath = null; state.resultUrl = null;
+    state.zoom = 1;
+    imgLoaded = false;
+    setRotation(0);
+    modeBadge.style.display = 'none';
+    clearError();
+    dropZoneTitle.textContent = 'Klik untuk pilih gambar';
+    dropZoneSub.textContent = '.JPG / .JPEG · proses di agent :9001';
+    document.getElementById('finishingTemplate').value = 'NON FINISHING';
+    ['plongEnable','lebihanEnable','pesanEnable'].forEach((id)=>{
+      const cb = document.getElementById(id);
+      cb.checked = false;
+      cb.dispatchEvent(new Event('change'));
+    });
+    document.getElementById('plongFold4').checked = false;
+    document.getElementById('pesanSatuKiri').checked = false;
+    document.getElementById('pesanText').value = '';
+    document.getElementById('lebihanCustomSides').checked = false;
+    document.getElementById('lebihanSidesGrid').style.display = 'none';
+    btnProcess.disabled = true;
+    btnOpenFolder.disabled = true;
+    resultArea.style.display = 'none';
+    emptyState.style.display = 'flex';
+    rawJsonEl.textContent = '';
+  });
+
+})();
+</script>
+
+<!-- Include Universal File Dialog Component -->
+<script src="/ui/file-dialog-component"></script>
+</body>
+</html>
+    """
+    )
+
+
 @app.route("/execute", methods=["POST"])
 def run_task():
     data = request.json
@@ -3965,13 +5040,17 @@ def ui_spot_color():
         .ctx-btn:hover{background:#d8d8d8}
         .ctx-btn:disabled{opacity:.4;cursor:not-allowed}
         .ctx-btn.active{background:#0066cc;color:#fff;border-color:#0050aa}
+        .ctx-btn.ico{padding:3px 6px;justify-content:center;min-width:26px}
         .ctx-sm{background:#e8e8e8;color:#555;border:1px solid #c8c8c8;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:10px;font-weight:700}
         .ctx-sm:hover{background:#d0d0d0;color:#111}
         .ctx-sm.active{background:#0066cc;color:#fff;border-color:#0050aa}
         /* Context sections – show/hide based on active tool */
-        .ctx-paint,.ctx-sel,.ctx-always{display:flex;align-items:center;gap:6px}
+        .ctx-paint,.ctx-sel{display:flex;align-items:center;gap:6px}
         .ctx-paint{display:none}
         .ctx-sel{display:none}
+        /* Kontrol umum di topbar (berlaku semua tool) */
+        .gen-bar{display:flex;align-items:center;gap:5px;flex-shrink:0}
+        .ctx-bar:empty,.ctx-bar.empty{display:none}
 
         /* ── Canvas Area ────────────────────────────────────────────────────── */
         .canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#888}
@@ -3980,7 +5059,9 @@ def ui_spot_color():
         .ruler-corner{grid-area:corner;background:#4a4a4a;border-right:1px solid #333;border-bottom:1px solid #333}
         #rulerH{grid-area:rh;background:#4a4a4a;border-bottom:1px solid #333;display:block;height:20px;width:100%}
         #rulerV{grid-area:rv;background:#4a4a4a;border-right:1px solid #333;display:block;width:20px;height:100%}
-        .canvas-wrap{grid-area:cw;overflow:auto;padding:20px;display:flex;align-items:flex-start;justify-content:flex-start}
+        /* padding 0 → gambar rata kiri-atas (harus sama dgn CANVAS_PAD di JS) */
+        .canvas-wrap{grid-area:cw;overflow:auto;padding:0;display:flex;align-items:flex-start;justify-content:flex-start}
+        #gridCanvas{grid-area:cw;pointer-events:none;z-index:5;align-self:stretch;justify-self:stretch}
         #canvasContainer{position:relative;display:inline-block;box-shadow:0 4px 20px rgba(0,0,0,.45)}
         #bgCanvas{display:block}
         #drawCanvas{position:absolute;top:0;left:0;cursor:crosshair}
@@ -4006,7 +5087,8 @@ def ui_spot_color():
         .ch-item{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:5px;padding:6px 8px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .12s}
         .ch-item:hover{border-color:#9cc4ee;background:#f2f7fd}
         .ch-item.active{border-color:#0066cc;background:#eaf3ff;box-shadow:0 0 0 1px #0066cc inset}
-        .ch-edit-tag{font-size:8.5px;font-weight:800;color:#fff;background:#0066cc;padding:2px 6px;border-radius:8px;letter-spacing:.4px;flex-shrink:0}
+        .ch-clear-btn{font-size:9px;font-weight:700;color:#c62828;background:#fff;border:1px solid #f0c4c4;padding:3px 8px;border-radius:8px;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
+        .ch-clear-btn:hover{background:#c62828;color:#fff;border-color:#a02020}
         .ch-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
         .ch-info{flex:1;min-width:0}
         .ch-name{font-weight:700;font-size:10px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -4038,9 +5120,78 @@ def ui_spot_color():
         @keyframes recblink{50%{opacity:.75}}
         .act-clr{padding:7px 11px;background:#f0f0f0;color:#888;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:11px}
         .act-clr:hover{background:#e4e4e4;color:#c62828}
+        .auto-btn{flex:1;padding:8px 4px;background:#00897b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
+        .auto-btn:hover{background:#00695c}
         .act-batch{width:100%;padding:7px;background:#5e35b1;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
         .act-batch:hover{background:#4d2c93}
         .act-batch:disabled{background:#e8e8e8;color:#aaa;cursor:not-allowed}
+
+        /* ── Batch Files dialog ─────────────────────────────────────────────── */
+        .batch-btn-top{background:#00897b;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px}
+        .batch-btn-top:hover{background:#00695c}
+        #batchModal{position:fixed;inset:0;background:rgba(15,20,30,.45);display:none;align-items:center;justify-content:center;z-index:3000}
+        #batchModal.open{display:flex}
+        .bm-box{background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(860px,94vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+        .bm-head{padding:13px 16px;border-bottom:1px solid #e6e6e6;display:flex;align-items:baseline;gap:9px}
+        .bm-head b{font-size:14px;color:#1a1a1a}
+        .bm-sub{font-size:10.5px;color:#999}
+        .bm-x{margin-left:auto;background:none;border:none;font-size:15px;color:#aaa;cursor:pointer;line-height:1}
+        .bm-x:hover{color:#c62828}
+        .bm-pick{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#fafbfc;border-bottom:1px solid #eee}
+        .bm-pick label{font-size:11px;color:#555;white-space:nowrap}
+        .bm-pick input[type=text]{flex:1;padding:6px 9px;border:1px solid #ccc;border-radius:4px;font-size:12px;font-family:Consolas,monospace}
+        .bm-scan{background:#0066cc;color:#fff;border:none;padding:6px 13px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+        .bm-scan:hover{background:#0055aa}
+        .bm-chk{display:flex;align-items:center;gap:4px;font-size:11px;color:#555;cursor:pointer;white-space:nowrap}
+        .bm-chk input{margin:0}
+        .bm-listhead{display:flex;align-items:center;gap:12px;padding:7px 16px;border-bottom:1px solid #eee;background:#fff}
+        .bm-count{margin-left:auto;font-size:10.5px;color:#888}
+        .bm-addwrap{position:relative;flex-shrink:0}
+        .bm-add{background:#0066cc;color:#fff;border:none;width:28px;height:27px;border-radius:4px;font-size:16px;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
+        .bm-add:hover{background:#0055aa}
+        .bm-addmenu{position:absolute;top:31px;left:0;z-index:60;background:#fff;border:1px solid #ccd5de;border-radius:6px;box-shadow:0 8px 26px rgba(0,0,0,.18);padding:4px;display:none;min-width:190px}
+        .bm-addmenu.open{display:block}
+        .bm-addmenu button{display:flex;flex-direction:column;align-items:flex-start;width:100%;background:none;border:none;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:12px;color:#333;text-align:left;line-height:1.35}
+        .bm-addmenu button small{font-size:9.5px;color:#999;font-weight:400}
+        .bm-addmenu button:hover{background:#eaf3ff;color:#0066cc}
+        .bm-clr{background:#fff;color:#c62828;border:1px solid #f0c4c4;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;margin-right:auto}
+        .bm-clr:hover{background:#c62828;color:#fff;border-color:#a02020}
+        .bm-list{flex:1;overflow-y:auto;min-height:190px;max-height:44vh;background:#fff}
+        .bm-empty{padding:40px 16px;text-align:center;color:#bbb;font-size:12px}
+        .bm-row{display:flex;align-items:center;gap:9px;padding:6px 16px;border-bottom:1px solid #f4f4f4;font-size:11.5px}
+        .bm-row:hover{background:#f8fbff}
+        .bm-row.done{background:#f4fdf6}
+        .bm-row.err{background:#fff6f6}
+        .bm-row input[type=checkbox]{margin:0;flex-shrink:0}
+        .bm-nm{font-weight:600;color:#222;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 190px}
+        .bm-dir{color:#999;font-size:10px;font-family:Consolas,monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+        .bm-sz{color:#777;font-size:10px;width:62px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
+        .bm-pbar{width:78px;height:6px;background:#e9edf2;border-radius:3px;overflow:hidden;flex-shrink:0}
+        .bm-pbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0066cc,#3d9bff);transition:width .18s}
+        .bm-row.done .bm-pbar>i{background:#27ae60}
+        .bm-row.err  .bm-pbar>i{background:#c62828}
+        .bm-st{width:118px;flex-shrink:0;font-size:10px;color:#888;text-align:right;font-variant-numeric:tabular-nums}
+        .bm-row.done .bm-st{color:#27ae60;font-weight:700}
+        .bm-row.err  .bm-st{color:#c62828;font-weight:700}
+        .bm-spin{display:inline-block;width:9px;height:9px;border:1.5px solid #cfe0f5;border-top-color:#0066cc;border-radius:50%;animation:selspin .7s linear infinite;vertical-align:-1px;margin-right:4px}
+        .bm-opts{display:flex;align-items:center;gap:18px;padding:11px 16px;border-top:1px solid #eee;background:#fafbfc;flex-wrap:wrap}
+        .bm-seg{display:flex;border:1px solid #ccd5de;border-radius:5px;overflow:hidden}
+        .bm-seg-b{background:#fff;border:none;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:700;color:#555;display:flex;flex-direction:column;align-items:center;line-height:1.25}
+        .bm-seg-b small{font-size:8.5px;font-weight:400;opacity:.75}
+        .bm-seg-b+.bm-seg-b{border-left:1px solid #ccd5de}
+        .bm-seg-b.active{background:#00897b;color:#fff}
+        .bm-num{display:flex;align-items:center;gap:5px;font-size:11px;color:#555}
+        .bm-num input{width:52px;padding:5px 6px;border:1px solid #ccc;border-radius:4px;font-size:11.5px}
+        .bm-total{display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid #eee}
+        .bm-tbar{flex:1;height:7px;background:#e9edf2;border-radius:4px;overflow:hidden}
+        .bm-tbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#00897b,#26c6b0);transition:width .25s}
+        #bmTotalTxt{font-size:10.5px;color:#666;min-width:250px;text-align:right;font-variant-numeric:tabular-nums}
+        .bm-foot{display:flex;justify-content:flex-end;gap:8px;padding:11px 16px;border-top:1px solid #e6e6e6;background:#fafbfc}
+        .bm-cancel{background:#fff;color:#555;border:1px solid #ccc;padding:7px 18px;border-radius:5px;font-size:12px;cursor:pointer}
+        .bm-cancel:hover{background:#f0f0f0}
+        .bm-go{background:#00897b;color:#fff;border:none;padding:7px 22px;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer}
+        .bm-go:hover{background:#00695c}
+        .bm-go:disabled{background:#dfe4e8;color:#aaa;cursor:not-allowed}
 
         /* ── Progress overlay seleksi ───────────────────────────────────────── */
         #selProgress{position:fixed;inset:0;background:rgba(20,25,35,.35);display:none;align-items:center;justify-content:center;z-index:2000;backdrop-filter:blur(1px)}
@@ -4065,11 +5216,51 @@ def ui_spot_color():
         <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M10 2.5a.5.5 0 0 1 .5.5v6.793l1.646-1.647a.5.5 0 0 1 .708.708l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5a.5.5 0 1 1 .708-.708L9.5 9.793V3a.5.5 0 0 1 .5-.5zm-5 10a.5.5 0 0 0 0 1h10a.5.5 0 0 0 0-1H5z"/></svg>
         Upload
     </button>
+    <button class="batch-btn-top" onclick="openBatchDialog()" title="Proses banyak file PNG langsung di server">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M3 4a1 1 0 0 1 1-1h4l1.5 1.5H16a1 1 0 0 1 1 1V7H3V4zm0 4h14v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8z"/></svg>
+        Batch Files
+    </button>
     <span id="imgNameLabel" style="font-size:10px;color:#666;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</span>
     <div class="topbar-sep"></div>
     <a href="/ui"><button class="tb-action">← Kembali</button></a>
+
     <span style="flex:1"></span>
-    <span id="coordLabel" style="font-size:10px;color:#888;font-variant-numeric:tabular-nums"></span>
+
+    <!-- Kontrol umum (berlaku untuk semua tool) — tidak diulang di tiap context bar -->
+    <div class="gen-bar">
+        <button class="ctx-btn ico" id="undoBtn" onclick="undo()" disabled title="Undo (Ctrl+Z)">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path fill-rule="evenodd" d="M6.293 1.293a1 1 0 0 1 1.414 1.414L4.414 6H12a4 4 0 0 1 0 8h-2a.5.5 0 0 1 0-1h2a3 3 0 0 0 0-6H4.414l3.293 3.293a1 1 0 0 1-1.414 1.414l-5-5a1 1 0 0 1 0-1.414l5-5z"/></svg>
+        </button>
+        <button class="ctx-btn ico" id="redoBtn" onclick="redo()" disabled title="Redo (Ctrl+Y)">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path fill-rule="evenodd" d="M9.707 1.293a1 1 0 0 0-1.414 1.414L11.586 6H4a4 4 0 0 0 0 8h2a.5.5 0 0 0 0-1H4a3 3 0 0 1 0-6h7.586l-3.293 3.293a1 1 0 0 0 1.414 1.414l5-5a1 1 0 0 0 0-1.414l-5-5z"/></svg>
+        </button>
+        <div class="ctx-sep"></div>
+        <button class="ctx-btn ico" onclick="zoom(1.25)" title="Zoom In (+)">
+            <svg viewBox="0 0 14 14" fill="currentColor" width="12" height="12"><path d="M5.5 0a5.5 5.5 0 1 0 3.645 9.652l2.85 2.851.707-.707-2.852-2.851A5.5 5.5 0 0 0 5.5 0zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM5 3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V6H3.5a.5.5 0 0 1 0-1H5V3.5z"/></svg>
+        </button>
+        <button class="ctx-btn ico" onclick="zoom(0.8)" title="Zoom Out (−)">
+            <svg viewBox="0 0 14 14" fill="currentColor" width="12" height="12"><path d="M5.5 0a5.5 5.5 0 1 0 3.645 9.652l2.85 2.851.707-.707-2.852-2.851A5.5 5.5 0 0 0 5.5 0zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM3.5 5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"/></svg>
+        </button>
+        <button class="ctx-btn ico" onclick="fitCanvas()" title="Fit to window">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4"/><rect x="5" y="5" width="6" height="6" rx="1"/></svg>
+        </button>
+        <button class="ctx-btn ico" onclick="zoom(1,'reset')" title="Zoom 100% (1:1)">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><text x="8" y="12" font-size="10" font-weight="700" text-anchor="middle" font-family="Segoe UI,sans-serif">1:1</text></svg>
+        </button>
+        <button class="ctx-btn ico" id="gridBtn" onclick="toggleGrid()" title="Tampilkan / sembunyikan grid">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M0 0h16v16H0V0zm1 1v4h4V1H1zm5 0v4h4V1H6zm5 0v4h4V1h-4zM1 6v4h4V6H1zm5 0v4h4V6H6zm5 0v4h4V6h-4zM1 11v4h4v-4H1zm5 0v4h4v-4H6zm5 0v4h4v-4h-4z"/></svg>
+        </button>
+        <span class="ctx-val" id="zoomLabel" style="min-width:34px">100%</span>
+        <div class="ctx-sep"></div>
+        <label style="font-size:10px;color:#666">DPI</label>
+        <input type="number" id="dpiInput" value="300" min="72" max="1200" style="width:50px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:10px">
+        <div class="ctx-sep"></div>
+        <button class="ctx-btn ico" onclick="clearMask()" style="color:#c33" title="Hapus area spot pada channel ini">
+            <svg viewBox="0 0 14 14" fill="currentColor" width="12" height="12"><path d="M5.5 2a.5.5 0 0 0-1 0V3H3a.5.5 0 0 0 0 1h8a.5.5 0 0 0 0-1H9V2a.5.5 0 0 0-1 0V3h-2V2zM3.087 5l.59 5.9A1 1 0 0 0 4.67 12h4.66a1 1 0 0 0 .994-.9L10.913 5H3.087z"/></svg>
+        </button>
+        <div class="ctx-sep"></div>
+        <span id="coordLabel" style="font-size:10px;color:#888;font-variant-numeric:tabular-nums;min-width:64px;text-align:right"></span>
+    </div>
 </div>
 
 <div class="main">
@@ -4146,45 +5337,11 @@ def ui_spot_color():
                 <input type="checkbox" id="solidFill" style="margin:0">Solid
             </label>
             <label style="display:flex;align-items:center;gap:3px;font-size:10px;color:#555;cursor:pointer;white-space:nowrap" title="Kecualikan area putih dari expand/contract">
-                <input type="checkbox" id="excludeWhite" style="margin:0">Kecualikan putih
+                <input type="checkbox" id="excludeWhite" style="margin:0" checked>Kecualikan putih
             </label>
             <div class="ctx-sep"></div>
             <button class="ctx-btn" id="applySelBtn" onclick="applySelection()" disabled title="Apply (Enter)">✓ Apply</button>
             <button class="ctx-btn" onclick="deselect()" title="Deselect (Ctrl+D)">✕ Desel</button>
-        </div>
-        <!-- Always visible -->
-        <div class="ctx-always">
-            <div class="ctx-sep"></div>
-            <button class="ctx-btn" id="undoBtn" onclick="undo()" disabled>
-                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path fill-rule="evenodd" d="M6.293 1.293a1 1 0 0 1 1.414 1.414L4.414 6H12a4 4 0 0 1 0 8h-2a.5.5 0 0 1 0-1h2a3 3 0 0 0 0-6H4.414l3.293 3.293a1 1 0 0 1-1.414 1.414l-5-5a1 1 0 0 1 0-1.414l5-5z"/></svg>
-                Undo
-            </button>
-            <button class="ctx-btn" id="redoBtn" onclick="redo()" disabled>
-                Redo
-                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path fill-rule="evenodd" d="M9.707 1.293a1 1 0 0 0-1.414 1.414L11.586 6H4a4 4 0 0 0 0 8h2a.5.5 0 0 0 0-1H4a3 3 0 0 1 0-6h7.586l-3.293 3.293a1 1 0 0 0 1.414 1.414l5-5a1 1 0 0 0 0-1.414l-5-5z"/></svg>
-            </button>
-            <div class="ctx-sep"></div>
-            <button class="ctx-btn" onclick="zoom(1.25)" title="Zoom In (+)">
-                <svg viewBox="0 0 14 14" fill="currentColor" width="11" height="11"><path d="M5.5 0a5.5 5.5 0 1 0 3.645 9.652l2.85 2.851.707-.707-2.852-2.851A5.5 5.5 0 0 0 5.5 0zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM5 3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V6H3.5a.5.5 0 0 1 0-1H5V3.5z"/></svg>
-            </button>
-            <button class="ctx-btn" onclick="zoom(0.8)" title="Zoom Out (-)">
-                <svg viewBox="0 0 14 14" fill="currentColor" width="11" height="11"><path d="M5.5 0a5.5 5.5 0 1 0 3.645 9.652l2.85 2.851.707-.707-2.852-2.851A5.5 5.5 0 0 0 5.5 0zm-4.5 5.5a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0zM3.5 5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"/></svg>
-            </button>
-            <button class="ctx-btn" onclick="fitCanvas()">Fit</button>
-            <button class="ctx-btn" onclick="zoom(1,'reset')">1:1</button>
-            <button class="ctx-btn" id="gridBtn" onclick="toggleGrid()" title="Tampilkan / sembunyikan grid">
-                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M0 0h16v16H0V0zm1 1v4h4V1H1zm5 0v4h4V1H6zm5 0v4h4V1h-4zM1 6v4h4V6H1zm5 0v4h4V6H6zm5 0v4h4V6h-4zM1 11v4h4v-4H1zm5 0v4h4v-4H6zm5 0v4h4v-4h-4z"/></svg>
-                Grid
-            </button>
-            <span class="ctx-val" id="zoomLabel" style="min-width:34px">100%</span>
-            <div class="ctx-sep"></div>
-            <label style="font-size:10px;color:#666">DPI</label>
-            <input type="number" id="dpiInput" value="300" min="72" max="1200" style="width:50px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:10px">
-            <div class="ctx-sep"></div>
-            <button class="ctx-btn" onclick="clearMask()" style="color:#c33">
-                <svg viewBox="0 0 14 14" fill="currentColor" width="11" height="11"><path d="M5.5 2a.5.5 0 0 0-1 0V3H3a.5.5 0 0 0 0 1h8a.5.5 0 0 0 0-1H9V2a.5.5 0 0 0-1 0V3h-2V2zM3.087 5l.59 5.9A1 1 0 0 0 4.67 12h4.66a1 1 0 0 0 .994-.9L10.913 5H3.087z"/></svg>
-                Clear
-            </button>
         </div>
     </div>
 
@@ -4197,17 +5354,18 @@ def ui_spot_color():
             <div id="canvasContainer">
                 <canvas id="bgCanvas"></canvas>
                 <canvas id="drawCanvas"></canvas>
-                <canvas id="gridCanvas" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
                 <canvas id="selCanvas" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
             </div>
         </div>
+        <!-- Grid overlay: menutupi seluruh lembar kerja (tembus keluar area gambar) -->
+        <canvas id="gridCanvas"></canvas>
         <!-- Popup pengaturan ruler -->
         <div id="rulerPopup">
             <div class="rp-row"><span>Satuan</span>
                 <select id="unitSel" onchange="setRulerUnit(this.value)">
-                    <option value="px" selected>px</option>
+                    <option value="px">px</option>
                     <option value="mm">mm</option>
-                    <option value="cm">cm</option>
+                    <option value="cm" selected>cm</option>
                     <option value="m">m</option>
                 </select>
             </div>
@@ -4244,6 +5402,12 @@ def ui_spot_color():
             &#11015; Generate &amp; Download PDF
         </button>
 
+        <div class="rp-label">Auto Proses <span style="font-weight:400;color:#aaa;text-transform:none;letter-spacing:0">— file di server, hasil di folder sama</span></div>
+        <div style="display:flex;gap:4px">
+            <button class="auto-btn" onclick="runAutoServer('dtf')" title="Object → Contract → Apply → simpan A.pdf di folder file aslinya (channel White)">⚡ Auto DTF</button>
+            <button class="auto-btn" onclick="runAutoServer('uv')" title="Object → Contract → Apply untuk White + Varnish → simpan A.pdf di folder file aslinya">⚡ Auto UV</button>
+        </div>
+
         <div class="rp-label">Action <span style="font-weight:400;color:#aaa;text-transform:none;letter-spacing:0">— rekam &amp; terapkan ulang</span></div>
         <div style="display:flex;gap:4px">
             <button class="act-rec" id="recBtn" onclick="toggleRecord()">● Rekam</button>
@@ -4251,8 +5415,8 @@ def ui_spot_color():
         </div>
         <div id="recSteps" style="font-size:10px;color:#888;max-height:110px;overflow-y:auto;display:none;background:#f8f8f8;border:1px solid #eee;border-radius:4px;padding:5px 7px;line-height:1.7"></div>
         <input type="file" id="batchInput" accept="image/png,image/jpeg" multiple style="display:none">
-        <button class="act-batch" id="batchBtn" onclick="document.getElementById('batchInput').click()" disabled title="Pilih beberapa file — action direplay ke tiap file lalu PDF diunduh otomatis">
-            &#9654; Terapkan ke Banyak File
+        <button class="act-batch" id="batchBtn" onclick="document.getElementById('batchInput').click()" disabled title="Pilih beberapa PNG/JPG — action diterapkan ke tiap file di background (tanpa ditampilkan), semua PDF diunduh sekaligus dalam 1 ZIP">
+            &#9654; Terapkan ke Banyak File (ZIP)
         </button>
 
         <div class="status-box" id="statusBox">Upload gambar, pilih channel, lalu gambar / seleksi areanya.</div>
@@ -4267,6 +5431,66 @@ def ui_spot_color():
         <div class="lbl" id="selProgLbl">Memproses seleksi…</div>
         <div class="bar" id="selProgBar"><i></i></div>
     </div>
+</div>
+
+<!-- ══ DIALOG BATCH FILES ══ -->
+<div id="batchModal">
+  <div class="bm-box">
+    <div class="bm-head">
+        <b>Batch Files</b>
+        <span class="bm-sub">proses PNG langsung di server — hasil .pdf ditulis di folder yang sama</span>
+        <button class="bm-x" onclick="closeBatchDialog()">✕</button>
+    </div>
+
+    <div class="bm-pick">
+        <label>Folder / File</label>
+        <input type="text" id="bmPath" placeholder="mis. D:\Desain\stiker  atau  D:\Desain\a.png"
+               onkeydown="if(event.key==='Enter')bmScan()">
+        <div class="bm-addwrap">
+            <button class="bm-add" onclick="bmToggleAddMenu(event)" title="Tambah file atau folder lewat dialog Windows">+</button>
+            <div class="bm-addmenu" id="bmAddMenu">
+                <button onclick="bmAddPick('files')">📄 Pilih File…<small>bisa banyak file sekaligus</small></button>
+                <button onclick="bmAddPick('folder')">📁 Pilih Folder…<small>semua PNG di folder itu</small></button>
+            </div>
+        </div>
+        <label class="bm-chk" title="Termasuk isi sub-folder"><input type="checkbox" id="bmRecursive">sub-folder</label>
+        <button class="bm-scan" onclick="bmScan()">Cari PNG</button>
+    </div>
+
+    <div class="bm-listhead">
+        <label class="bm-chk"><input type="checkbox" id="bmAll" onchange="bmToggleAll(this.checked)">Pilih semua</label>
+        <span id="bmCount" class="bm-count">belum ada file</span>
+    </div>
+    <div class="bm-list" id="bmList">
+        <div class="bm-empty">Masukkan path folder lalu klik <b>Cari PNG</b>, atau tekan <b>+</b> untuk memilih file</div>
+    </div>
+
+    <div class="bm-opts">
+        <div class="bm-seg">
+            <button class="bm-seg-b active" data-preset="dtf" onclick="bmSetPreset('dtf')">DTF<small>White</small></button>
+            <button class="bm-seg-b"        data-preset="uv"  onclick="bmSetPreset('uv')">UV<small>White + Varnish</small></button>
+        </div>
+        <div class="bm-num">
+            <label>Contract</label>
+            <input type="number" id="bmContract" value="2" min="0" max="200"><span>px</span>
+        </div>
+        <div class="bm-num">
+            <label>DPI</label>
+            <input type="number" id="bmDpi" value="300" min="72" max="1200">
+        </div>
+    </div>
+
+    <div class="bm-total">
+        <div class="bm-tbar"><i id="bmTotalBar"></i></div>
+        <span id="bmTotalTxt">Siap</span>
+    </div>
+
+    <div class="bm-foot">
+        <button class="bm-clr" onclick="bmClearList()" title="Bersihkan daftar &amp; mulai pekerjaan baru">Clear</button>
+        <button class="bm-cancel" onclick="closeBatchDialog()" id="bmCancelBtn">Cancel</button>
+        <button class="bm-go" onclick="bmProcess()" id="bmGoBtn" disabled>▶ Proses</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -4330,11 +5554,19 @@ function loadImageFile(file){
             bgCtx.drawImage(img, 0, 0);
             selCanvas.width  = img.width;
             selCanvas.height = img.height;
+            // Reset total seperti baru refresh — jangan bawa sisa dari gambar sebelumnya
+            deselect();
             clearMaskData();
             _whiteMaskCache = null;   // reset cache mask putih
+            channels = [];            // jangan wariskan mask channel gambar lama
+            activeChannel = 0;
             undoStack.length = 0; redoStack.length = 0; _updateUndoRedo();
-            _initChannels();          // bangun channel sesuai jenis produk
+            _initChannels();          // bangun channel kosong sesuai jenis produk
             fitCanvas();
+            // gambar rata kiri-atas: pastikan lembar kerja tidak ter-scroll
+            const wrap = document.getElementById('canvasWrap');
+            wrap.scrollLeft = 0; wrap.scrollTop = 0;
+            drawRulers(); drawGrid();
             URL.revokeObjectURL(url);
             resolve();
         };
@@ -4613,8 +5845,8 @@ function zoom(factor, mode){
 function fitCanvas(){
     if(!imageObj) return;
     const wrap = document.getElementById('canvasWrap');
-    const ww = wrap.clientWidth  - 40;
-    const wh = wrap.clientHeight - 40;
+    const ww = wrap.clientWidth  - CANVAS_PAD*2;
+    const wh = wrap.clientHeight - CANVAS_PAD*2;
     zoomLevel = Math.min(ww / imageObj.width, wh / imageObj.height);
     applyZoom();
 }
@@ -4631,12 +5863,9 @@ function applyZoom(){
     drawCanvas.style.height = h + 'px';
     selCanvas.style.width   = w + 'px';
     selCanvas.style.height  = h + 'px';
-    const gc = document.getElementById('gridCanvas');
-    gc.style.width  = w + 'px';
-    gc.style.height = h + 'px';
     document.getElementById('zoomLabel').textContent = Math.round(zoomLevel*100)+'%';
     drawRulers();
-    drawGrid();
+    drawGrid();   // grid overlay viewport — ukurannya tidak ikut canvasContainer
 }
 
 // ─── Mouse Wheel Zoom (acuan di titik kursor) ────────────────────────────────
@@ -4645,7 +5874,7 @@ document.getElementById('canvasWrap').addEventListener('wheel', e=>{
     e.preventDefault();
     const wrap = document.getElementById('canvasWrap');
     const rect = wrap.getBoundingClientRect();
-    const PAD = 20;  // padding di dalam canvas-wrap sebelum canvasContainer
+    const PAD = CANVAS_PAD;  // padding di dalam canvas-wrap sebelum canvasContainer
     // titik gambar (dalam piksel canvas) di bawah kursor sebelum zoom
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -4657,7 +5886,7 @@ document.getElementById('canvasWrap').addEventListener('wheel', e=>{
     // pertahankan titik gambar itu tetap di posisi kursor
     wrap.scrollLeft = imgX * zoomLevel + PAD - mouseX;
     wrap.scrollTop  = imgY * zoomLevel + PAD - mouseY;
-    drawRulers();
+    drawRulers(); drawGrid();
 }, {passive: false});
 
 // ─── Rulers ─────────────────────────────────────────────────────────────────
@@ -4675,14 +5904,18 @@ function drawRulers(){
 
     const scrollL = wrap.scrollLeft;
     const scrollT = wrap.scrollTop;
-    const PAD = 20; // padding in canvas-wrap
+    const PAD = CANVAS_PAD; // padding in canvas-wrap
 
     _drawHRuler(rulerH, scrollL, PAD);
     _drawVRuler(rulerV, scrollT, PAD);
 }
 
+// Padding lembar kerja — 0 = gambar rata kiri-atas.
+// HARUS sama dengan padding .canvas-wrap di CSS.
+const CANVAS_PAD = 0;
+
 // ─── Satuan ruler ────────────────────────────────────────────────────────────
-let rulerUnit = 'px';   // 'px' | 'mm' | 'cm' | 'm'
+let rulerUnit = 'cm';   // 'px' | 'mm' | 'cm' | 'm'  (default cm)
 
 function _unitPerPx(){
     if(rulerUnit === 'px') return 1;
@@ -4771,7 +6004,7 @@ function _drawVRuler(canvas, scrollTop, pad){
 }
 
 // Update rulers on scroll
-document.getElementById('canvasWrap').addEventListener('scroll', ()=>{ drawRulers(); }, {passive:true});
+document.getElementById('canvasWrap').addEventListener('scroll', ()=>{ drawRulers(); drawGrid(); }, {passive:true});
 // Ganti DPI → skala satuan berubah
 document.getElementById('dpiInput').addEventListener('input', ()=>{ drawRulers(); drawGrid(); });
 
@@ -4788,30 +6021,47 @@ function toggleGrid(force){
     drawGrid();
 }
 
+// Grid digambar di overlay seukuran viewport → tembus ke seluruh lembar kerja,
+// tidak berhenti di batas gambar. Koordinat mengikuti ruler (scroll + zoom).
 function drawGrid(){
-    if(!imageObj) return;
-    const w = bgCanvas.width, h = bgCanvas.height;
-    if(gridCanvas.width !== w || gridCanvas.height !== h){
-        gridCanvas.width = w; gridCanvas.height = h;
+    const wrap = document.getElementById('canvasWrap');
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    if(W === 0 || H === 0) return;
+    if(gridCanvas.width !== W || gridCanvas.height !== H){
+        gridCanvas.width = W; gridCanvas.height = H;
     }
-    gridCtx.clearRect(0,0,w,h);
-    if(!showGrid) return;
+    gridCtx.clearRect(0, 0, W, H);
+    if(!showGrid || !imageObj) return;
+
     const { stepPx } = _rulerStepPx();
-    const z = Math.max(zoomLevel, 1e-4);
-    gridCtx.lineWidth = 1 / z;
-    // garis minor
-    gridCtx.strokeStyle = 'rgba(0,120,215,0.18)';
-    gridCtx.beginPath();
-    for(let x = stepPx; x < w; x += stepPx){ gridCtx.moveTo(x, 0); gridCtx.lineTo(x, h); }
-    for(let y = stepPx; y < h; y += stepPx){ gridCtx.moveTo(0, y); gridCtx.lineTo(w, y); }
-    gridCtx.stroke();
-    // garis mayor (tiap 5 step)
-    gridCtx.strokeStyle = 'rgba(0,120,215,0.38)';
-    gridCtx.beginPath();
-    const major = stepPx * 5;
-    for(let x = major; x < w; x += major){ gridCtx.moveTo(x, 0); gridCtx.lineTo(x, h); }
-    for(let y = major; y < h; y += major){ gridCtx.moveTo(0, y); gridCtx.lineTo(w, y); }
-    gridCtx.stroke();
+    const stepScr = stepPx * zoomLevel;          // jarak grid dalam px layar
+    if(stepScr < 3) return;                      // terlalu rapat → jangan gambar
+    const sl = wrap.scrollLeft, st = wrap.scrollTop;
+
+    // indeks grid pertama yang terlihat (boleh negatif → grid keluar area gambar)
+    const n0x = Math.floor((sl - CANVAS_PAD) / stepScr);
+    const n0y = Math.floor((st - CANVAS_PAD) / stepScr);
+
+    gridCtx.lineWidth = 1;
+    for(const major of [false, true]){
+        gridCtx.strokeStyle = major ? 'rgba(0,120,215,0.40)' : 'rgba(0,120,215,0.16)';
+        gridCtx.beginPath();
+        for(let n = n0x; ; n++){
+            const x = Math.round(CANVAS_PAD - sl + n * stepScr) + 0.5;
+            if(x > W) break;
+            if(x < 0) continue;
+            if((n % 5 === 0) !== major) continue;
+            gridCtx.moveTo(x, 0); gridCtx.lineTo(x, H);
+        }
+        for(let n = n0y; ; n++){
+            const y = Math.round(CANVAS_PAD - st + n * stepScr) + 0.5;
+            if(y > H) break;
+            if(y < 0) continue;
+            if((n % 5 === 0) !== major) continue;
+            gridCtx.moveTo(0, y); gridCtx.lineTo(W, y);
+        }
+        gridCtx.stroke();
+    }
 }
 
 // ─── Ruler corner popup & background ────────────────────────────────────────
@@ -4953,7 +6203,7 @@ drawCanvas.addEventListener('mouseleave', ()=>{ isDrawing = false; drawCtx.globa
 // ─── Init ─────────────────────────────────────────────────────────────────────
 setTool('brush');   // set initial ctx-bar state
 
-window.addEventListener('resize', ()=>{ if(imageObj) drawRulers(); });
+window.addEventListener('resize', ()=>{ if(imageObj){ drawRulers(); drawGrid(); } });
 
 // ─── Select All (Ctrl+A) — seluruh kanvas, termasuk area transparan ─────────
 function selectAll(){
@@ -5031,7 +6281,7 @@ window.addEventListener('mousemove', e=>{
     if(!isPanning) return;
     canvasWrapEl.scrollLeft = panScrollL - (e.clientX - panStartX);
     canvasWrapEl.scrollTop  = panScrollT - (e.clientY - panStartY);
-    drawRulers();
+    drawRulers(); drawGrid();
 });
 
 window.addEventListener('mouseup', e=>{
@@ -5513,6 +6763,18 @@ function clearMask(){
     _renderChannelList();
 }
 
+// Bersihkan seleksi satu channel dari daftar (tombol Clear di channel list)
+function clearChannel(i){
+    if(!imageObj || !channels[i]) return;
+    if(i === activeChannel){
+        _recAct({t:'clear'});
+        clearMaskData();            // channel aktif → bersihkan kanvas kerja
+    }
+    channels[i].img = null;
+    _renderChannelList();
+    if(i === activeChannel) recomputeAnts();
+}
+
 function clearMaskData(){
     drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
     cancelPolygon();
@@ -5573,18 +6835,53 @@ function _renderChannelList(){
                 <div class="ch-name">${ch.name}</div>
                 <div class="ch-mode">${filled ? '✔ ada area' : 'kosong'}</div>
             </div>
-            ${i===activeChannel?'<span class="ch-edit-tag">EDIT</span>':''}
+            ${filled ? `<button class="ch-clear-btn" title="Bersihkan seleksi channel ${ch.name}"
+                 onclick="event.stopPropagation();clearChannel(${i})">Clear</button>` : ''}
         </div>`;
     }).join('');
     document.getElementById('genBtn').disabled = !anyInk;
 }
 
-// ─── Generate PDF ────────────────────────────────────────────────────────────
+// ─── Kirim ke server (opsi unduh langsung) ───────────────────────────────────
+async function _sendSpotColor(imgB64, imageName, payloadChannels, dpi, doDownload=true){
+    const res = await fetch('/api/spot-color', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ image: imgB64, image_name: imageName, dpi, channels: payloadChannels })
+    });
+    const data = await res.json();
+    if(data.status !== 'success') throw new Error(data.message || 'Gagal membuat PDF');
+    if(doDownload){
+        const a = document.createElement('a');
+        a.href = '/api/spot-color-download?file='+encodeURIComponent(data.filename);
+        a.download = data.filename;
+        document.body.appendChild(a); a.click(); a.remove();
+    }
+    return data;   // {filename, ...}
+}
+
+// Unduh beberapa PDF sekaligus sebagai satu ZIP (hindari dialog Save As beruntun)
+async function _downloadZip(filenames){
+    const res = await fetch('/api/spot-color-zip', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ files: filenames })
+    });
+    if(!res.ok) throw new Error('Gagal membuat ZIP');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'spot_batch_' + Date.now() + '.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+}
+
+// ─── Generate PDF (mode interaktif, dari editor aktif) ───────────────────────
 async function generatePDF(){
     if(!imageFile || !imageObj) return;
-    _saveActiveChannel();   // simpan channel aktif dulu
+    _recAct({t:'generate'});   // rekam sebagai bagian action
+    _saveActiveChannel();
 
-    // hanya kirim channel yang ada isinya
     const payloadChannels = [];
     for(const ch of channels){
         if(!_hasInk(ch.img)) continue;
@@ -5605,49 +6902,22 @@ async function generatePDF(){
     statusBox.textContent=`Membuat PDF dengan ${payloadChannels.length} spot channel...`;
 
     try {
-        // Convert image → base64
         const imgB64 = await new Promise(res=>{
             const rd = new FileReader();
             rd.onload = e => res(e.target.result.split(',')[1]);
             rd.readAsDataURL(imageFile);
         });
-
-        const payload = {
-            image: imgB64,
-            image_name: imageFile.name,
-            dpi,
-            channels: payloadChannels
-        };
-
-        const res  = await fetch('/api/spot-color', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-
-        if(data.status==='success'){
-            const chNames = (data.channels||[]).map(c=>c.name).join(', ');
-            statusBox.className='status-box ok';
-            statusBox.innerHTML = `PDF berhasil!<br><small>${data.filename}</small><br>`
-                + `<small>${data.n_channels} channel: ${chNames}</small>`;
-            // Langsung download otomatis via anchor (tanpa tombol terpisah)
-            const a = document.createElement('a');
-            a.href = '/api/spot-color-download?file='+encodeURIComponent(data.filename);
-            a.download = data.filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-        } else {
-            statusBox.className='status-box err';
-            statusBox.textContent='Error: '+(data.message||'Terjadi kesalahan');
-        }
+        const data = await _sendSpotColor(imgB64, imageFile.name, payloadChannels, dpi);
+        const chNames = (data.channels||[]).map(c=>c.name).join(', ');
+        statusBox.className='status-box ok';
+        statusBox.innerHTML = `PDF berhasil!<br><small>${data.filename}</small><br>`
+            + `<small>${data.n_channels} channel: ${chNames}</small>`;
     } catch(e){
         statusBox.className='status-box err';
         statusBox.textContent='Error: '+e.message;
     } finally {
         genBtn.innerHTML = '&#11015; Generate &amp; Download PDF';
-        _renderChannelList();   // sinkronkan status tombol
+        _renderChannelList();
     }
 }
 
@@ -5680,6 +6950,7 @@ const ACT_LABELS = {
     ptype:'Jenis produk', chan:'Pilih channel', wand:'Magic Wand', color:'Select Color',
     fill:'Fill', object:'Select Object', all:'Select All', inverse:'Inverse',
     contract:'Contract', expand:'Expand', apply:'Apply', clear:'Clear', desel:'Deselect',
+    generate:'⬇ Generate PDF',
 };
 function _actLabel(s){
     let l = ACT_LABELS[s.t] || s.t;
@@ -5710,7 +6981,7 @@ function toggleRecord(){
         btn.classList.add('recording');
         const sb = document.getElementById('statusBox');
         sb.className = 'status-box';
-        sb.textContent = 'Merekam… lakukan seleksi seperti biasa. (Goresan brush tidak direkam.)';
+        sb.textContent = 'Merekam… lakukan seleksi lalu klik Generate untuk merekam langkah export. (Goresan brush tidak direkam.)';
     } else {
         btn.textContent = '● Rekam';
         btn.classList.remove('recording');
@@ -5726,71 +6997,502 @@ function clearRecording(){
     _renderRecSteps();
 }
 
-// ─── Replay satu langkah (sinkron, tanpa overlay) ────────────────────────────
-function replayStep(s){
-    const w = drawCanvas.width, h = drawCanvas.height;
-    switch(s.t){
-        case 'ptype':    setProductType(s.type); break;
-        case 'chan':     selectChannel(s.i); break;
-        case 'wand':     _applySelOpts(s); magicWand(Math.round(s.rx*w), Math.round(s.ry*h), s.mode); break;
-        case 'color':    _applySelOpts(s); selectByColor(Math.round(s.rx*w), Math.round(s.ry*h), s.mode); break;
-        case 'fill':     saveHistory(); floodFill(Math.round(s.rx*w), Math.round(s.ry*h), s.mode); recomputeAnts(); break;
-        case 'object':   _applySelOpts(s); selMode = s.mode || 'new'; _selectObjectImpl(); break;
-        case 'all':      selectAll(); break;
-        case 'inverse':  selectInverse(); break;
-        case 'contract': document.getElementById('modifyPx').value = s.px;
-                         document.getElementById('excludeWhite').checked = !!s.exw;
-                         _contractSelectionImpl(); break;
-        case 'expand':   document.getElementById('modifyPx').value = s.px;
-                         document.getElementById('excludeWhite').checked = !!s.exw;
-                         _expandSelectionImpl(); break;
-        case 'apply':    if(selectionMask) applySelection(); break;
-        case 'clear':    clearMaskData(); if(channels[activeChannel]) channels[activeChannel].img=null; break;
-        case 'desel':    deselect(); break;
-    }
+// ═══ HEADLESS BATCH ENGINE ═══════════════════════════════════════════════════
+// Menjalankan action ke banyak file TANPA menampilkan gambar di editor.
+// Semua operasi dilakukan pada canvas offscreen + array biner murni.
+
+// Muat file → data piksel offscreen + base64 asli (untuk dikirim ke server)
+async function _hlLoad(file){
+    const dataUrl = await new Promise((res,rej)=>{
+        const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=()=>rej(new Error('baca gagal')); r.readAsDataURL(file);
+    });
+    const img = await new Promise((res,rej)=>{
+        const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('decode gagal')); im.src=dataUrl;
+    });
+    const c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight;
+    c.getContext('2d').drawImage(img,0,0);
+    const src = c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    return { w:c.width, h:c.height, src, imgB64:dataUrl.split(',')[1], imageName:file.name };
 }
 
-// ─── Batch: terapkan action ke banyak file ───────────────────────────────────
+function _hlWhite(S){
+    if(S.white) return S.white;
+    const n=S.w*S.h, wm=new Uint8Array(n), d=S.src;
+    for(let i=0;i<n;i++){ const p=i*4; if(d[p]>=245&&d[p+1]>=245&&d[p+2]>=245) wm[i]=1; }
+    S.white=wm; return wm;
+}
+
+function _hlBuildChannels(S, type){
+    const prev={}; (S.channels||[]).forEach(c=>prev[c.name]=c.drawn);
+    S.productType=type;
+    S.channels=TYPE_CHANNELS[type].map(([name,mode])=>({name,mode,drawn:prev[name]||null}));
+    S.active=0;
+}
+
+function _hlFlood(S, sx, sy, match){
+    const w=S.w,h=S.h,n=w*h;
+    const visited=new Uint8Array(n), sel=new Uint8Array(n), stack=new Int32Array(n);
+    let sp=0; const seed=sy*w+sx; stack[sp++]=seed; visited[seed]=1;
+    while(sp>0){
+        const i=stack[--sp];
+        if(!match(i*4)) continue;
+        sel[i]=1;
+        const x=i%w, y=(i/w)|0;
+        if(x>0&&!visited[i-1]){visited[i-1]=1;stack[sp++]=i-1;}
+        if(x<w-1&&!visited[i+1]){visited[i+1]=1;stack[sp++]=i+1;}
+        if(y>0&&!visited[i-w]){visited[i-w]=1;stack[sp++]=i-w;}
+        if(y<h-1&&!visited[i+w]){visited[i+w]=1;stack[sp++]=i+w;}
+    }
+    return sel;
+}
+
+function _hlMerge(S, newSel, s){
+    let mask=newSel;
+    if(s.solid) mask=_fillHoles(mask, S.w, S.h);
+    const mode=s.mode||'new';
+    if(mode==='add' && S.sel){ for(let i=0;i<mask.length;i++) if(mask[i]) S.sel[i]=1; }
+    else if(mode==='subtract' && S.sel){ for(let i=0;i<mask.length;i++) if(mask[i]) S.sel[i]=0; }
+    else S.sel=mask;
+}
+
+function _hlMorph(S, n, expand, exw){
+    if(!S.sel) return;
+    const w=S.w,h=S.h;
+    const wm = exw ? _hlWhite(S) : null;
+    let base=S.sel;
+    if(expand && exw){   // putih bukan sumber ekspansi
+        base=new Uint8Array(w*h);
+        for(let i=0;i<w*h;i++) base[i]=(S.sel[i]&&!wm[i])?1:0;
+    }
+    const tmp=new Uint8Array(w*h), res=new Uint8Array(w*h);
+    const seed = expand?0:1;   // dilation start 0, erosion start 1
+    // horizontal
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        let v=seed;
+        for(let dx=-n;dx<=n;dx++){ const nx=x+dx;
+            if(expand){ if(nx>=0&&nx<w&&base[y*w+nx]){v=1;break;} }
+            else { if(nx<0||nx>=w||!base[y*w+nx]){v=0;break;} }
+        }
+        tmp[y*w+x]=v;
+    }
+    // vertical
+    for(let x=0;x<w;x++) for(let y=0;y<h;y++){
+        let v=seed;
+        for(let dy=-n;dy<=n;dy++){ const ny=y+dy;
+            if(expand){ if(ny>=0&&ny<h&&tmp[ny*w+x]){v=1;break;} }
+            else { if(ny<0||ny>=h||!tmp[ny*w+x]){v=0;break;} }
+        }
+        res[y*w+x]=v;
+    }
+    if(exw){ for(let i=0;i<w*h;i++) if(wm[i]) res[i]=S.sel[i]; }  // putih beku
+    S.sel=res;
+}
+
+function _hlApply(S){
+    if(!S.sel) return;
+    const ch=S.channels[S.active]; if(!ch) return;
+    if(!ch.drawn) ch.drawn=new Uint8Array(S.w*S.h);
+    for(let i=0;i<S.sel.length;i++) if(S.sel[i]) ch.drawn[i]=1;
+    S.sel=null;
+}
+
+function _maskArrToB64(arr, w, h){
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const x=c.getContext('2d'); const id=x.createImageData(w,h);
+    for(let i=0;i<w*h;i++){ const v=arr&&arr[i]?255:0; const p=i*4; id.data[p]=id.data[p+1]=id.data[p+2]=v; id.data[p+3]=255; }
+    x.putImageData(id,0,0);
+    return c.toDataURL('image/png').split(',')[1];
+}
+
+function _hlPayload(S){
+    const out=[];
+    for(const ch of S.channels){
+        if(!ch.drawn) continue;
+        let has=false; for(let i=0;i<ch.drawn.length;i+=8){ if(ch.drawn[i]){has=true;break;} }
+        if(!has) continue;
+        out.push({name:ch.name, mode:ch.mode, mask:_maskArrToB64(ch.drawn, S.w, S.h)});
+    }
+    return out;
+}
+
+// Terapkan satu langkah action ke state headless. Return 'generate' bila step export.
+function _hlStep(S, s){
+    const w=S.w, h=S.h;
+    switch(s.t){
+        case 'ptype':  _hlBuildChannels(S, s.type); break;
+        case 'chan':   if(s.i>=0 && s.i<S.channels.length) S.active=s.i; break;
+        case 'wand':   { const sx=Math.round(s.rx*w), sy=Math.round(s.ry*h);
+                         _hlMerge(S, _hlFlood(S, sx, sy, _makeMatcher(S.src,(sy*w+sx)*4,s.tol)), s); break; }
+        case 'color':  { const sx=Math.round(s.rx*w), sy=Math.round(s.ry*h);
+                         const m=_makeMatcher(S.src,(sy*w+sx)*4,s.tol); const ns=new Uint8Array(w*h);
+                         for(let i=0;i<w*h;i++) if(m(i*4)) ns[i]=1; _hlMerge(S, ns, s); break; }
+        case 'fill':   { const sx=Math.round(s.rx*w), sy=Math.round(s.ry*h);   // fill = seleksi kontigu warna bg lalu commit
+                         _hlMerge(S, _hlFlood(S, sx, sy, _makeMatcher(S.src,(sy*w+sx)*4, 30)), {mode:s.mode}); _hlApply(S); break; }
+        case 'object': { const ns=new Uint8Array(w*h); for(let i=0;i<w*h;i++) if(S.src[i*4+3]>=128) ns[i]=1;
+                         _hlMerge(S, ns, s); break; }
+        case 'all':    S.sel=new Uint8Array(w*h).fill(1); break;
+        case 'inverse':{ if(!S.sel) S.sel=new Uint8Array(w*h).fill(1);
+                         else for(let i=0;i<S.sel.length;i++) S.sel[i]=S.sel[i]?0:1; break; }
+        case 'contract': _hlMorph(S, s.px||2, false, !!s.exw); break;
+        case 'expand':   _hlMorph(S, s.px||2, true,  !!s.exw); break;
+        case 'apply':    _hlApply(S); break;
+        case 'clear':    if(S.channels[S.active]) S.channels[S.active].drawn=null; S.sel=null; break;
+        case 'desel':    S.sel=null; break;
+        case 'generate': return 'generate';
+    }
+    return null;
+}
+
+// ─── Batch: terapkan action ke banyak file (headless) ────────────────────────
 document.getElementById('batchInput').addEventListener('change', async function(e){
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if(!files.length || !actionSteps.length) return;
     if(isRecording) toggleRecord();
 
+    const dpi = parseInt(document.getElementById('dpiInput').value)||300;
+    const initType = productType;
+    const hasGenStep = actionSteps.some(s=>s.t==='generate');
     const sb = document.getElementById('statusBox');
-    isReplaying = true;
-    let ok = 0, fail = 0;
-    try{
-        for(let fi = 0; fi < files.length; fi++){
-            const f = files[fi];
-            try{
-                sb.className = 'status-box';
-                sb.textContent = `[${fi+1}/${files.length}] ${f.name}: memuat…`;
-                await loadImageFile(f);
-                await new Promise(r=>requestAnimationFrame(r));
+    const batchBtn = document.getElementById('batchBtn');
+    batchBtn.disabled = true;
+    let ok=0, fail=0;
+    const produced=[];   // nama-nama PDF hasil → dibundel jadi 1 ZIP di akhir
 
-                sb.textContent = `[${fi+1}/${files.length}] ${f.name}: replay ${actionSteps.length} langkah…`;
-                for(const s of actionSteps){
-                    replayStep(s);
-                    await new Promise(r=>requestAnimationFrame(r));   // beri nafas UI
+    for(let fi=0; fi<files.length; fi++){
+        const f=files[fi];
+        try{
+            sb.className='status-box';
+            sb.textContent=`[${fi+1}/${files.length}] ${f.name}: memuat…`;
+            await new Promise(r=>setTimeout(r,0));
+
+            const S = await _hlLoad(f);
+            _hlBuildChannels(S, initType);
+
+            sb.textContent=`[${fi+1}/${files.length}] ${f.name}: proses ${actionSteps.length} langkah…`;
+            await new Promise(r=>setTimeout(r,0));
+
+            let exported=false;
+            for(const s of actionSteps){
+                if(_hlStep(S, s)==='generate'){
+                    const chans=_hlPayload(S);
+                    // doDownload=false: jangan unduh per file, kumpulkan saja
+                    if(chans.length){ const d=await _sendSpotColor(S.imgB64, S.imageName, chans, dpi, false); produced.push(d.filename); exported=true; }
                 }
-                _saveActiveChannel();
-                _renderChannelList();
-
-                sb.textContent = `[${fi+1}/${files.length}] ${f.name}: generate PDF…`;
-                await generatePDF();
-                ok++;
-            }catch(err){
-                fail++;
-                console.error('Batch gagal untuk', f.name, err);
             }
+            // bila action tak punya step Generate, export sekali di akhir
+            if(!hasGenStep){
+                const chans=_hlPayload(S);
+                if(chans.length){ const d=await _sendSpotColor(S.imgB64, S.imageName, chans, dpi, false); produced.push(d.filename); exported=true; }
+            }
+            if(exported) ok++; else fail++;
+        }catch(err){
+            fail++;
+            console.error('Batch gagal:', f.name, err);
         }
-        sb.className = fail ? 'status-box err' : 'status-box ok';
-        sb.textContent = `Batch selesai: ${ok} berhasil${fail ? ', '+fail+' gagal' : ''} dari ${files.length} file.`;
-    } finally {
-        isReplaying = false;
     }
+
+    // Unduh SEKALI sebagai ZIP → tidak ada dialog Save As beruntun
+    if(produced.length){
+        sb.className='status-box';
+        sb.textContent=`Mengemas ${produced.length} PDF ke ZIP…`;
+        try{ await _downloadZip(produced); }
+        catch(err){ console.error(err); }
+    }
+    sb.className = fail ? 'status-box err' : 'status-box ok';
+    sb.textContent = `Batch selesai: ${ok} berhasil${fail?', '+fail+' gagal/kosong':''} dari ${files.length} file. `
+        + (produced.length ? `ZIP berisi ${produced.length} PDF diunduh.` : '');
+    batchBtn.disabled = false;
 });
+
+// ═══ DIALOG BATCH FILES ══════════════════════════════════════════════════════
+let bmFiles = [];        // [{path,name,dir,size,has_pdf}]
+let bmPreset = 'dtf';
+let bmRunning = false, bmCancelled = false;
+
+function openBatchDialog(){
+    document.getElementById('batchModal').classList.add('open');
+    const last = localStorage.getItem('autoPath') || '';
+    const inp = document.getElementById('bmPath');
+    if(!inp.value) inp.value = last;
+    inp.focus();
+}
+function closeBatchDialog(){
+    if(bmRunning){
+        bmCancelled = true;                     // hentikan setelah file berjalan selesai
+        document.getElementById('bmTotalTxt').textContent = 'Membatalkan…';
+        return;
+    }
+    document.getElementById('batchModal').classList.remove('open');
+}
+function bmSetPreset(p){
+    bmPreset = p;
+    document.querySelectorAll('.bm-seg-b').forEach(b=>b.classList.toggle('active', b.dataset.preset===p));
+}
+function _fmtSize(b){
+    if(b >= 1048576) return (b/1048576).toFixed(1)+' MB';
+    if(b >= 1024)    return (b/1024).toFixed(0)+' KB';
+    return b+' B';
+}
+function _fmtDur(ms){
+    const s = ms/1000;
+    return s < 60 ? s.toFixed(1)+'s' : Math.floor(s/60)+'m '+Math.round(s%60)+'s';
+}
+function _fmtClock(d){ return d.toLocaleTimeString('id-ID',{hour12:false}); }
+
+async function bmScan(){
+    if(bmRunning) return;
+    const path = document.getElementById('bmPath').value.trim();
+    if(!path) return;
+    localStorage.setItem('autoPath', path);
+    const rec = document.getElementById('bmRecursive').checked ? '1' : '0';
+    const list = document.getElementById('bmList');
+    list.innerHTML = '<div class="bm-empty"><span class="bm-spin"></span> Mencari file PNG…</div>';
+    try{
+        const r = await fetch(`/api/spot-color-scan?path=${encodeURIComponent(path)}&recursive=${rec}`);
+        const d = await r.json();
+        if(d.status !== 'success') throw new Error(d.message||'gagal');
+        bmFiles = d.files || [];
+        bmResetProgress();
+        bmRenderList();
+    }catch(e){
+        bmFiles = [];
+        list.innerHTML = `<div class="bm-empty" style="color:#c62828">${e.message}</div>`;
+        document.getElementById('bmCount').textContent = 'gagal';
+        document.getElementById('bmGoBtn').disabled = true;
+    }
+}
+
+// Tombol '+' → menu: pilih File atau Folder (dialog bawaan Windows dari service Python)
+function bmToggleAddMenu(e){
+    e.stopPropagation();
+    if(bmRunning) return;
+    document.getElementById('bmAddMenu').classList.toggle('open');
+}
+document.addEventListener('click', e=>{
+    const m = document.getElementById('bmAddMenu');
+    if(m && m.classList.contains('open') && !m.contains(e.target)) m.classList.remove('open');
+});
+
+async function bmAddPick(mode){
+    document.getElementById('bmAddMenu').classList.remove('open');
+    if(bmRunning) return;
+    const rec = document.getElementById('bmRecursive').checked ? '1' : '0';
+    const list = document.getElementById('bmList');
+    const prevHTML = list.innerHTML;
+    list.innerHTML = `<div class="bm-empty"><span class="bm-spin"></span> Menunggu dialog ${mode==='folder'?'folder':'file'} Windows…</div>`;
+    try{
+        const r = await fetch(`/api/pick-files?mode=${mode}&recursive=${rec}`);
+        const d = await r.json();
+        if(d.status !== 'success') throw new Error(d.message||'gagal');
+        if(!d.files.length){
+            // dialog dibatalkan, atau folder tanpa PNG
+            if(d.folder){
+                document.getElementById('bmPath').value = d.folder;
+                list.innerHTML = '<div class="bm-empty">Tidak ada file .png di folder itu' +
+                                 (rec==='0' ? ' — coba centang <b>sub-folder</b>' : '') + '</div>';
+            } else {
+                list.innerHTML = prevHTML;
+            }
+            return;
+        }
+        if(d.folder){
+            document.getElementById('bmPath').value = d.folder;
+            localStorage.setItem('autoPath', d.folder);
+        }
+        const seen = new Set(bmFiles.map(f=>f.path));
+        let added = 0;
+        for(const f of d.files){ if(!seen.has(f.path)){ bmFiles.push(f); seen.add(f.path); added++; } }
+        bmResetProgress();
+        bmRenderList();
+        document.getElementById('bmCount').textContent =
+            `${bmFiles.length} file · ${_bmSelected().length} dipilih · +${added} ditambahkan`;
+    }catch(e){
+        list.innerHTML = `<div class="bm-empty" style="color:#c62828">${e.message}</div>`;
+    }
+}
+
+// Tombol 'Clear' → kosongkan daftar, mulai pekerjaan baru
+function bmClearList(){
+    if(bmRunning) return;
+    bmFiles = [];
+    bmResetProgress();
+    document.getElementById('bmList').innerHTML =
+        '<div class="bm-empty">Masukkan path folder lalu klik <b>Cari PNG</b>, atau tekan <b>+</b> untuk memilih file</div>';
+    document.getElementById('bmCount').textContent = 'belum ada file';
+    document.getElementById('bmAll').checked = false;
+    document.getElementById('bmGoBtn').disabled = true;
+}
+
+function bmResetProgress(){
+    document.getElementById('bmTotalBar').style.width = '0%';
+    document.getElementById('bmTotalTxt').textContent = 'Siap';
+}
+
+function bmRenderList(){
+    const list = document.getElementById('bmList');
+    if(!bmFiles.length){
+        list.innerHTML = '<div class="bm-empty">Tidak ada file .png di lokasi itu</div>';
+        document.getElementById('bmCount').textContent = '0 file';
+        document.getElementById('bmGoBtn').disabled = true;
+        return;
+    }
+    list.innerHTML = bmFiles.map((f,i)=>`
+        <div class="bm-row" id="bmRow${i}">
+            <input type="checkbox" id="bmCb${i}" checked onchange="bmUpdateCount()">
+            <span class="bm-nm" title="${f.name}">${f.name}</span>
+            <span class="bm-dir" title="${f.dir}">${f.dir}</span>
+            <span class="bm-sz">${_fmtSize(f.size)}</span>
+            <span class="bm-pbar"><i id="bmBar${i}"></i></span>
+            <span class="bm-st" id="bmSt${i}">${f.has_pdf ? 'sudah ada .pdf' : 'siap'}</span>
+        </div>`).join('');
+    document.getElementById('bmAll').checked = true;
+    bmUpdateCount();
+}
+
+function bmToggleAll(on){
+    bmFiles.forEach((_,i)=>{ const cb=document.getElementById('bmCb'+i); if(cb) cb.checked=on; });
+    bmUpdateCount();
+}
+function _bmSelected(){
+    return bmFiles.map((f,i)=>({f,i})).filter(({i})=>{
+        const cb=document.getElementById('bmCb'+i); return cb && cb.checked;
+    });
+}
+function bmUpdateCount(){
+    const n = _bmSelected().length;
+    document.getElementById('bmCount').textContent = `${bmFiles.length} file · ${n} dipilih`;
+    document.getElementById('bmGoBtn').disabled = (n===0) || bmRunning;
+}
+
+// Progress per file: ramp animasi selama menunggu server (biar tidak terkesan stuck),
+// lalu dikunci 100% saat file benar-benar selesai.
+function _bmStartRamp(i, estMs){
+    const bar = document.getElementById('bmBar'+i);
+    const st  = document.getElementById('bmSt'+i);
+    const t0  = performance.now();
+    const iv = setInterval(()=>{
+        const el = performance.now()-t0;
+        const pct = Math.min(95, 100*(1 - Math.exp(-el/(estMs*0.55))));  // asimtot ke 95%
+        bar.style.width = pct.toFixed(0)+'%';
+        st.innerHTML = `<span class="bm-spin"></span>${pct.toFixed(0)}% · ${_fmtDur(el)}`;
+    }, 90);
+    return iv;
+}
+
+async function bmProcess(){
+    const sel = _bmSelected();
+    if(!sel.length || bmRunning) return;
+    bmRunning = true; bmCancelled = false;
+    const goBtn = document.getElementById('bmGoBtn');
+    const cancelBtn = document.getElementById('bmCancelBtn');
+    goBtn.disabled = true; cancelBtn.textContent = 'Stop';
+    const totalBar = document.getElementById('bmTotalBar');
+    const totalTxt = document.getElementById('bmTotalTxt');
+
+    const contract = parseInt(document.getElementById('bmContract').value) || 0;
+    const dpi      = parseInt(document.getElementById('bmDpi').value) || 300;
+    const startAt  = new Date();
+    const tStart   = performance.now();
+    let done=0, okN=0, failN=0, estMs=2500;
+
+    const tick = setInterval(()=>{
+        const el = performance.now()-tStart;
+        totalTxt.textContent = `${done}/${sel.length} · mulai ${_fmtClock(startAt)} · berjalan ${_fmtDur(el)}`;
+    }, 200);
+
+    for(const {f,i} of sel){
+        if(bmCancelled){
+            document.getElementById('bmSt'+i).textContent = 'dibatalkan';
+            continue;
+        }
+        const row = document.getElementById('bmRow'+i);
+        row.classList.remove('done','err');
+        row.scrollIntoView({block:'nearest'});
+        const fT0 = performance.now();
+        const iv = _bmStartRamp(i, estMs);
+        try{
+            const r = await fetch('/api/spot-color-auto', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({path:f.path, preset:bmPreset, contract_px:contract, dpi})
+            });
+            const d = await r.json();
+            clearInterval(iv);
+            const dur = performance.now()-fT0;
+            estMs = estMs*0.6 + dur*0.4;          // adaptif untuk estimasi berikutnya
+            const first = (d.results||[])[0] || {};
+            if(d.status==='success' && first.status==='success'){
+                row.classList.add('done');
+                document.getElementById('bmBar'+i).style.width='100%';
+                document.getElementById('bmSt'+i).textContent = `✔ Selesai · ${_fmtDur(dur)}`;
+                okN++;
+            } else {
+                throw new Error(first.message || d.message || 'gagal');
+            }
+        }catch(err){
+            clearInterval(iv);
+            row.classList.add('err');
+            document.getElementById('bmBar'+i).style.width='100%';
+            document.getElementById('bmSt'+i).textContent = '✘ ' + (err.message||'gagal').slice(0,22);
+            failN++;
+        }
+        done++;
+        totalBar.style.width = (done/sel.length*100).toFixed(1)+'%';
+    }
+
+    clearInterval(tick);
+    const total = performance.now()-tStart;
+    const endAt = new Date();
+    totalTxt.textContent =
+        `Selesai ${okN}/${sel.length}${failN?` · ${failN} gagal`:''}` +
+        `${bmCancelled?' · dibatalkan':''} · ${_fmtClock(startAt)}–${_fmtClock(endAt)} · total ${_fmtDur(total)}`;
+    bmRunning = false;
+    cancelBtn.textContent = 'Cancel';
+    bmUpdateCount();
+
+    const sb = document.getElementById('statusBox');
+    sb.className = failN ? 'status-box err' : 'status-box ok';
+    sb.textContent = `Batch ${bmPreset.toUpperCase()}: ${okN} PDF dibuat di folder asal (total ${_fmtDur(total)}).`;
+}
+
+// ═══ AUTO PROSES (server-side): Object → Contract → Apply → simpan .pdf ══════
+// File dibaca & PDF ditulis langsung oleh service Python di folder yang sama.
+async function runAutoServer(preset){
+    const last = localStorage.getItem('autoPath') || '';
+    const p = prompt(
+        'Path file PNG atau FOLDER di server:\n' +
+        '(contoh: D:\\Desain\\stiker  atau  D:\\Desain\\a.png)\n' +
+        'Hasil A.pdf ditulis di lokasi yang sama.', last);
+    if(!p) return;
+    localStorage.setItem('autoPath', p);
+
+    const sb = document.getElementById('statusBox');
+    sb.className = 'status-box';
+    sb.textContent = `Auto ${preset.toUpperCase()} berjalan di server… (Object → Contract → Apply → save)`;
+    try{
+        const res = await fetch('/api/spot-color-auto', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                path: p,
+                preset,
+                contract_px: parseInt(document.getElementById('modifyPx').value) || 2,
+                dpi: parseInt(document.getElementById('dpiInput').value) || 300,
+            })
+        });
+        const d = await res.json();
+        if(d.status !== 'success') throw new Error(d.message || 'gagal');
+        const rows = (d.results||[]).map(r =>
+            `<small>${r.status==='success' ? '✔' : '✘'} ${r.file}` +
+            `${r.status==='success' ? ' → '+r.output : ' ('+(r.message||'gagal')+')'}</small>`
+        ).join('<br>');
+        sb.className = (d.n_success === d.n_files) ? 'status-box ok' : 'status-box err';
+        sb.innerHTML = `Auto ${preset.toUpperCase()}: ${d.n_success}/${d.n_files} file berhasil.<br>${rows}`;
+    }catch(e){
+        sb.className = 'status-box err';
+        sb.textContent = 'Auto error: ' + e.message;
+    }
+}
 </script>
 </body>
 </html>
@@ -5842,6 +7544,153 @@ def api_spot_color_download():
     if not os.path.exists(filepath):
         return ("File not found", 404)
     return send_file(filepath, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+
+def _png_info(fp):
+    """Info satu file PNG untuk daftar batch."""
+    try:
+        sz = os.path.getsize(fp)
+    except Exception:
+        sz = 0
+    return {
+        "path": fp,
+        "name": os.path.basename(fp),
+        "dir":  os.path.dirname(fp),
+        "size": sz,
+        "has_pdf": os.path.exists(os.path.splitext(fp)[0] + ".pdf"),
+    }
+
+
+def _collect_pngs(path, recursive=False):
+    """Kumpulkan file PNG dari sebuah file atau folder."""
+    files = []
+    if os.path.isfile(path):
+        if path.lower().endswith(".png"):
+            files.append(path)
+    elif os.path.isdir(path):
+        if recursive:
+            for root, _dirs, fns in os.walk(path):
+                for fn in fns:
+                    if fn.lower().endswith(".png"):
+                        files.append(os.path.join(root, fn))
+        else:
+            for fn in sorted(os.listdir(path)):
+                fp = os.path.join(path, fn)
+                if os.path.isfile(fp) and fn.lower().endswith(".png"):
+                    files.append(fp)
+    return [_png_info(fp) for fp in sorted(files)]
+
+
+@app.route("/api/pick-files")
+def api_pick_files():
+    """Dialog bawaan Windows di mesin server: pilih FILE (mode=files) atau
+    FOLDER (mode=folder). Dijalankan lewat subprocess agar tkinter tidak
+    bentrok dengan thread Flask."""
+    import subprocess, sys, json as _json
+
+    mode      = request.args.get("mode", "files")
+    recursive = request.args.get("recursive") == "1"
+
+    if mode == "folder":
+        code = (
+            "import tkinter as tk, json, sys\n"
+            "from tkinter import filedialog\n"
+            "r = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "p = filedialog.askdirectory(title='Pilih folder berisi file PNG', mustexist=True)\n"
+            "r.destroy()\n"
+            "sys.stdout.write(json.dumps([p] if p else []))\n"
+        )
+    else:
+        code = (
+            "import tkinter as tk, json, sys\n"
+            "from tkinter import filedialog\n"
+            "r = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "p = filedialog.askopenfilenames(title='Pilih file PNG untuk diproses',\n"
+            "        filetypes=[('PNG image','*.png'), ('Semua file','*.*')])\n"
+            "r.destroy()\n"
+            "sys.stdout.write(json.dumps(list(p)))\n"
+        )
+
+    try:
+        proc = subprocess.run([sys.executable, "-c", code],
+                              capture_output=True, text=True, timeout=300)
+        raw = (proc.stdout or "").strip()
+        picked = _json.loads(raw) if raw else []
+    except subprocess.TimeoutExpired:
+        return jsonify({"status": "error", "message": "Dialog timeout"}), 504
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    if not picked:
+        return jsonify({"status": "success", "files": [], "count": 0, "folder": ""})
+
+    if mode == "folder":
+        folder = os.path.normpath(picked[0])
+        out = _collect_pngs(folder, recursive)
+        return jsonify({"status": "success", "files": out,
+                        "count": len(out), "folder": folder})
+
+    out = [_png_info(fp) for fp in picked if os.path.isfile(fp)]
+    return jsonify({"status": "success", "files": out, "count": len(out), "folder": ""})
+
+
+@app.route("/api/spot-color-scan")
+def api_spot_color_scan():
+    """Daftar file PNG di sebuah folder/file di server (path + ukuran)."""
+    try:
+        path = (request.args.get("path", "") or "").strip().strip('"')
+        recursive = request.args.get("recursive") == "1"
+        if not path or not os.path.exists(path):
+            return jsonify({"status": "error", "message": f"Path tidak ditemukan: {path}"}), 404
+
+        out = _collect_pngs(path, recursive)
+        return jsonify({"status": "success", "files": out, "count": len(out)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/spot-color-auto", methods=["POST"])
+def api_spot_color_auto():
+    """Auto DTF/UV: proses PNG di server (path/folder), PDF ditulis di lokasi sama."""
+    try:
+        data = request.get_json(force=True) or {}
+        result = execute("spot_color", {
+            "auto":        True,
+            "path":        data.get("path", ""),
+            "preset":      data.get("preset", "dtf"),
+            "contract_px": int(data.get("contract_px", 2)),
+            "dpi":         int(data.get("dpi", 300)),
+        }, timeout_seconds=600)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/spot-color-zip", methods=["POST"])
+def api_spot_color_zip():
+    """Bundel beberapa PDF hasil batch jadi satu ZIP → sekali unduh saja."""
+    import io as _io, zipfile
+    from tasks.spot_color import OUTPUT_DIR
+    try:
+        data = request.get_json(force=True) or {}
+        files = data.get("files", [])
+        if not files:
+            return ("No files", 400)
+        buf = _io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            seen = set()
+            for fn in files:
+                if not fn or ".." in fn or "/" in fn or "\\" in fn:
+                    continue
+                fp = os.path.join(OUTPUT_DIR, fn)
+                if os.path.exists(fp) and fn not in seen:
+                    zf.write(fp, arcname=fn)
+                    seen.add(fn)
+        buf.seek(0)
+        return send_file(buf, as_attachment=True,
+                         download_name="spot_batch.zip", mimetype="application/zip")
+    except Exception as e:
+        return (str(e), 500)
 
 
 @app.route("/ui/api-docs")
@@ -6086,6 +7935,12 @@ const SECTIONS = [
    params:[['(payload)','object','wajib','JSON payload untuk task render_cmyk']],
    curl:`curl -X POST ${HOST}/ui/render-cmyk -H "Content-Type: application/json" -d '{...}'`,
    tester:{kind:'jsonraw', path:'/ui/render-cmyk', example:'{\n  "filepath": "D:\\\\gambar\\\\input.jpg"\n}'}
+  },
+  {method:'POST', path:'/ui/finishing-process', ctype:'application/json',
+   desc:'Proses gambar: tambahkan indikator plong, lebihan, dan pesan.',
+   params:[['(payload)','object','wajib','JSON payload untuk task finishing_process: {filepath, plong{}, lebihan{}, pesan{}}']],
+   curl:`curl -X POST ${HOST}/ui/finishing-process -H "Content-Type: application/json" -d '{...}'`,
+   tester:{kind:'jsonraw', path:'/ui/finishing-process', example:'{\n  "filepath": "D:\\\\gambar\\\\input.jpg",\n  "plong": {"enable": true, "jarak_plong_atas": 2, "jarak_plong_bawah": 2, "jarak_plong_kiri": 2, "jarak_plong_kanan": 2, "diameter_lebar": 1},\n  "lebihan": {"enable": true, "all": 2.5},\n  "pesan": {"enable": true, "text": "CONTOH"}\n}'}
   },
   {method:'POST', path:'/ui/export-cmyk-master', ctype:'application/json',
    desc:'Export master CMYK (TIFF/PDF) siap cetak.',

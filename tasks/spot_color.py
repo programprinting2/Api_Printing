@@ -13,7 +13,7 @@ Struktur PDF (1 halaman, N spot channels):
 import io, os, uuid
 import numpy as np
 import fitz
-from PIL import Image
+from PIL import Image, ImageFilter
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "spot_output")
 
@@ -44,6 +44,21 @@ _PS_TMPL = ("{{dup dup {b:.6f} mul 1.000000 add 3 1 roll "
 def _ensure_dir():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     return OUTPUT_DIR
+
+
+def _output_pdf_name(image_name: str, out_dir: str) -> str:
+    """Nama PDF output berbasis nama file input: A.png -> A.pdf.
+    Karakter tak aman dibersihkan; bila file sudah ada, beri sufiks angka."""
+    base = os.path.splitext(os.path.basename(image_name or "spot"))[0].strip()
+    safe = "".join(c if (c.isalnum() or c in " -_.") else "_" for c in base).strip()
+    safe = safe or "spot"
+    candidate = f"{safe}.pdf"
+    if not os.path.exists(os.path.join(out_dir, candidate)):
+        return candidate
+    i = 1
+    while os.path.exists(os.path.join(out_dir, f"{safe}_{i}.pdf")):
+        i += 1
+    return f"{safe}_{i}.pdf"
 
 
 def _encode_name(name: str) -> str:
@@ -105,7 +120,8 @@ def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str)
             main_img = bg
         else:
             main_img = main_img.convert("RGB")
-    main_img = _despeckle_main(main_img)
+    # Artwork dipakai apa adanya — despeckle dimatikan karena menghapus detail
+    # kecil yang sah (huruf/titik) pada gambar ber-background terang.
     w_px, h_px = main_img.size
     w_pt = w_px / dpi * 72.0
     h_pt = h_px / dpi * 72.0
@@ -113,6 +129,11 @@ def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str)
     doc  = fitz.open()
     page = doc.new_page(width=w_pt, height=h_pt)
     pxref = page.xref
+
+    # Urutan stacking: channel pertama (White) harus di ATAS. Di PDF, XObject
+    # yang digambar TERAKHIR tampil paling atas → proses secara terbalik supaya
+    # White (input pertama) digambar terakhir / jadi layer teratas.
+    channels = list(reversed(channels))
 
     spot_entries = []  # list of (name, im_name, xref_spot_img)
 
@@ -150,29 +171,23 @@ def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str)
         doc.update_object(xref_idx,
             f"[ /Indexed {xref_sep} 0 R 255 {xref_lut} 0 R ]")
 
-        # Spot image XObject — clean binary mask, small blobs removed
-        from scipy.ndimage import label as ndlabel
+        # Spot image XObject — WYSIWYG: mask diexport apa adanya sesuai seleksi.
+        # CATATAN: JANGAN membuang "blob kecil" di sini. Tiap huruf/detail adalah
+        # connected component tersendiri, jadi filter ukuran akan menghapus teks
+        # kecil & detail halus yang sengaja diseleksi user.
         mask_img = Image.fromarray(mask_np.astype(np.uint8)).convert("L")
-        mask_img = mask_img.resize((w_px, h_px), Image.NEAREST)
+        if mask_img.size != (w_px, h_px):
+            mask_img = mask_img.resize((w_px, h_px), Image.NEAREST)
 
-        # Hard binarize
         mask_arr = np.array(mask_img)
-        binary   = (mask_arr > 127)
+        mask_out = np.where(mask_arr > 127, np.uint8(255), np.uint8(0))
+        mask_img = Image.fromarray(mask_out, mode="L")
 
-        # Label connected components, remove blobs smaller than min_blob_px
-        # min_blob_px = 0.01% of image area (scales with image size)
-        min_blob_px = max(200, int(w_px * h_px * 0.0001))
-        labeled, num_features = ndlabel(binary)
-        if num_features > 0:
-            sizes = np.bincount(labeled.ravel())   # sizes[0] = background
-            sizes[0] = 0                           # ignore background label
-            keep = sizes >= min_blob_px
-            clean = keep[labeled]                  # True where blob is large enough
-        else:
-            clean = binary
-
-        mask_out = np.where(clean, np.uint8(255), np.uint8(0))
-        mask_img  = Image.fromarray(mask_out, mode="L")
+        # Anti-alias tepi seperti Photoshop: blur ringan → nilai grayscale di
+        # batas. Indexed→Separation (LUT identitas) memetakan grayscale ke tint
+        # parsial, jadi tepi mulus (bukan tangga piksel), 50% tetap di tepi asli.
+        aa = max(0.6, min(1.4, (w_px * h_px) ** 0.5 / 2200.0))
+        mask_img = mask_img.filter(ImageFilter.GaussianBlur(radius=aa))
         mask_raw  = mask_img.tobytes()
 
         xref_simg = doc.get_new_xref()
@@ -246,6 +261,80 @@ def _mask_to_np(mask_bytes: bytes) -> np.ndarray:
     return np.array(img)
 
 
+# ═══ AUTO MODE (server-side penuh) ═══════════════════════════════════════════
+# Preset: Object (alpha>=128) → Contract N px (putih beku) → Apply.
+# DTF = channel White; UV = White + Varnish (mask sama).
+# Hasil PDF ditulis DI FOLDER YANG SAMA dengan file input, nama sama (.pdf).
+
+def _auto_object_mask(png_path: str, contract_px: int) -> np.ndarray:
+    from scipy.ndimage import binary_erosion
+
+    img = Image.open(png_path).convert("RGBA")
+    arr = np.array(img)
+    obj = arr[:, :, 3] >= 128           # object = non-transparan (>=50% alpha)
+
+    mask = obj
+    if contract_px > 0:
+        mask = binary_erosion(obj, iterations=int(contract_px))
+        # Putih beku: piksel putih mempertahankan status object-nya,
+        # tidak ikut menyusut (sama seperti "Kecualikan putih" di editor).
+        rgb = arr[:, :, :3]
+        white = (rgb >= 245).all(axis=2)
+        mask = np.where(white, obj, mask)
+
+    return (mask.astype(np.uint8)) * 255
+
+
+def run_auto(data: dict) -> dict:
+    """
+    data: { path: file PNG atau folder di server,
+            preset: 'dtf'|'uv', contract_px: int, dpi: int }
+    Output: tiap A.png → A.pdf di folder yang sama (overwrite bila ada).
+    """
+    path        = (data.get("path") or "").strip().strip('"')
+    preset      = data.get("preset", "dtf")
+    contract_px = max(0, int(data.get("contract_px", 2)))
+    dpi         = int(data.get("dpi", 300))
+
+    if not path or not os.path.exists(path):
+        return {"status": "error", "message": f"Path tidak ditemukan: {path}"}
+
+    if os.path.isdir(path):
+        files = sorted(
+            os.path.join(path, f) for f in os.listdir(path)
+            if f.lower().endswith(".png")
+        )
+        if not files:
+            return {"status": "error", "message": f"Tidak ada file .png di folder: {path}"}
+    else:
+        if not path.lower().endswith(".png"):
+            return {"status": "error", "message": "Auto mode butuh file .png (perlu alpha channel)"}
+        files = [path]
+
+    results = []
+    for fp in files:
+        base = os.path.basename(fp)
+        try:
+            m = _auto_object_mask(fp, contract_px)
+            if int(m.sum()) == 0:
+                results.append({"file": base, "status": "error",
+                                "message": "tidak ada object (alpha kosong)"})
+                continue
+            chans = [{"name": "White", "mode": "white", "mask_np": m}]
+            if preset == "uv":
+                chans.append({"name": "Varnish", "mode": "varnish", "mask_np": m.copy()})
+            out_pdf = os.path.splitext(fp)[0] + ".pdf"
+            _build_spot_pdf(fp, chans, dpi, out_pdf)
+            results.append({"file": base, "status": "success",
+                            "output": os.path.basename(out_pdf)})
+        except Exception as e:
+            results.append({"file": base, "status": "error", "message": str(e)})
+
+    n_ok = sum(1 for r in results if r["status"] == "success")
+    return {"status": "success", "preset": preset, "n_files": len(files),
+            "n_success": n_ok, "results": results}
+
+
 def run(data: dict) -> dict:
     """
     data:
@@ -258,6 +347,10 @@ def run(data: dict) -> dict:
       spot_name   : str
       spot_mode   : str
     """
+    # Mode auto: proses file/folder langsung di server (lihat run_auto)
+    if data.get("auto"):
+        return run_auto(data)
+
     image_bytes = data.get("image_bytes")
     image_name  = data.get("image_name", "design.jpg")
     dpi         = int(data.get("dpi", 300))
@@ -279,7 +372,9 @@ def run(data: dict) -> dict:
     try:
         out_dir = _ensure_dir()
         uid      = uuid.uuid4().hex[:8]
-        out_name = f"spot_{uid}.pdf"
+        # Nama output = nama file input (A.png -> A.pdf). Bila sudah ada,
+        # tambahkan sufiks angka agar tidak menimpa (A_1.pdf, A_2.pdf, ...).
+        out_name = _output_pdf_name(image_name, out_dir)
         out_path = os.path.join(out_dir, out_name)
 
         ext = os.path.splitext(image_name)[1].lower() or ".jpg"

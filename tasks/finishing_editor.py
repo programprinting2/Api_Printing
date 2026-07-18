@@ -146,22 +146,56 @@ def run(payload):
         plong_cfg = payload.get("plong") or {}
         if plong_cfg.get("enable"):
             result_img = buat_plong_jumlah(result_img, plong_cfg, dpi, scale)
-            if plong_cfg.get("fold4"):
-                result_img = tambah_lipat_plong4(result_img, dpi, scale)
 
         lebihan_cfg = payload.get("lebihan") or {}
         if lebihan_cfg.get("enable"):
             all_val = lebihan_cfg.get("all", 2.5)
+            leb_top = lebihan_cfg.get("top", all_val)
+            leb_left = lebihan_cfg.get("left", all_val)
+            pre_w, pre_h = result_img.size
             leb_param = {
-                "Lebihan_atas": lebihan_cfg.get("top", all_val),
+                "Lebihan_atas": leb_top,
                 "Lebihan_bawah": lebihan_cfg.get("bottom", all_val),
-                "Lebihan_kiri": lebihan_cfg.get("left", all_val),
+                "Lebihan_kiri": leb_left,
                 "Lebihan_kanan": lebihan_cfg.get("right", all_val),
                 "WarnaBackground": lebihan_cfg.get("warna_background", "White"),
                 "WarnaGaris": lebihan_cfg.get("warna_garis", "lightgrey"),
                 "UkuranGaris": lebihan_cfg.get("ukuran_garis", 0.1),
             }
             result_img = tambah_background(result_img, leb_param, dpi, scale)
+
+            bingkai_mode = lebihan_cfg.get("bingkai_objek", "auto")
+            if bingkai_mode is True:
+                bingkai_mode = "on"
+            elif bingkai_mode is False:
+                bingkai_mode = "off"
+            draw_bingkai = bingkai_mode == "on"
+            if bingkai_mode == "auto":
+                bg_color_name = lebihan_cfg.get("warna_background", "White")
+                bg_rgb = get_color(bg_color_name, "RGB")
+                if not isinstance(bg_rgb, tuple):
+                    bg_rgb = (255, 255, 255)
+                orig_rgb = img.convert("RGB")
+                edge_pixels = []
+                for x in range(0, pre_w, max(1, pre_w // 32)):
+                    edge_pixels.append(orig_rgb.getpixel((x, 0)))
+                    edge_pixels.append(orig_rgb.getpixel((x, pre_h - 1)))
+                for y in range(0, pre_h, max(1, pre_h // 32)):
+                    edge_pixels.append(orig_rgb.getpixel((0, y)))
+                    edge_pixels.append(orig_rgb.getpixel((pre_w - 1, y)))
+                if edge_pixels:
+                    avg_r = sum(p[0] for p in edge_pixels) / len(edge_pixels)
+                    avg_g = sum(p[1] for p in edge_pixels) / len(edge_pixels)
+                    avg_b = sum(p[2] for p in edge_pixels) / len(edge_pixels)
+                    diff = abs(avg_r - bg_rgb[0]) + abs(avg_g - bg_rgb[1]) + abs(avg_b - bg_rgb[2])
+                    draw_bingkai = diff < 80
+            if draw_bingkai:
+                draw_b = ImageDraw.Draw(result_img)
+                lw = max(cm_ke_px(lebihan_cfg.get("ukuran_garis", 0.1), dpi, scale), 1)
+                warna_garis = get_color(lebihan_cfg.get("warna_garis", "lightgrey"), result_img.mode)
+                ox = cm_ke_px(leb_left, dpi, scale)
+                oy = cm_ke_px(leb_top, dpi, scale)
+                draw_b.rectangle((ox, oy, ox + pre_w - 1, oy + pre_h - 1), outline=warna_garis, width=lw)
 
         pesan_cfg = payload.get("pesan") or {}
         if pesan_cfg.get("enable"):

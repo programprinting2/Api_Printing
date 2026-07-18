@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imposa — Printing Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#16171b;
+    --bg-elev:#1c1d22;
+    --panel:#1e2024;
+    --panel-2:#212327;
+    --border:#2c2f36;
+    --border-soft:#25272d;
+    --text:#e9eaed;
+    --text-muted:#8b8d96;
+    --text-faint:#5e6069;
+    --cyan:#00b6d8;
+    --cyan-dim:#0a5568;
+    --magenta:#ec1e69;
+    --yellow:#f5c400;
+    --key:#e9eaed;
+    --green:#2ecc71;
+    --danger:#ff5470;
+    --radius:6px;
+    --sheet-bg:#0e0f12;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    display:grid;
+    grid-template-rows:auto 1fr auto;
+    grid-template-columns:1fr;
+    height:100vh;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:0 18px;
+    height:56px;
+    background:var(--bg-elev);
+    border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{display:flex;gap:3px;}
+  .brand-mark span{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .brand-mark .c{background:var(--cyan);}
+  .brand-mark .m{background:var(--magenta);}
+  .brand-mark .y{background:var(--yellow);}
+  .brand-mark .k{background:var(--key);}
+  .brand h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    font-size:19px;
+    letter-spacing:0.5px;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .brand small{
+    display:block;
+    font-size:10px;
+    color:var(--text-muted);
+    letter-spacing:0.6px;
+    font-weight:400;
+    text-transform:none;
+    margin-top:-2px;
+  }
+  .header-divider{width:1px;height:26px;background:var(--border);}
+  .header-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  input[type=file]{display:none;}
+
+  /* mode tabs in header */
+  .mode-tabs{
+    display:flex;background:var(--bg);border:1px solid var(--border);
+    border-radius:6px;padding:2px;gap:2px;
+  }
+  .mode-tabs button{
+    padding:7px 18px;background:transparent;border:none;color:var(--text-muted);
+    font-size:12px;font-weight:600;letter-spacing:.6px;border-radius:4px;cursor:pointer;
+    font-family:'Oswald',sans-serif;text-transform:uppercase;
+  }
+  .mode-tabs button.active{background:var(--cyan);color:#04262e;}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:8px 14px;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:var(--radius);
+    font-size:12.5px;font-weight:500;cursor:pointer;
+    transition:border-color .15s, background .15s;
+    font-family:'Inter',sans-serif;
+  }
+  .btn:hover{border-color:#40434c;background:#25272d;}
+  .btn:active{transform:translateY(1px);}
+  .btn.primary{background:var(--cyan);border-color:var(--cyan);color:#04262e;font-weight:600;}
+  .btn.primary:hover{background:#1fc4e6;}
+  .btn.primary:disabled{background:#22333a;border-color:#22333a;color:#556069;cursor:not-allowed;}
+  .btn.danger{color:var(--danger);border-color:rgba(255,84,112,.3);background:transparent;}
+  .btn.danger:hover{border-color:var(--danger);background:rgba(255,84,112,.06);}
+  .btn svg{width:14px;height:14px;flex-shrink:0;}
+  .back-link{color:var(--text-muted);text-decoration:none;font-size:11.5px;}
+  .back-link:hover{color:var(--cyan);}
+
+  /* ---------- MAIN LAYOUT ---------- */
+  .main{display:grid;grid-template-columns:280px 1fr;min-height:0;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    overflow-y:auto;
+    padding:6px 0 20px 0;
+  }
+  .sidebar::-webkit-scrollbar{width:8px;}
+  .sidebar::-webkit-scrollbar-thumb{background:#2a2c32;border-radius:4px;}
+
+  .section{padding:14px 16px;border-bottom:1px solid var(--border-soft);}
+  .section-title{
+    font-family:'Oswald',sans-serif;
+    font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--text-muted);margin:0 0 12px 0;
+    display:flex;align-items:center;gap:6px;
+  }
+  .section-title::before{
+    content:'';width:3px;height:11px;background:var(--cyan);display:inline-block;border-radius:1px;
+  }
+
+  .field{margin-bottom:10px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:5px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+
+  select, .num-input, .text-input{
+    width:100%;
+    background:var(--bg-elev);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:5px;
+    padding:7px 8px;
+    font-size:12.5px;
+    font-family:'JetBrains Mono',monospace;
+    outline:none;
+  }
+  select{font-family:'Inter',sans-serif;}
+  select:focus,.num-input:focus,.text-input:focus{border-color:var(--cyan);}
+  .num-wrap{position:relative;}
+  .num-wrap .unit{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    font-size:10px;color:var(--text-faint);pointer-events:none;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .num-wrap input{padding-right:26px;}
+  input[type=color]{
+    width:100%;height:30px;padding:2px;border:1px solid var(--border);
+    border-radius:5px;background:var(--bg-elev);cursor:pointer;
+  }
+
+  .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .mode-btn{
+    padding:10px 8px;
+    background:var(--bg-elev);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    color:var(--text-muted);
+    font-size:11px;font-weight:500;cursor:pointer;text-align:center;
+    transition:all .15s;line-height:1.3;
+  }
+  .mode-btn svg{display:block;margin:0 auto 5px;width:22px;height:18px;opacity:.7;}
+  .mode-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,182,216,0.08);}
+  .mode-btn.active svg{opacity:1;}
+  .mode-btn:hover{border-color:#4a4d56;}
+
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .toggle-row:last-child{margin-bottom:0;}
+  .toggle-row label{font-size:12px;color:var(--text);margin:0;}
+  .switch{position:relative;width:34px;height:19px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--border);border-radius:20px;cursor:pointer;transition:.15s;}
+  .slider::before{
+    content:'';position:absolute;width:14px;height:14px;left:3px;top:2.5px;
+    background:#c9cad0;border-radius:50%;transition:.15s;
+  }
+  input:checked + .slider{background:var(--cyan-dim);}
+  input:checked + .slider::before{transform:translateX(15px);background:var(--cyan);}
+
+  .check-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;}
+  .check-row:last-child{margin-bottom:0;}
+  .check-row input{width:14px;height:14px;accent-color:var(--cyan);cursor:pointer;}
+  .check-row span{font-size:12px;color:var(--text);}
+
+  .stepper{display:flex;align-items:center;gap:6px;}
+  .stepper button{
+    width:26px;height:26px;
+    background:var(--bg-elev);border:1px solid var(--border);
+    color:var(--text);border-radius:5px;cursor:pointer;font-size:14px;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .stepper button:hover{border-color:var(--cyan);color:var(--cyan);}
+  .stepper input{text-align:center;width:100%;}
+
+  .fit-btn{
+    width:100%;margin-top:8px;
+    padding:7px;font-size:11px;font-weight:500;
+    background:transparent;border:1px dashed var(--border);
+    color:var(--text-muted);border-radius:5px;cursor:pointer;
+  }
+  .fit-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+
+  /* merge drop zones */
+  .drop-zone{
+    display:flex;align-items:center;gap:8px;
+    border:1.5px dashed var(--border);border-radius:6px;
+    padding:9px 10px;cursor:pointer;transition:.15s;
+    background:var(--bg-elev);font-size:11.5px;color:var(--text-muted);
+    margin-bottom:8px;
+  }
+  .drop-zone:last-child{margin-bottom:0;}
+  .drop-zone:hover,.drop-zone.drag{border-color:var(--cyan);background:rgba(0,182,216,.05);}
+  .drop-zone.loaded{border-style:solid;border-color:var(--green);background:rgba(46,204,113,.04);}
+  .drop-zone .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .drop-zone .fname{
+    flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  }
+  .drop-zone.loaded .fname{color:var(--text);font-weight:600;}
+  .drop-zone .zone-del{
+    background:none;border:none;color:var(--text-faint);cursor:pointer;
+    font-size:13px;padding:0 2px;line-height:1;flex-shrink:0;display:none;
+  }
+  .drop-zone.loaded .zone-del{display:block;}
+  .drop-zone .zone-del:hover{color:var(--danger);}
+
+  /* object list */
+  .obj-item{
+    display:flex;align-items:center;gap:7px;padding:8px 9px;
+    border:1px solid var(--border);border-radius:6px;margin-bottom:6px;
+    cursor:pointer;transition:.12s;background:var(--bg-elev);
+  }
+  .obj-item:hover{border-color:#4a4d56;}
+  .obj-item.selected{border-color:var(--cyan);background:rgba(0,182,216,.06);}
+  .obj-item .obj-color{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .obj-item .obj-name{
+    flex:1;font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .obj-item .obj-dim{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-faint);}
+  .obj-item .obj-del{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:0 2px;line-height:1;flex-shrink:0;}
+  .obj-item .obj-del:hover{color:var(--danger);}
+  .obj-detail{
+    padding:9px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elev);
+    font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.7;color:var(--text-muted);
+    margin-top:4px;
+  }
+  .obj-detail b{color:var(--text);font-weight:600;}
+  .obj-detail .detail-label{
+    font-size:8px;letter-spacing:.12em;color:var(--text-faint);text-transform:uppercase;
+    margin-top:6px;margin-bottom:1px;font-family:'Oswald',sans-serif;
+  }
+  .obj-detail .detail-label:first-child{margin-top:0;}
+  .obj-empty{text-align:center;color:var(--text-faint);font-size:10.5px;padding:14px 8px;font-family:'JetBrains Mono',monospace;}
+
+  .badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.04em;}
+  .badge-cmyk{background:rgba(0,182,216,.12);color:var(--cyan);}
+  .badge-rgb{background:rgba(245,196,0,.12);color:var(--yellow);}
+  .badge-unknown{background:var(--panel-2);color:var(--text-faint);}
+
+  .align-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:8px;}
+  .align-grid button{
+    background:var(--bg-elev);border:1px solid var(--border);border-radius:4px;
+    padding:6px 0;cursor:pointer;font-size:12px;color:var(--text-muted);transition:.1s;
+  }
+  .align-grid button:hover{border-color:var(--cyan);color:var(--cyan);}
+
+  .result-bar{
+    display:none;padding:9px 10px;border-radius:6px;
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;margin-top:8px;line-height:1.5;
+  }
+  .result-bar.success{background:rgba(46,204,113,.08);border:1px solid rgba(46,204,113,.3);color:var(--green);display:block;}
+  .result-bar.error{background:rgba(255,84,112,.08);border:1px solid rgba(255,84,112,.3);color:var(--danger);display:block;}
+  .spinner{
+    display:inline-block;width:11px;height:11px;border:2px solid rgba(4,38,46,.35);
+    border-top-color:#04262e;border-radius:50%;animation:spin .7s linear infinite;
+    vertical-align:-2px;margin-right:4px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .preview-result-pane iframe{
+    width:100%;height:260px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-top:8px;
+  }
+
+  /* ---------- STAGE ---------- */
+  .stage{
+    position:relative;
+    display:flex;flex-direction:column;min-width:0;
+    background:
+      radial-gradient(circle at 1px 1px, #212327 1px, transparent 0) 0 0/18px 18px,
+      var(--bg);
+  }
+  .stage-toolbar{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 18px;
+    border-bottom:1px solid var(--border);
+    background:rgba(28,29,34,0.7);
+    backdrop-filter:blur(6px);
+    flex-shrink:0;flex-wrap:wrap;
+  }
+  .side-tabs{
+    display:flex;background:var(--bg-elev);border:1px solid var(--border);
+    border-radius:6px;padding:2px;gap:2px;
+  }
+  .side-tabs button{
+    padding:6px 16px;background:transparent;border:none;color:var(--text-muted);
+    font-size:11.5px;font-weight:600;letter-spacing:.4px;border-radius:4px;cursor:pointer;
+    font-family:'Oswald',sans-serif;text-transform:uppercase;
+  }
+  .side-tabs button.active{background:var(--cyan);color:#04262e;}
+  .zoom-controls{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace;
+  }
+  .zoom-controls button{
+    min-width:26px;height:26px;background:var(--bg-elev);border:1px solid var(--border);
+    color:var(--text);border-radius:5px;cursor:pointer;font-size:11px;padding:0 7px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .zoom-controls button:hover{border-color:var(--cyan);color:var(--cyan);}
+  .zoom-controls button.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,182,216,.08);}
+  .zoom-controls button:disabled{opacity:.35;cursor:not-allowed;}
+  .tool-sep{width:1px;height:20px;background:var(--border);}
+  .cursor-pos{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-faint);}
+  .cursor-pos b{color:var(--cyan);font-weight:600;}
+
+  .canvas-wrap{
+    flex:1;overflow:auto;
+    display:flex;align-items:center;justify-content:center;
+    padding:30px;
+  }
+  #sheetCanvas{
+    background:var(--sheet-bg);
+    box-shadow:0 0 0 1px var(--border), 0 20px 60px -20px rgba(0,0,0,.6);
+    border-radius:2px;
+  }
+
+  /* merge viewport */
+  .merge-viewport{flex:1;overflow:auto;position:relative;cursor:default;}
+  .ruler{position:absolute;background:#1a1c20;color:var(--text-faint);font-family:'JetBrains Mono',monospace;font-size:9px;z-index:10;pointer-events:none;user-select:none;overflow:hidden;}
+  .ruler.top{top:0;left:22px;right:0;height:22px;border-bottom:1px solid var(--border);}
+  .ruler.left{left:0;top:22px;bottom:0;width:22px;border-right:1px solid var(--border);}
+  .ruler .r-corner{position:absolute;left:0;top:0;width:22px;height:22px;background:#1a1c20;border-right:1px solid var(--border);border-bottom:1px solid var(--border);z-index:11;}
+  .ruler .tick{position:absolute;color:var(--text-muted);}
+  .ruler.top .tick{top:2px;transform:translateX(-50%);border-left:1px solid var(--border);padding-left:2px;height:20px;line-height:10px;}
+  .ruler.left .tick{left:2px;transform:translateY(-50%);border-top:1px solid var(--border);padding-top:1px;width:20px;text-align:right;padding-right:2px;}
+  .ruler .cursor-mark{position:absolute;background:var(--cyan);opacity:.6;}
+  .ruler.top .cursor-mark{top:0;bottom:0;width:1px;}
+  .ruler.left .cursor-mark{left:0;right:0;height:1px;}
+
+  /* floating object toolbar */
+  .obj-toolbar{
+    position:absolute;display:none;z-index:20;
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:5px;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.45);
+    flex-direction:row;align-items:center;
+  }
+  .obj-toolbar.open{display:inline-flex;}
+  .obj-toolbar button{
+    width:30px;height:30px;background:transparent;border:none;border-radius:5px;
+    color:var(--text-muted);cursor:pointer;font-size:14px;
+    display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .obj-toolbar button:hover{background:var(--panel-2);color:var(--cyan);}
+  .obj-toolbar button.active{color:var(--cyan);background:rgba(0,182,216,.1);}
+  .obj-toolbar .sep{width:1px;height:20px;background:var(--border);margin:0 2px;}
+  .obj-popover{
+    position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;
+    background:var(--panel);border:1px solid var(--border);border-radius:6px;
+    padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:21;
+    display:none;
+  }
+  .obj-popover.open{display:block;}
+  .obj-popover.align-grid3{grid-template-columns:repeat(3,26px);gap:4px;}
+  .obj-popover.align-grid3.open{display:grid;}
+  .obj-popover button{
+    width:26px;height:26px;background:var(--bg-elev);border:1px solid var(--border);
+    color:var(--text-muted);border-radius:4px;cursor:pointer;font-size:12px;padding:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .obj-popover button:hover{border-color:var(--cyan);color:var(--cyan);}
+  .obj-dim-badge{
+    position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:8px;
+    background:#111318;color:var(--text);border:1px solid var(--border);border-radius:4px;
+    padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;white-space:nowrap;
+    pointer-events:none;
+  }
+  .merge-viewport.panning{cursor:grab;}
+  .merge-viewport.panning-active{cursor:grabbing;}
+  .sheet-wrap{
+    display:flex;align-items:center;justify-content:center;
+    padding:40px;min-width:100%;min-height:100%;
+  }
+  .msheet{
+    position:relative;background:#fff;flex-shrink:0;margin:0 auto;display:block;
+    box-shadow:0 0 0 1px var(--border), 0 20px 60px -20px rgba(0,0,0,.7);
+    border-radius:2px;
+  }
+  .msheet.grid-on{
+    background-image:linear-gradient(rgba(0,120,255,.07) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,120,255,.07) 1px,transparent 1px);
+  }
+  .print-area{position:absolute;border:1.5px dashed rgba(0,182,216,.5);pointer-events:none;z-index:1;}
+  .print-area-label{
+    position:absolute;top:-15px;left:0;
+    font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--cyan);letter-spacing:.08em;
+  }
+  .pdf-block{position:absolute;z-index:2;cursor:move;outline:2px solid transparent;transition:outline-color .12s;}
+  .pdf-block:hover{outline-color:rgba(0,182,216,.45);}
+  .pdf-block.selected{outline-color:var(--cyan);}
+  .pdf-block canvas{display:block;width:100%;height:100%;}
+  .pdf-label{
+    position:absolute;top:-16px;left:0;
+    font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;
+    padding:1px 5px;border-radius:2px;white-space:nowrap;
+  }
+  .pdf-label.a{background:rgba(0,182,216,.18);color:var(--cyan);}
+  .pdf-label.b{background:rgba(245,196,0,.18);color:var(--yellow);}
+  .cut-line-svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:visible;}
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    display:flex;align-items:center;gap:18px;
+    padding:0 18px;height:32px;
+    background:var(--bg-elev);border-top:1px solid var(--border);
+    font-size:11px;color:var(--text-muted);
+    font-family:'JetBrains Mono',monospace;
+    flex-shrink:0;overflow:hidden;white-space:nowrap;
+  }
+  footer .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex-shrink:0;}
+  footer .warn{color:var(--yellow);}
+  footer .sep{width:1px;height:14px;background:var(--border);flex-shrink:0;}
+  footer .spacer{margin-left:auto;}
+  footer b{color:var(--cyan);font-weight:600;}
+
+  /* shortcuts modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:20px 24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);
+  }
+  .modal h2{margin:0 0 12px;font-size:16px;font-family:'Oswald',sans-serif;letter-spacing:.5px;text-transform:uppercase;}
+  .modal .close-btn{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);}
+  .sc-grid{display:grid;grid-template-columns:120px 1fr;gap:4px 12px;font-size:12px;font-family:'JetBrains Mono',monospace;}
+  .sc-grid .k{color:var(--cyan);font-weight:600;}
+  .sc-grid .d{color:var(--text-muted);}
+  .sc-divider{grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;}
+
+  ::selection{background:var(--cyan);color:#04262e;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark"><span class="c"></span><span class="m"></span><span class="y"></span><span class="k"></span></div>
+      <div>
+        <h1>Imposa</h1>
+        <small>Printing Agent — merge & imposition</small>
+      </div>
+    </div>
+
+    <div class="header-divider"></div>
+
+    <div class="mode-tabs">
+      <button id="tabMerge" class="active">Merge</button>
+      <button id="tabImpose">Imposisi</button>
+    </div>
+
+    <div class="header-actions">
+      <!-- merge actions -->
+      <span class="app-merge">
+        <button class="btn primary" id="btnCompose" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Gabungkan
+        </button>
+        <button class="btn danger" id="btnReset">Reset</button>
+      </span>
+      <!-- impose actions -->
+      <span class="app-impose" style="display:none">
+        <button class="btn primary" id="exportBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Export Imposisi PDF
+        </button>
+      </span>
+      <div class="header-divider"></div>
+      <a class="back-link" href="/ui">← Menu</a>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar">
+
+      <!-- ===== MERGE SIDEBAR ===== -->
+      <div class="app-merge" id="sidebarMerge">
+
+        <div class="section">
+          <p class="section-title">File PDF</p>
+          <div class="drop-zone" id="dropA">
+            <span class="dot" style="background:var(--cyan)"></span>
+            <span class="fname" id="fnameA">File A — klik / drag</span>
+            <button class="zone-del" title="Hapus" onclick="event.stopPropagation();deleteFile('A')">✕</button>
+            <input type="file" id="fileA" accept=".pdf">
+          </div>
+          <div class="drop-zone" id="dropB">
+            <span class="dot" style="background:var(--yellow)"></span>
+            <span class="fname" id="fnameB">File B — klik / drag</span>
+            <button class="zone-del" title="Hapus" onclick="event.stopPropagation();deleteFile('B')">✕</button>
+            <input type="file" id="fileB" accept=".pdf">
+          </div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Ukuran Lembar</p>
+          <div class="row2">
+            <div class="field"><label>Lebar lembar</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="sheetW" value="32.5" step="0.1" min="1"><span class="unit">cm</span></div></div>
+            <div class="field"><label>Panjang lembar</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="sheetH" value="96" step="0.1" min="1"><span class="unit">cm</span></div></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Lebar cetak</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="printW" value="31" step="0.1" min="1"><span class="unit">cm</span></div></div>
+            <div class="field"><label>Panjang cetak</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="printH" value="95" step="0.1" min="1"><span class="unit">cm</span></div></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Objects</p>
+          <div id="objList"><div class="obj-empty">Belum ada file</div></div>
+          <div id="objDetail"></div>
+        </div>
+
+        <div class="section" id="posSecA" style="display:none">
+          <p class="section-title">Posisi A</p>
+          <div class="row3">
+            <div class="field"><label>X</label><div class="num-wrap"><input class="num-input" type="number" id="posAx" value="0" step="0.1"><span class="unit">cm</span></div></div>
+            <div class="field"><label>Y</label><div class="num-wrap"><input class="num-input" type="number" id="posAy" value="0" step="0.1"><span class="unit">cm</span></div></div>
+            <div class="field"><label>Rotasi</label><select id="rotA"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></div>
+          </div>
+        </div>
+
+        <div class="section" id="posSecB" style="display:none">
+          <p class="section-title">Posisi B</p>
+          <div class="row3">
+            <div class="field"><label>X</label><div class="num-wrap"><input class="num-input" type="number" id="posBx" value="0" step="0.1"><span class="unit">cm</span></div></div>
+            <div class="field"><label>Y</label><div class="num-wrap"><input class="num-input" type="number" id="posBy" value="0" step="0.1"><span class="unit">cm</span></div></div>
+            <div class="field"><label>Rotasi</label><select id="rotB"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></div>
+          </div>
+        </div>
+
+        <div class="section" id="alignSection" style="display:none">
+          <p class="section-title">Align</p>
+          <div class="align-grid">
+            <button onclick="alignSel('left')" title="Kiri">⫷</button>
+            <button onclick="alignSel('centerH')" title="Center H">⫿</button>
+            <button onclick="alignSel('right')" title="Kanan">⫸</button>
+            <button onclick="alignSel('top')" title="Atas">⤒</button>
+            <button onclick="alignSel('centerV')" title="Center V">⫾</button>
+            <button onclick="alignSel('bottom')" title="Bawah">⤓</button>
+          </div>
+          <button class="fit-btn" onclick="autoLayout('v')">↕ Susun vertikal</button>
+          <button class="fit-btn" onclick="autoLayout('h')">↔ Susun horizontal</button>
+          <button class="fit-btn" onclick="autoLayout('c')">⊞ Center keduanya</button>
+        </div>
+
+        <div class="section" id="cutLineSection" style="display:none">
+          <p class="section-title">Garis Potong</p>
+          <div class="toggle-row">
+            <label>Tampilkan garis potong</label>
+            <label class="switch"><input type="checkbox" id="cutLineEnabled" checked><span class="slider"></span></label>
+          </div>
+          <div class="row3">
+            <div class="field"><label>Tebal</label><input class="num-input" type="number" id="cutLineWidth" value="0.5" step="0.1" min="0.1" max="5"></div>
+            <div class="field"><label>Jenis</label><select id="cutLineStyle"><option value="solid">Solid</option><option value="dashed" selected>Dashed</option><option value="dotted">Dotted</option><option value="dash-dot">Dash-dot</option></select></div>
+            <div class="field"><label>Warna</label><input type="color" id="cutLineColor" value="#000000"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Arah</label><select id="cutLineDir"><option value="auto">Auto</option><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></div>
+            <div class="field"><label>Extend</label><div class="num-wrap"><input class="num-input" type="number" id="cutLineExtend" value="1" step="0.1" min="0" max="5"><span class="unit">cm</span></div></div>
+          </div>
+        </div>
+
+        <div class="section" id="outputSection" style="display:none">
+          <p class="section-title">Output</p>
+          <div class="field"><label>Nama file</label><input class="text-input" type="text" id="outputName" value="merged.pdf"></div>
+          <div class="toggle-row">
+            <label>Sertakan garis potong</label>
+            <label class="switch"><input type="checkbox" id="includeCutLine" checked><span class="slider"></span></label>
+          </div>
+          <div class="result-bar" id="resultBar"></div>
+          <div class="preview-result-pane" id="previewResult" style="display:none"><iframe id="resultIframe" src="about:blank"></iframe></div>
+        </div>
+
+      </div>
+
+      <!-- ===== IMPOSE SIDEBAR ===== -->
+      <div class="app-impose" id="sidebarImpose" style="display:none">
+
+        <div class="section">
+          <p class="section-title">File PDF</p>
+          <label class="btn" for="pdfInput" style="width:100%;justify-content:center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            Muat PDF
+          </label>
+          <input type="file" id="pdfInput" accept="application/pdf">
+          <div class="obj-empty" id="impFileName" style="padding:8px 4px;">Belum ada file dimuat</div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Ukuran Lembar</p>
+          <div class="field">
+            <label>Preset lembar cetak</label>
+            <select id="sheetPreset">
+              <option value="A4">A4 — 210 × 297 mm</option>
+              <option value="A3" selected>A3 — 297 × 420 mm</option>
+              <option value="SRA3">SRA3 — 320 × 450 mm</option>
+              <option value="F4">Folio besar — 330 × 480 mm</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Lebar</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="impSheetW" value="297"><span class="unit">mm</span></div></div>
+            <div class="field"><label>Tinggi</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="impSheetH" value="420"><span class="unit">mm</span></div></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Ukuran Halaman</p>
+          <div class="row2">
+            <div class="field"><label>Lebar</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="pageW" value="148"><span class="unit">mm</span></div></div>
+            <div class="field"><label>Tinggi</label>
+              <div class="num-wrap"><input class="num-input" type="number" id="pageH" value="210"><span class="unit">mm</span></div></div>
+          </div>
+          <div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">Otomatis terisi saat PDF dimuat.</div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Mode Imposisi</p>
+          <div class="mode-grid">
+            <div class="mode-btn active" data-mode="nup">
+              <svg viewBox="0 0 24 16"><rect x="1" y="1" width="10" height="14" rx="1" fill="none" stroke="currentColor"/><rect x="13" y="1" width="10" height="14" rx="1" fill="none" stroke="currentColor"/></svg>
+              N-UP
+            </div>
+            <div class="mode-btn" data-mode="cutstack">
+              <svg viewBox="0 0 24 16"><rect x="1" y="1" width="21" height="6" rx="1" fill="none" stroke="currentColor"/><rect x="1" y="9" width="21" height="6" rx="1" fill="none" stroke="currentColor"/></svg>
+              Cut & Stack
+            </div>
+            <div class="mode-btn" data-mode="booklet">
+              <svg viewBox="0 0 24 16"><path d="M12 1v14M2 2h9v13H2zM13 2h9v13h-9z" fill="none" stroke="currentColor"/></svg>
+              Booklet
+            </div>
+            <div class="mode-btn" data-mode="calendar">
+              <svg viewBox="0 0 24 16"><rect x="1" y="2" width="22" height="12" rx="1" fill="none" stroke="currentColor"/><path d="M1 6h22M6 2v2M18 2v2" stroke="currentColor"/></svg>
+              Calendar
+            </div>
+          </div>
+          <button class="fit-btn" id="autoFitBtn">Auto-fit rows × columns</button>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Layout</p>
+          <div class="row2">
+            <div class="field"><label>Baris (rows)</label>
+              <div class="stepper">
+                <button data-step="rows" data-dir="-1">–</button>
+                <input class="num-input" id="rowsInput" type="number" value="2" min="1">
+                <button data-step="rows" data-dir="1">+</button>
+              </div></div>
+            <div class="field"><label>Kolom (cols)</label>
+              <div class="stepper">
+                <button data-step="cols" data-dir="-1">–</button>
+                <input class="num-input" id="colsInput" type="number" value="2" min="1">
+                <button data-step="cols" data-dir="1">+</button>
+              </div></div>
+          </div>
+          <div class="toggle-row">
+            <label>Dua sisi (bolak-balik)</label>
+            <label class="switch"><input type="checkbox" id="twoSided" checked><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <label>Mirror sisi belakang</label>
+            <label class="switch"><input type="checkbox" id="mirrorBack" checked><span class="slider"></span></label>
+          </div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Margin &amp; Jarak</p>
+          <div class="row2">
+            <div class="field"><label>Margin atas/bawah</label>
+              <div class="num-wrap"><input class="num-input" id="marginV" type="number" value="10"><span class="unit">mm</span></div></div>
+            <div class="field"><label>Margin kiri/kanan</label>
+              <div class="num-wrap"><input class="num-input" id="marginH" type="number" value="10"><span class="unit">mm</span></div></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Jarak antar baris</label>
+              <div class="num-wrap"><input class="num-input" id="gapV" type="number" value="4"><span class="unit">mm</span></div></div>
+            <div class="field"><label>Jarak antar kolom</label>
+              <div class="num-wrap"><input class="num-input" id="gapH" type="number" value="4"><span class="unit">mm</span></div></div>
+          </div>
+          <div class="toggle-row" style="margin-top:2px;">
+            <label>Bleed (area buang)</label>
+            <label class="switch"><input type="checkbox" id="bleedOn"><span class="slider"></span></label>
+          </div>
+          <div class="field" id="bleedField" style="display:none;margin-top:8px;">
+            <label>Ukuran bleed</label>
+            <div class="num-wrap"><input class="num-input" id="bleedMm" type="number" value="3"><span class="unit">mm</span></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <p class="section-title">Tanda Cetak</p>
+          <label class="check-row"><input type="checkbox" id="markTrim" checked><span>Trim marks (tanda potong)</span></label>
+          <label class="check-row"><input type="checkbox" id="markReg"><span>Registration marks</span></label>
+          <label class="check-row"><input type="checkbox" id="markNum" checked><span>Nomor halaman</span></label>
+          <label class="check-row"><input type="checkbox" id="markFold"><span>Garis lipat</span></label>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- ================= STAGE ================= -->
+    <main class="stage">
+
+      <!-- ===== MERGE STAGE ===== -->
+      <div class="app-merge" id="stageMerge" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+        <div class="stage-toolbar">
+          <div class="zoom-controls" style="margin-left:0;">
+            <button id="btnUndo" disabled title="Undo (Ctrl+Z)">↶</button>
+            <button id="btnRedo" disabled title="Redo (Ctrl+Y)">↷</button>
+          </div>
+          <div class="tool-sep"></div>
+          <div class="zoom-controls" style="margin-left:0;">
+            <button id="mZoomOut" title="Zoom Out">–</button>
+            <span id="zoomVal">fit</span>
+            <button id="mZoomIn" title="Zoom In">+</button>
+            <button id="zoomFit" title="Fit (Ctrl+0)">Fit</button>
+            <button id="zoom100" title="1:1 (Ctrl+1)">1:1</button>
+          </div>
+          <div class="tool-sep"></div>
+          <div class="zoom-controls" style="margin-left:0;">
+            <button id="btnRotDisplay" title="Rotate View (R)">⟳ <span id="orientLabel">V</span></button>
+            <button id="btnRotObj" title="Rotate objek terpilih 90° (Shift+R)">⟲ Obj</button>
+            <button id="btnGrid" title="Grid (G)">▦</button>
+            <button id="btnSnap" class="active" title="Snap (S)">⌗</button>
+            <button id="btnShortcuts" title="Shortcuts (?)">?</button>
+          </div>
+          <div class="zoom-controls">
+            <span class="cursor-pos">Cursor: <b id="cursorPos">— , —</b></span>
+            <span class="cursor-pos">Sel: <b id="selDisplay">—</b></span>
+          </div>
+        </div>
+        <div class="merge-viewport" id="viewport">
+          <div class="ruler top" id="rulerTop"></div>
+          <div class="ruler left" id="rulerLeft"></div>
+          <div class="ruler"><div class="r-corner"></div></div>
+          <div class="sheet-wrap" id="sheetWrap" style="padding-top:22px;padding-left:22px;">
+            <div class="msheet" id="sheet">
+              <div class="print-area" id="printArea"><span class="print-area-label">AREA CETAK</span></div>
+            </div>
+          </div>
+          <div class="obj-toolbar" id="objToolbar">
+            <button id="tbFit" title="Fit ke area cetak">⛶</button>
+            <button id="tbAlign" title="Reposisi / align">⊞</button>
+            <button id="tbDup" title="Duplicate">⧉</button>
+            <button id="tbRotObj" title="Rotate 90°">⟳ <span id="tbRotLabel" style="font-size:9px;margin-left:2px;">0°</span></button>
+            <button id="tbMark" title="Marking (garis potong)">◈</button>
+            <div class="sep"></div>
+            <button id="tbDel" title="Hapus" style="color:var(--danger)">✕</button>
+            <div class="obj-popover align-grid3" id="dupPop">
+              <button data-d="tl" title="Duplicate Top-Left">⌜</button>
+              <button data-d="tc" title="Duplicate Top-Center">⌢</button>
+              <button data-d="tr" title="Duplicate Top-Right">⌝</button>
+              <button data-d="ml" title="Duplicate Mid-Left">⊣</button>
+              <button data-d="mc" title="Duplicate Center">✚</button>
+              <button data-d="mr" title="Duplicate Mid-Right">⊢</button>
+              <button data-d="bl" title="Duplicate Bot-Left">⌞</button>
+              <button data-d="bc" title="Duplicate Bot-Center">⌣</button>
+              <button data-d="fill" title="Duplicate memenuhi area kerja" style="color:var(--cyan);border-color:var(--cyan);">⊞</button>
+            </div>
+            <div class="obj-popover align-grid3" id="alignPop">
+              <button data-a="tl" title="Top-Left">⌜</button>
+              <button data-a="tc" title="Top-Center">⌢</button>
+              <button data-a="tr" title="Top-Right">⌝</button>
+              <button data-a="ml" title="Mid-Left">⊣</button>
+              <button data-a="mc" title="Center">✚</button>
+              <button data-a="mr" title="Mid-Right">⊢</button>
+              <button data-a="bl" title="Bot-Left">⌞</button>
+              <button data-a="bc" title="Bot-Center">⌣</button>
+              <button data-a="br" title="Bot-Right">⌟</button>
+            </div>
+            <div class="obj-dim-badge" id="objDimBadge">— × —</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== IMPOSE STAGE ===== -->
+      <div class="app-impose" id="stageImpose" style="display:none;flex-direction:column;flex:1;min-height:0;">
+        <div class="stage-toolbar">
+          <div class="side-tabs">
+            <button id="tabFront" class="active">Depan</button>
+            <button id="tabBack">Belakang</button>
+          </div>
+          <div class="zoom-controls">
+            <button id="iZoomOut">–</button>
+            <span id="zoomLabel">100%</span>
+            <button id="iZoomIn">+</button>
+          </div>
+        </div>
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="sheetCanvas" width="800" height="1100"></canvas>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    <span class="dot"></span>
+    <!-- merge footer -->
+    <span class="app-merge" style="display:flex;align-items:center;gap:18px;flex:1;">
+      <span>Lembar: <b id="stSheet">—</b></span><span class="sep"></span>
+      <span>Cetak: <b id="stPrint">—</b></span><span class="sep"></span>
+      <span>A: <b id="stA">—</b></span><span class="sep"></span>
+      <span>B: <b id="stB">—</b></span><span class="sep"></span>
+      <span>View: <b id="stOrient">Vertikal</b></span><span class="sep"></span>
+      <span>Zoom: <b id="stZoom">fit</b></span>
+    </span>
+    <!-- impose footer -->
+    <span class="app-impose" style="display:none;align-items:center;gap:18px;flex:1;">
+      <span id="statMode">Mode: N-UP</span><span class="sep"></span>
+      <span id="statSheet">Lembar: 297 × 420 mm</span><span class="sep"></span>
+      <span id="statPos">Posisi: 2×2 = 4 / sisi</span><span class="sep"></span>
+      <span id="statPages">Total halaman: 0</span><span class="sep"></span>
+      <span id="statSheets">Jumlah lembar: 0</span>
+      <span class="spacer" id="statWarn"></span>
+    </span>
+  </footer>
+
+</div>
+
+<!-- SHORTCUTS MODAL -->
+<div class="modal-overlay" id="shortcutsModal">
+<div class="modal">
+  <button class="close-btn" onclick="document.getElementById('shortcutsModal').classList.remove('open')">✕</button>
+  <h2>Keyboard Shortcuts</h2>
+  <div class="sc-grid">
+    <span class="k">Ctrl+Z</span><span class="d">Undo</span>
+    <span class="k">Ctrl+Y</span><span class="d">Redo</span>
+    <div class="sc-divider"></div>
+    <span class="k">Scroll</span><span class="d">Zoom ke posisi kursor</span>
+    <span class="k">Ctrl+0</span><span class="d">Fit to view</span>
+    <span class="k">Ctrl+1</span><span class="d">Actual size (1:1)</span>
+    <span class="k">Ctrl++/-</span><span class="d">Zoom in / out</span>
+    <div class="sc-divider"></div>
+    <span class="k">Space+Drag</span><span class="d">Pan lembar kerja</span>
+    <span class="k">Middle Btn</span><span class="d">Pan lembar kerja</span>
+    <div class="sc-divider"></div>
+    <span class="k">Tab</span><span class="d">Switch seleksi A ↔ B</span>
+    <span class="k">Escape</span><span class="d">Deselect</span>
+    <span class="k">Delete</span><span class="d">Hapus file terpilih</span>
+    <span class="k">Arrow</span><span class="d">Geser 0.5mm</span>
+    <span class="k">Shift+Arrow</span><span class="d">Geser 5mm</span>
+    <div class="sc-divider"></div>
+    <span class="k">G</span><span class="d">Toggle grid</span>
+    <span class="k">S</span><span class="d">Toggle snap</span>
+    <span class="k">R</span><span class="d">Rotate view V/H</span>
+    <span class="k">Shift+R</span><span class="d">Rotate objek terpilih 90°</span>
+    <span class="k">?</span><span class="d">Shortcuts</span>
+  </div>
+</div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ══════════════════════ APP MODE SWITCH ══════════════════════ */
+let appMode='merge';
+function setAppMode(m){
+  appMode=m;
+  document.getElementById('tabMerge').classList.toggle('active',m==='merge');
+  document.getElementById('tabImpose').classList.toggle('active',m==='impose');
+  document.getElementById('sidebarMerge').style.display=m==='merge'?'block':'none';
+  document.getElementById('sidebarImpose').style.display=m==='impose'?'block':'none';
+  document.getElementById('stageMerge').style.display=m==='merge'?'flex':'none';
+  document.getElementById('stageImpose').style.display=m==='impose'?'flex':'none';
+  document.querySelectorAll('.header-actions .app-merge').forEach(el=>el.style.display=m==='merge'?'inline-flex':'none');
+  document.querySelectorAll('.header-actions .app-impose').forEach(el=>el.style.display=m==='impose'?'inline-flex':'none');
+  document.querySelectorAll('footer .app-merge').forEach(el=>el.style.display=m==='merge'?'flex':'none');
+  document.querySelectorAll('footer .app-impose').forEach(el=>el.style.display=m==='impose'?'flex':'none');
+  if(m==='merge')renderPreview();else render();
+}
+document.getElementById('tabMerge').addEventListener('click',()=>setAppMode('merge'));
+document.getElementById('tabImpose').addEventListener('click',()=>setAppMode('impose'));
+
+/* ╔════════════════════════════════════════════════════════════╗
+   ║                       MERGE MODE                           ║
+   ╚════════════════════════════════════════════════════════════╝ */
+const CM2PT=28.3465, PT2CM=1/CM2PT, PX_PER_CM=10;
+
+const S={
+  fileA:null,fileB:null,pdfA:null,pdfB:null,pageA:null,pageB:null,
+  dimA:null,dimB:null,colorA:'?',colorB:'?',
+  canvasA:null,canvasB:null,blockA:null,blockB:null,
+  nameA:'',nameB:'',sizeA:0,sizeB:0,pagesA:0,pagesB:0,vpA:null,vpB:null,
+  zoom:0,zoomLevel:1,displayRotated:false,
+  gridOn:false,snapOn:true,selected:null,
+};
+
+const history={stack:[],idx:-1,max:80,
+  snap(){
+    const s={ax:val('posAx'),ay:val('posAy'),bx:val('posBx'),by:val('posBy'),
+      rA:document.getElementById('rotA').value,rB:document.getElementById('rotB').value};
+    if(this.idx>=0){const p=this.stack[this.idx];if(p.ax===s.ax&&p.ay===s.ay&&p.bx===s.bx&&p.by===s.by&&p.rA===s.rA&&p.rB===s.rB)return;}
+    this.stack=this.stack.slice(0,this.idx+1);this.stack.push(s);
+    if(this.stack.length>this.max)this.stack.shift();
+    this.idx=this.stack.length-1;this.updateUI();
+  },
+  undo(){if(this.idx>0){this.idx--;this.apply();}},
+  redo(){if(this.idx<this.stack.length-1){this.idx++;this.apply();}},
+  apply(){const s=this.stack[this.idx];
+    document.getElementById('posAx').value=s.ax;document.getElementById('posAy').value=s.ay;
+    document.getElementById('posBx').value=s.bx;document.getElementById('posBy').value=s.by;
+    document.getElementById('rotA').value=s.rA;document.getElementById('rotB').value=s.rB;
+    this.updateUI();renderPreview();},
+  updateUI(){document.getElementById('btnUndo').disabled=this.idx<=0;document.getElementById('btnRedo').disabled=this.idx>=this.stack.length-1;}
+};
+
+const $vp=document.getElementById('viewport');
+const $sheet=document.getElementById('sheet');
+const $printArea=document.getElementById('printArea');
+
+function val(id){return parseFloat(document.getElementById(id).value)||0;}
+function ptToCm(pt){return+(pt*PT2CM).toFixed(2);}
+function ptToMm(pt){return+(pt*PT2CM*10).toFixed(1);}
+function ptToInch(pt){return+(pt/72).toFixed(3);}
+function bytesH(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(2)+' MB';}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+function setupDrop(dropEl,inputId,which){
+  const inp=document.getElementById(inputId);
+  dropEl.addEventListener('click',e=>{if(e.target.tagName!=='INPUT'&&e.target.tagName!=='BUTTON')inp.click();});
+  dropEl.addEventListener('dragover',e=>{e.preventDefault();dropEl.classList.add('drag');});
+  dropEl.addEventListener('dragleave',()=>dropEl.classList.remove('drag'));
+  dropEl.addEventListener('drop',e=>{e.preventDefault();dropEl.classList.remove('drag');const f=e.dataTransfer.files[0];if(f&&f.type==='application/pdf')loadPDF(f,which);});
+  inp.addEventListener('change',e=>{if(e.target.files[0])loadPDF(e.target.files[0],which);});
+}
+setupDrop(document.getElementById('dropA'),'fileA','A');
+setupDrop(document.getElementById('dropB'),'fileB','B');
+
+async function loadPDF(file,which,pageNum){
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let pageIdx=pageNum||1;
+  if(!pageNum && pdf.numPages>1){
+    const ans=prompt(`File "${file.name}" berisi ${pdf.numPages} halaman.\nPilih halaman yang akan diimport (1–${pdf.numPages}):`,'1');
+    if(ans===null)return;
+    pageIdx=Math.min(Math.max(parseInt(ans)||1,1),pdf.numPages);
+  }
+  const page=await pdf.getPage(pageIdx);
+  const vp=page.getViewport({scale:1});
+  const wCm=ptToCm(vp.width),hCm=ptToCm(vp.height);
+
+  // check orientation vs sheet — offer auto-rotate if mismatched
+  const sheetHoriz = val('sheetW') > val('sheetH');
+  const fileHoriz  = wCm > hCm;
+  let autoRot = 0;
+  if(sheetHoriz !== fileHoriz){
+    const sheetLabel = sheetHoriz ? 'Horizontal' : 'Vertikal';
+    const fileLabel  = fileHoriz  ? 'horizontal' : 'vertikal';
+    if(confirm(`File "${file.name}" ${fileLabel}, sedangkan lembar kerja ${sheetLabel}.\nRotasi file 90° agar mengikuti lembar kerja?`)){
+      autoRot = 90;
+    }
+  }
+
+  detectColor(file,which);
+
+  const dropEl=document.getElementById('drop'+which);
+  dropEl.classList.add('loaded');
+  document.getElementById('fname'+which).textContent=file.name;
+
+  if(which==='A'){
+    S.fileA=file;S.pdfA=pdf;S.pageA=page;S.dimA={w:wCm,h:hCm};
+    S.nameA=file.name;S.sizeA=file.size;S.pagesA=pdf.numPages;S.vpA=vp;
+    document.getElementById('posSecA').style.display='';
+    document.getElementById('rotA').value=String(autoRot);
+    const dwA=(autoRot===90||autoRot===270)?hCm:wCm, dhA=(autoRot===90||autoRot===270)?wCm:hCm;
+    const mx=(val('sheetW')-val('printW'))/2,my=(val('sheetH')-val('printH'))/2;
+    document.getElementById('posAx').value=mx.toFixed(2);
+    document.getElementById('posAy').value=my.toFixed(2);
+  } else {
+    S.fileB=file;S.pdfB=pdf;S.pageB=page;S.dimB={w:wCm,h:hCm};
+    S.nameB=file.name;S.sizeB=file.size;S.pagesB=pdf.numPages;S.vpB=vp;
+    document.getElementById('posSecB').style.display='';
+    document.getElementById('rotB').value=String(autoRot);
+    const mx=(val('sheetW')-val('printW'))/2,my=(val('sheetH')-val('printH'))/2;
+    if(S.dimA){
+      const rA=parseInt(document.getElementById('rotA').value)||0;
+      const dhA=(rA===90||rA===270)?S.dimA.w:S.dimA.h;
+      document.getElementById('posBx').value=mx.toFixed(2);
+      document.getElementById('posBy').value=(val('posAy')+dhA+0.5).toFixed(2);
+    } else {
+      document.getElementById('posBx').value=mx.toFixed(2);document.getElementById('posBy').value=my.toFixed(2);
+    }
+  }
+
+  S.selected=which;updateSelDisplay();
+
+  if(S.fileA&&S.fileB){
+    ['alignSection','cutLineSection','outputSection'].forEach(id=>document.getElementById(id).style.display='');
+    document.getElementById('btnCompose').disabled=false;
+  }
+  history.snap();renderPreview();updateObjList();
+}
+
+async function detectColor(file,which){
+  try{
+    const fd=new FormData();fd.append('file',file);
+    const r=await fetch('/ui/pdf-color-info',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.status==='success'){
+      if(which==='A')S.colorA=d.color_mode;else S.colorB=d.color_mode;
+      updateObjList();updateStatus();
+    }
+  }catch(e){}
+}
+
+function getSheetDims(){
+  let sw=val('sheetW'),sh=val('sheetH'),pw=val('printW'),ph=val('printH');
+  if(S.displayRotated) return {sw:sh,sh:sw,pw:ph,ph:pw};
+  return {sw,sh,pw,ph};
+}
+function getScale(){
+  const{sw,sh}=getSheetDims();
+  if(S.zoom===0){const r=$vp.getBoundingClientRect();return Math.min((r.width-80)/(sw*PX_PER_CM),(r.height-80)/(sh*PX_PER_CM),4);}
+  return S.zoomLevel;
+}
+
+async function renderPreview(){
+  const{sw,sh,pw,ph}=getSheetDims();
+  const mx=(sw-pw)/2,my=(sh-ph)/2;
+  const sc=getScale(),px=PX_PER_CM;
+
+  $sheet.style.width=(sw*px*sc)+'px';
+  $sheet.style.height=(sh*px*sc)+'px';
+  if(S.gridOn){$sheet.classList.add('grid-on');$sheet.style.backgroundSize=(1*px*sc)+'px '+(1*px*sc)+'px';}
+  else $sheet.classList.remove('grid-on');
+
+  $printArea.style.left=(mx*px*sc)+'px';$printArea.style.top=(my*px*sc)+'px';
+  $printArea.style.width=(pw*px*sc)+'px';$printArea.style.height=(ph*px*sc)+'px';
+
+  await renderBlock('A',sc,px);
+  await renderBlock('B',sc,px);
+  renderCutLine(sc,px,sw,sh);
+  drawRulers();positionObjToolbar();
+  updateStatus();
+}
+
+function getDisplayPos(which){
+  let posX=val('pos'+which+'x'),posY=val('pos'+which+'y');
+  if(S.displayRotated){
+    const dim=which==='A'?S.dimA:S.dimB;if(!dim) return {posX,posY};
+    const rot=parseInt(document.getElementById('rot'+which).value)||0;
+    const dh=(rot===90||rot===270)?dim.w:dim.h;
+    return {posX: val('sheetH') - posY - dh, posY: posX};
+  }
+  return {posX,posY};
+}
+
+async function renderBlock(which,sc,px){
+  const page=which==='A'?S.pageA:S.pageB;
+  const dim=which==='A'?S.dimA:S.dimB;
+  if(!page||!dim)return;
+
+  let block=S['block'+which],canvas=S['canvas'+which];
+  if(!block){
+    canvas=document.createElement('canvas');
+    block=document.createElement('div');
+    block.className='pdf-block';block.id='block'+which;
+    block.innerHTML='<span class="pdf-label '+(which==='A'?'a':'b')+'">File '+which+'</span>';
+    block.appendChild(canvas);
+    $sheet.appendChild(block);
+    S['canvas'+which]=canvas;S['block'+which]=block;
+    setupDrag(block,which);
+    block.addEventListener('mousedown',e=>{e.stopPropagation();S.selected=which;updateSelDisplay();updateObjList();});
+  }
+
+  const dp=getDisplayPos(which);
+  const rot=parseInt(document.getElementById('rot'+which).value)||0;
+  const dw=(rot===90||rot===270)?dim.h:dim.w, dh=(rot===90||rot===270)?dim.w:dim.h;
+  // visual dims swap when sheet display is rotated
+  const vdw=S.displayRotated?dh:dw, vdh=S.displayRotated?dw:dh;
+
+  block.style.left=(dp.posX*px*sc)+'px';block.style.top=(dp.posY*px*sc)+'px';
+  block.style.width=(vdw*px*sc)+'px';block.style.height=(vdh*px*sc)+'px';
+  block.classList.toggle('selected',S.selected===which);
+
+  const displayRot=S.displayRotated?((rot+270)%360):rot;
+  const vp=page.getViewport({scale:1,rotation:displayRot});
+  const renderSc=Math.max(vdw*px*sc/vp.width,vdh*px*sc/vp.height);
+  const viewport=page.getViewport({scale:renderSc,rotation:displayRot});
+  canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);
+  canvas.style.width=(vdw*px*sc)+'px';canvas.style.height=(vdh*px*sc)+'px';
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+  await page.render({canvasContext:ctx,viewport}).promise;
+}
+
+function renderCutLine(sc,px,sw,sh){
+  let old=$sheet.querySelector('.cut-line-svg');if(old)old.remove();
+  if(!S.dimA||!S.dimB||!document.getElementById('cutLineEnabled').checked)return;
+  const dpA=getDisplayPos('A'),dpB=getDisplayPos('B');
+  const rA=parseInt(document.getElementById('rotA').value)||0;
+  const hA=(rA===90||rA===270)?S.dimA.w:S.dimA.h;
+  const wA=(rA===90||rA===270)?S.dimA.h:S.dimA.w;
+  let dir=document.getElementById('cutLineDir').value;
+  if(dir==='auto')dir=Math.abs(dpB.posY-(dpA.posY+hA))<Math.abs(dpB.posX-(dpA.posX+wA))?'horizontal':'vertical';
+  const lw=parseFloat(document.getElementById('cutLineWidth').value)||0.5;
+  const lc=document.getElementById('cutLineColor').value;
+  const ls=document.getElementById('cutLineStyle').value;
+  const ext=val('cutLineExtend')*px*sc;
+  let da='';
+  if(ls==='dashed')da='stroke-dasharray="8,4"';else if(ls==='dotted')da='stroke-dasharray="2,3"';else if(ls==='dash-dot')da='stroke-dasharray="8,3,2,3"';
+  const W=sw*px*sc,H=sh*px*sc;
+  let line='';
+  if(dir==='horizontal'){const cy=(dpA.posY+hA+dpB.posY)/2*px*sc;line=`<line x1="${-ext}" y1="${cy}" x2="${W+ext}" y2="${cy}" stroke="${lc}" stroke-width="${lw}" ${da}/>`;}
+  else{const cx=(dpA.posX+wA+dpB.posX)/2*px*sc;line=`<line x1="${cx}" y1="${-ext}" x2="${cx}" y2="${H+ext}" stroke="${lc}" stroke-width="${lw}" ${da}/>`;}
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','cut-line-svg');svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.style.width=W+'px';svg.style.height=H+'px';svg.innerHTML=line;
+  $sheet.appendChild(svg);
+}
+
+function drawRulers(){
+  const rT=document.getElementById('rulerTop'),rL=document.getElementById('rulerLeft');
+  if(!rT||!rL)return;
+  const sc=getScale(),px=PX_PER_CM;
+  const{sw,sh}=getSheetDims();
+  const sheetRect=$sheet.getBoundingClientRect(),vpRect=$vp.getBoundingClientRect();
+  const offsetX=sheetRect.left-vpRect.left-22, offsetY=sheetRect.top-vpRect.top-22;
+  const step=sc<0.4?5:sc<1?2:1;
+  let hT='',hL='';
+  for(let cm=0;cm<=Math.ceil(sw);cm+=step){
+    const x=offsetX+cm*px*sc;
+    if(x<-20||x>rT.clientWidth+20)continue;
+    hT+=`<div class="tick" style="left:${x}px">${cm}</div>`;
+  }
+  for(let cm=0;cm<=Math.ceil(sh);cm+=step){
+    const y=offsetY+cm*px*sc;
+    if(y<-20||y>rL.clientHeight+20)continue;
+    hL+=`<div class="tick" style="top:${y}px">${cm}</div>`;
+  }
+  rT.innerHTML=hT+'<div class="cursor-mark" id="rTC" style="display:none"></div>';
+  rL.innerHTML=hL+'<div class="cursor-mark" id="rLC" style="display:none"></div>';
+}
+
+function positionObjToolbar(){
+  const tb=document.getElementById('objToolbar');
+  if(!S.selected||!S['block'+S.selected]){tb.classList.remove('open');document.getElementById('alignPop').classList.remove('open');return;}
+  const block=S['block'+S.selected];
+  const bRect=block.getBoundingClientRect(),vpRect=$vp.getBoundingClientRect();
+  const top=bRect.top-vpRect.top+$vp.scrollTop-46;
+  const left=bRect.left-vpRect.left+$vp.scrollLeft+bRect.width/2;
+  tb.style.top=Math.max(4,top)+'px';
+  tb.style.left=left+'px';
+  tb.style.transform='translateX(-50%)';
+  tb.classList.add('open');
+  // update rotation label + dim badge
+  const rot=parseInt(document.getElementById('rot'+S.selected).value)||0;
+  document.getElementById('tbRotLabel').textContent=rot+'°';
+  const dim=S.selected==='A'?S.dimA:S.dimB;
+  if(dim){
+    const dw=(rot===90||rot===270)?dim.h:dim.w,dh=(rot===90||rot===270)?dim.w:dim.h;
+    document.getElementById('objDimBadge').textContent=`${dw} × ${dh} cm`;
+  }
+}
+
+function updateStatus(){
+  document.getElementById('stSheet').textContent=`${val('sheetW')} × ${val('sheetH')} cm`;
+  document.getElementById('stPrint').textContent=`${val('printW')} × ${val('printH')} cm`;
+  document.getElementById('stA').textContent=S.dimA?`${S.dimA.w}×${S.dimA.h} ${S.colorA}`:'—';
+  document.getElementById('stB').textContent=S.dimB?`${S.dimB.w}×${S.dimB.h} ${S.colorB}`:'—';
+  document.getElementById('stOrient').textContent=S.displayRotated?'Horizontal':'Vertikal';
+  const z=S.zoom===0?'fit':Math.round(S.zoomLevel*100)+'%';
+  document.getElementById('stZoom').textContent=z;
+  document.getElementById('zoomVal').textContent=z;
+}
+function updateSelDisplay(){
+  document.getElementById('selDisplay').textContent=S.selected||'—';
+  if(S.blockA)S.blockA.classList.toggle('selected',S.selected==='A');
+  if(S.blockB)S.blockB.classList.toggle('selected',S.selected==='B');
+  positionObjToolbar();
+}
+
+$vp.addEventListener('mousedown',e=>{
+  if(!e.target.closest('.pdf-block')&&!e.target.closest('.obj-toolbar')&&!e.target.closest('.obj-popover')&&!spaceHeld&&e.button===0){S.selected=null;updateSelDisplay();updateObjList();}
+});
+
+function fastMoveBlock(which){
+  const block=S['block'+which], dim=which==='A'?S.dimA:S.dimB;
+  if(!block||!dim)return;
+  const sc=getScale(),p=PX_PER_CM;
+  const dp=getDisplayPos(which);
+  block.style.left=(dp.posX*p*sc)+'px';
+  block.style.top=(dp.posY*p*sc)+'px';
+  const{sw,sh}=getSheetDims();
+  renderCutLine(sc,p,sw,sh);
+  positionObjToolbar();
+}
+function setupDrag(block,which){
+  let startX,startY,origX,origY,dragging=false;
+  block.addEventListener('mousedown',e=>{
+    if(e.target.tagName==='SPAN'||spaceHeld||e.button===1)return;
+    e.preventDefault();e.stopPropagation();
+    const xId='pos'+which+'x',yId='pos'+which+'y';
+    origX=val(xId);origY=val(yId);startX=e.clientX;startY=e.clientY;dragging=true;
+    S.selected=which;updateSelDisplay();
+    const onMove=ev=>{
+      if(!dragging)return;
+      const sc=getScale(),p=PX_PER_CM;
+      let dx=(ev.clientX-startX)/(p*sc),dy=(ev.clientY-startY)/(p*sc);
+      let nx,ny;
+      if(S.displayRotated){nx=origX+dy;ny=origY-dx;}else{nx=origX+dx;ny=origY+dy;}
+      if(S.snapOn){nx=snapVal(nx,which,'x');ny=snapVal(ny,which,'y');}
+      document.getElementById(xId).value=nx.toFixed(2);
+      document.getElementById(yId).value=ny.toFixed(2);
+      fastMoveBlock(which);
+    };
+    const onUp=()=>{
+      dragging=false;
+      document.removeEventListener('mousemove',onMove);
+      document.removeEventListener('mouseup',onUp);
+      history.snap();updateObjList();renderPreview();
+    };
+    document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
+  });
+}
+
+function snapVal(v,which,axis){
+  const thresh=0.35;
+  const dim=which==='A'?S.dimA:S.dimB;if(!dim)return v;
+  const rot=parseInt(document.getElementById('rot'+which).value)||0;
+  const dw=(rot===90||rot===270)?dim.h:dim.w, dh=(rot===90||rot===270)?dim.w:dim.h;
+  const size=axis==='x'?dw:dh;
+  const sheetSz=axis==='x'?val('sheetW'):val('sheetH');
+  const printSz=axis==='x'?val('printW'):val('printH');
+  const margin=(sheetSz-printSz)/2;
+  const targets=[0,margin,margin+printSz-size,sheetSz-size,(sheetSz-size)/2,margin+(printSz-size)/2];
+  const other=which==='A'?'B':'A';
+  const od=other==='A'?S.dimA:S.dimB;
+  if(od){const oRot=parseInt(document.getElementById('rot'+other).value)||0;
+    const ow=(oRot===90||oRot===270)?od.h:od.w,oh=(oRot===90||oRot===270)?od.w:od.h;
+    const oPos=val('pos'+other+(axis==='x'?'x':'y'));const oSize=axis==='x'?ow:oh;
+    targets.push(oPos,oPos+oSize,oPos-size,oPos+oSize/2-size/2);}
+  for(const t of targets)if(Math.abs(v-t)<thresh)return t;
+  return v;
+}
+
+$vp.addEventListener('wheel',e=>{
+  if(e.target.closest('input,select'))return;e.preventDefault();
+  const rect=$vp.getBoundingClientRect();
+  const mx=e.clientX-rect.left+$vp.scrollLeft,my=e.clientY-rect.top+$vp.scrollTop;
+  const oldSc=getScale();if(S.zoom===0)S.zoomLevel=oldSc;S.zoom=1;
+  const factor=e.deltaY<0?1.12:1/1.12;
+  S.zoomLevel=Math.min(Math.max(S.zoomLevel*factor,0.05),10);
+  renderPreview();
+  const ratio=getScale()/oldSc;
+  $vp.scrollLeft=mx*ratio-(e.clientX-rect.left);$vp.scrollTop=my*ratio-(e.clientY-rect.top);
+},{passive:false});
+
+let spaceHeld=false,isPanning=false,panSX=0,panSY=0,panScrollX=0,panScrollY=0;
+let lastMouseVp={x:0,y:0,inside:false};
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,select,textarea'))return;
+  if(e.code==='Space'&&!spaceHeld&&appMode==='merge'){spaceHeld=true;$vp.classList.add('panning');e.preventDefault();}
+});
+document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceHeld=false;if(!isPanning)$vp.classList.remove('panning');}});
+$vp.addEventListener('mousedown',e=>{
+  if((spaceHeld&&e.button===0)||e.button===1){isPanning=true;panSX=e.clientX;panSY=e.clientY;panScrollX=$vp.scrollLeft;panScrollY=$vp.scrollTop;$vp.classList.add('panning-active');e.preventDefault();e.stopPropagation();}
+},true);
+$vp.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
+$vp.addEventListener('mouseleave',()=>{lastMouseVp.inside=false;});
+document.addEventListener('mousemove',e=>{
+  if(appMode!=='merge')return;
+  if(isPanning){$vp.scrollLeft=panScrollX-(e.clientX-panSX);$vp.scrollTop=panScrollY-(e.clientY-panSY);}
+  const rect=$vp.getBoundingClientRect();
+  const inside=e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+  lastMouseVp={x:e.clientX,y:e.clientY,inside};
+  const x=e.clientX-rect.left+$vp.scrollLeft-40,y=e.clientY-rect.top+$vp.scrollTop-40;
+  const sc=getScale(),px=PX_PER_CM;let cx=x/(px*sc),cy=y/(px*sc);
+  if(S.displayRotated)[cx,cy]=[cy,cx];
+  document.getElementById('cursorPos').textContent=`${cx.toFixed(1)} , ${cy.toFixed(1)} cm`;
+});
+document.addEventListener('mouseup',()=>{if(isPanning){isPanning=false;$vp.classList.remove('panning-active');$vp.classList.remove('panning');if(spaceHeld)$vp.classList.add('panning');}});
+
+document.getElementById('btnUndo').addEventListener('click',()=>history.undo());
+document.getElementById('btnRedo').addEventListener('click',()=>history.redo());
+function zoomAt(factor,anchorClientX,anchorClientY){
+  const rect=$vp.getBoundingClientRect();
+  // if anchor missing/outside, use viewport center
+  if(anchorClientX==null||anchorClientY==null||!lastMouseVp.inside){
+    anchorClientX=rect.left+rect.width/2;
+    anchorClientY=rect.top+rect.height/2;
+  }
+  const mx=anchorClientX-rect.left+$vp.scrollLeft, my=anchorClientY-rect.top+$vp.scrollTop;
+  const oldSc=getScale();if(S.zoom===0)S.zoomLevel=oldSc;S.zoom=1;
+  S.zoomLevel=Math.min(Math.max(S.zoomLevel*factor,0.05),10);
+  renderPreview();
+  const ratio=getScale()/oldSc;
+  $vp.scrollLeft=mx*ratio-(anchorClientX-rect.left);
+  $vp.scrollTop=my*ratio-(anchorClientY-rect.top);
+}
+document.getElementById('mZoomIn').addEventListener('click',()=>zoomAt(1.25,lastMouseVp.x,lastMouseVp.y));
+document.getElementById('mZoomOut').addEventListener('click',()=>zoomAt(1/1.25,lastMouseVp.x,lastMouseVp.y));
+document.getElementById('zoomFit').addEventListener('click',()=>{S.zoom=0;renderPreview();});
+document.getElementById('zoom100').addEventListener('click',()=>{S.zoom=1;const{sw}=getSheetDims();S.zoomLevel=Math.max(($vp.getBoundingClientRect().width-80)/(sw*PX_PER_CM),0.3);renderPreview();});
+document.getElementById('btnRotDisplay').addEventListener('click',()=>{
+  S.displayRotated=!S.displayRotated;document.getElementById('orientLabel').textContent=S.displayRotated?'H':'V';
+  document.getElementById('btnRotDisplay').classList.toggle('active',S.displayRotated);S.zoom=0;renderPreview();
+});
+document.getElementById('btnGrid').addEventListener('click',()=>{S.gridOn=!S.gridOn;document.getElementById('btnGrid').classList.toggle('active',S.gridOn);renderPreview();});
+document.getElementById('btnSnap').addEventListener('click',()=>{S.snapOn=!S.snapOn;document.getElementById('btnSnap').classList.toggle('active',S.snapOn);});
+document.getElementById('btnShortcuts').addEventListener('click',()=>{document.getElementById('shortcutsModal').classList.toggle('open');});
+
+function rotateSelectedObj(delta){
+  const w=S.selected;if(!w)return;
+  const dim=w==='A'?S.dimA:S.dimB;if(!dim)return;
+  const sel=document.getElementById('rot'+w);
+  const cur=parseInt(sel.value)||0;
+  const next=((cur+delta)%360+360)%360;
+  sel.value=String(next);
+  // keep centered around previous center
+  const rotOld=cur,rotNew=next;
+  const owOld=(rotOld===90||rotOld===270)?dim.h:dim.w, ohOld=(rotOld===90||rotOld===270)?dim.w:dim.h;
+  const owNew=(rotNew===90||rotNew===270)?dim.h:dim.w, ohNew=(rotNew===90||rotNew===270)?dim.w:dim.h;
+  const xId='pos'+w+'x',yId='pos'+w+'y';
+  const cx=val(xId)+owOld/2, cy=val(yId)+ohOld/2;
+  document.getElementById(xId).value=(cx-owNew/2).toFixed(2);
+  document.getElementById(yId).value=(cy-ohNew/2).toFixed(2);
+  history.snap();renderPreview();updateObjList();
+}
+document.getElementById('btnRotObj').addEventListener('click',()=>rotateSelectedObj(90));
+
+function deleteFile(which){
+  if(which==='A'){
+    if(S.blockA){S.blockA.remove();S.blockA=null;S.canvasA=null;}
+    S.fileA=null;S.pdfA=null;S.pageA=null;S.dimA=null;S.colorA='?';S.nameA='';S.sizeA=0;S.pagesA=0;S.vpA=null;
+    document.getElementById('dropA').classList.remove('loaded');document.getElementById('fnameA').textContent='File A — klik / drag';
+    document.getElementById('fileA').value='';document.getElementById('posSecA').style.display='none';
+  } else {
+    if(S.blockB){S.blockB.remove();S.blockB=null;S.canvasB=null;}
+    S.fileB=null;S.pdfB=null;S.pageB=null;S.dimB=null;S.colorB='?';S.nameB='';S.sizeB=0;S.pagesB=0;S.vpB=null;
+    document.getElementById('dropB').classList.remove('loaded');document.getElementById('fnameB').textContent='File B — klik / drag';
+    document.getElementById('fileB').value='';document.getElementById('posSecB').style.display='none';
+  }
+  if(S.selected===which){S.selected=null;updateSelDisplay();}
+  if(!S.fileA||!S.fileB){['alignSection','cutLineSection','outputSection'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('btnCompose').disabled=true;}
+  renderPreview();updateObjList();
+}
+
+document.getElementById('btnReset').addEventListener('click',()=>{
+  deleteFile('A');deleteFile('B');
+  document.getElementById('sheetW').value='32.5';document.getElementById('sheetH').value='96';
+  document.getElementById('printW').value='31';document.getElementById('printH').value='95';
+  document.getElementById('posAx').value='0';document.getElementById('posAy').value='0';
+  document.getElementById('posBx').value='0';document.getElementById('posBy').value='0';
+  document.getElementById('rotA').value='0';document.getElementById('rotB').value='0';
+  document.getElementById('cutLineEnabled').checked=true;document.getElementById('cutLineWidth').value='0.5';
+  document.getElementById('cutLineStyle').value='dashed';document.getElementById('cutLineColor').value='#000000';
+  document.getElementById('cutLineDir').value='auto';document.getElementById('cutLineExtend').value='1';
+  document.getElementById('outputName').value='merged.pdf';document.getElementById('includeCutLine').checked=true;
+  document.getElementById('resultBar').className='result-bar';document.getElementById('resultBar').style.display='none';
+  document.getElementById('previewResult').style.display='none';document.getElementById('resultIframe').src='about:blank';
+  S.displayRotated=false;S.gridOn=false;S.snapOn=true;S.zoom=0;S.selected=null;
+  document.getElementById('orientLabel').textContent='V';document.getElementById('btnRotDisplay').classList.remove('active');
+  document.getElementById('btnGrid').classList.remove('active');document.getElementById('btnSnap').classList.add('active');
+  history.stack=[];history.idx=-1;history.updateUI();updateSelDisplay();updateObjList();renderPreview();
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,select,textarea'))return;
+  if(appMode!=='merge')return;
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl&&e.key==='z'){e.preventDefault();history.undo();}
+  else if(ctrl&&e.key==='y'){e.preventDefault();history.redo();}
+  else if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();document.getElementById('mZoomIn').click();}
+  else if(ctrl&&e.key==='-'){e.preventDefault();document.getElementById('mZoomOut').click();}
+  else if(ctrl&&e.key==='0'){e.preventDefault();document.getElementById('zoomFit').click();}
+  else if(ctrl&&e.key==='1'){e.preventDefault();document.getElementById('zoom100').click();}
+  else if(e.key==='Tab'){e.preventDefault();if(!S.fileA&&!S.fileB)return;
+    if(S.selected==='A'&&S.fileB)S.selected='B';else if(S.selected==='B'&&S.fileA)S.selected='A';else S.selected=S.fileA?'A':'B';
+    updateSelDisplay();updateObjList();}
+  else if(e.key==='Escape'){S.selected=null;updateSelDisplay();updateObjList();}
+  else if(e.key==='Delete'&&S.selected){deleteFile(S.selected);}
+  else if(e.key==='g'||e.key==='G'){document.getElementById('btnGrid').click();}
+  else if(e.key==='s'&&!ctrl){document.getElementById('btnSnap').click();}
+  else if(e.key==='r'||e.key==='R'){if(e.shiftKey)rotateSelectedObj(90);else document.getElementById('btnRotDisplay').click();}
+  else if(e.key==='?'){document.getElementById('btnShortcuts').click();}
+  else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&S.selected){
+    e.preventDefault();const step=e.shiftKey?0.5:0.05;
+    const xId='pos'+S.selected+'x',yId='pos'+S.selected+'y';
+    if(e.key==='ArrowLeft')document.getElementById(xId).value=(val(xId)-step).toFixed(2);
+    if(e.key==='ArrowRight')document.getElementById(xId).value=(val(xId)+step).toFixed(2);
+    if(e.key==='ArrowUp')document.getElementById(yId).value=(val(yId)-step).toFixed(2);
+    if(e.key==='ArrowDown')document.getElementById(yId).value=(val(yId)+step).toFixed(2);
+    renderPreview();history.snap();updateObjList();
+  }
+});
+
+function alignSel(mode){
+  const w=S.selected;if(!w)return;const dim=w==='A'?S.dimA:S.dimB;if(!dim)return;
+  const rot=parseInt(document.getElementById('rot'+w).value)||0;
+  const dw=(rot===90||rot===270)?dim.h:dim.w,dh=(rot===90||rot===270)?dim.w:dim.h;
+  const mx=(val('sheetW')-val('printW'))/2,my=(val('sheetH')-val('printH'))/2;
+  const pw=val('printW'),ph=val('printH');
+  if(mode==='left')document.getElementById('pos'+w+'x').value=mx.toFixed(2);
+  if(mode==='centerH')document.getElementById('pos'+w+'x').value=(mx+(pw-dw)/2).toFixed(2);
+  if(mode==='right')document.getElementById('pos'+w+'x').value=(mx+pw-dw).toFixed(2);
+  if(mode==='top')document.getElementById('pos'+w+'y').value=my.toFixed(2);
+  if(mode==='centerV')document.getElementById('pos'+w+'y').value=(my+(ph-dh)/2).toFixed(2);
+  if(mode==='bottom')document.getElementById('pos'+w+'y').value=(my+ph-dh).toFixed(2);
+  history.snap();renderPreview();updateObjList();
+}
+
+function autoLayout(mode){
+  if(!S.dimA||!S.dimB)return;
+  const mx=(val('sheetW')-val('printW'))/2,my=(val('sheetH')-val('printH'))/2;
+  const pw=val('printW'),ph=val('printH');
+  if(mode==='v'){const gap=Math.max(0,(ph-S.dimA.h-S.dimB.h)/3);
+    document.getElementById('posAx').value=mx.toFixed(2);document.getElementById('posAy').value=(my+gap).toFixed(2);
+    document.getElementById('posBx').value=mx.toFixed(2);document.getElementById('posBy').value=(my+gap+S.dimA.h+gap).toFixed(2);
+  }else if(mode==='h'){const gap=Math.max(0,(pw-S.dimA.w-S.dimB.w)/3);
+    document.getElementById('posAx').value=(mx+gap).toFixed(2);document.getElementById('posAy').value=my.toFixed(2);
+    document.getElementById('posBx').value=(mx+gap+S.dimA.w+gap).toFixed(2);document.getElementById('posBy').value=my.toFixed(2);
+  }else{const sw=val('sheetW'),sh=val('sheetH');const totalH=S.dimA.h+S.dimB.h+0.5;const sy=(sh-totalH)/2;
+    document.getElementById('posAx').value=((sw-S.dimA.w)/2).toFixed(2);document.getElementById('posAy').value=sy.toFixed(2);
+    document.getElementById('posBx').value=((sw-S.dimB.w)/2).toFixed(2);document.getElementById('posBy').value=(sy+S.dimA.h+0.5).toFixed(2);
+  }
+  history.snap();renderPreview();updateObjList();
+}
+
+function updateObjList(){
+  const $list=document.getElementById('objList'),$detail=document.getElementById('objDetail');
+  if(!S.fileA&&!S.fileB){$list.innerHTML='<div class="obj-empty">Belum ada file</div>';$detail.innerHTML='';return;}
+  let html='';
+  if(S.fileA){html+=`<div class="obj-item${S.selected==='A'?' selected':''}" onclick="S.selected='A';updateSelDisplay();updateObjList();renderPreview();">
+    <span class="obj-color" style="background:var(--cyan)"></span><span class="obj-name">${esc(S.nameA)}</span>
+    <span class="obj-dim">${S.dimA?S.dimA.w+'×'+S.dimA.h:''}</span>
+    <button class="obj-del" onclick="event.stopPropagation();deleteFile('A')" title="Hapus">✕</button></div>`;}
+  if(S.fileB){html+=`<div class="obj-item${S.selected==='B'?' selected':''}" onclick="S.selected='B';updateSelDisplay();updateObjList();renderPreview();">
+    <span class="obj-color" style="background:var(--yellow)"></span><span class="obj-name">${esc(S.nameB)}</span>
+    <span class="obj-dim">${S.dimB?S.dimB.w+'×'+S.dimB.h:''}</span>
+    <button class="obj-del" onclick="event.stopPropagation();deleteFile('B')" title="Hapus">✕</button></div>`;}
+  $list.innerHTML=html;
+
+  if(S.selected==='A'&&S.fileA){const vp=S.vpA;const cc=S.colorA.includes('CMYK')?'badge-cmyk':S.colorA.includes('RGB')?'badge-rgb':'badge-unknown';
+    $detail.innerHTML=`<div class="obj-detail"><div class="detail-label">File A</div><b>${esc(S.nameA)}</b> <span class="badge ${cc}">${S.colorA}</span><br>${bytesH(S.sizeA)} · ${S.pagesA} hal
+    <div class="detail-label">Ukuran Media</div><b>${S.dimA.w} × ${S.dimA.h} cm</b><br>${ptToMm(vp.width)} × ${ptToMm(vp.height)} mm<br>${ptToInch(vp.width)} × ${ptToInch(vp.height)} in<br>${Math.round(vp.width)} × ${Math.round(vp.height)} pt
+    <div class="detail-label">Posisi</div>X: ${val('posAx').toFixed(2)} cm, Y: ${val('posAy').toFixed(2)} cm<br>Rotasi: ${document.getElementById('rotA').value}°</div>`;
+  }else if(S.selected==='B'&&S.fileB){const vp=S.vpB;const cc=S.colorB.includes('CMYK')?'badge-cmyk':S.colorB.includes('RGB')?'badge-rgb':'badge-unknown';
+    $detail.innerHTML=`<div class="obj-detail"><div class="detail-label">File B</div><b>${esc(S.nameB)}</b> <span class="badge ${cc}">${S.colorB}</span><br>${bytesH(S.sizeB)} · ${S.pagesB} hal
+    <div class="detail-label">Ukuran Media</div><b>${S.dimB.w} × ${S.dimB.h} cm</b><br>${ptToMm(vp.width)} × ${ptToMm(vp.height)} mm<br>${ptToInch(vp.width)} × ${ptToInch(vp.height)} in<br>${Math.round(vp.width)} × ${Math.round(vp.height)} pt
+    <div class="detail-label">Posisi</div>X: ${val('posBx').toFixed(2)} cm, Y: ${val('posBy').toFixed(2)} cm<br>Rotasi: ${document.getElementById('rotB').value}°</div>`;
+  }else $detail.innerHTML='';
+}
+
+['sheetW','sheetH','printW','printH','posAx','posAy','posBx','posBy','cutLineWidth','cutLineExtend'].forEach(id=>{
+  const el=document.getElementById(id);el.addEventListener('input',()=>{renderPreview();updateObjList();});el.addEventListener('change',()=>history.snap());
+});
+['rotA','rotB','cutLineStyle','cutLineDir'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{history.snap();renderPreview();updateObjList();}));
+document.getElementById('cutLineColor').addEventListener('input',()=>renderPreview());
+document.getElementById('cutLineEnabled').addEventListener('change',()=>renderPreview());
+
+document.getElementById('btnCompose').addEventListener('click',async()=>{
+  if(!S.fileA||!S.fileB)return;
+  const btn=document.getElementById('btnCompose'),resBar=document.getElementById('resultBar');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Proses...';
+  resBar.className='result-bar';resBar.style.display='none';
+  const fd=new FormData();
+  fd.append('file1',S.fileA);fd.append('file2',S.fileB);
+  fd.append('output',document.getElementById('outputName').value||'merged.pdf');
+  fd.append('sheet_w',val('sheetW'));fd.append('sheet_h',val('sheetH'));
+  fd.append('x1',val('posAx'));fd.append('y1',val('posAy'));
+  fd.append('x2',val('posBx'));fd.append('y2',val('posBy'));
+  fd.append('rot1',document.getElementById('rotA').value);fd.append('rot2',document.getElementById('rotB').value);
+  if(document.getElementById('includeCutLine').checked&&document.getElementById('cutLineEnabled').checked){
+    fd.append('cut_line','1');fd.append('cut_line_width',document.getElementById('cutLineWidth').value);
+    fd.append('cut_line_color',document.getElementById('cutLineColor').value);fd.append('cut_line_style',document.getElementById('cutLineStyle').value);
+    fd.append('cut_line_dir',document.getElementById('cutLineDir').value);fd.append('cut_line_extend',document.getElementById('cutLineExtend').value);
+  }
+  try{const r=await fetch('/ui/merge',{method:'POST',body:fd});const data=await r.json();
+    if(data.status==='success'){resBar.className='result-bar success';const op=data.output||'';
+      resBar.innerHTML=`OK! <b>${op.split('\\\\').pop().split('/').pop()}</b>`;
+      if(op){const a=document.createElement('a');a.href='/ui/read-file?filepath='+encodeURIComponent(op);a.target='_blank';a.textContent=' ⤓ Download';a.style.cssText='color:var(--cyan);margin-left:6px;font-weight:600';resBar.appendChild(a);
+        document.getElementById('previewResult').style.display='';document.getElementById('resultIframe').src='/ui/read-file?filepath='+encodeURIComponent(op);}
+    }else{resBar.className='result-bar error';resBar.textContent='Error: '+(data.message||'Gagal');}
+  }catch(e){resBar.className='result-bar error';resBar.textContent='Error: '+e.message;}
+  btn.disabled=false;btn.innerHTML='Gabungkan';
+});
+
+window.addEventListener('resize',()=>{if(appMode==='merge')renderPreview();});
+$vp.addEventListener('scroll',()=>{drawRulers();positionObjToolbar();});
+
+/* ── duplicate ── */
+function duplicateSelected(){
+  const src=S.selected;if(!src)return;
+  const dst=src==='A'?'B':'A';
+  const srcFile=src==='A'?S.fileA:S.fileB;if(!srcFile)return;
+  if((dst==='A'&&S.fileA)||(dst==='B'&&S.fileB)){
+    if(!confirm(`Timpa File ${dst} dengan duplikat File ${src}?`))return;
+    deleteFile(dst);
+  }
+  loadPDF(srcFile,dst);
+}
+
+/* ── floating toolbar handlers ── */
+document.getElementById('tbRotObj').addEventListener('click',()=>rotateSelectedObj(90));
+document.getElementById('tbDup').addEventListener('click',e=>{
+  e.stopPropagation();
+  document.getElementById('alignPop').classList.remove('open');
+  document.getElementById('dupPop').classList.toggle('open');
+});
+document.getElementById('dupPop').addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  e.stopPropagation();
+  const src=S.selected;if(!src)return;
+  const dst=src==='A'?'B':'A';
+  const srcFile=src==='A'?S.fileA:S.fileB;if(!srcFile)return;
+  const srcRot=parseInt(document.getElementById('rot'+src).value)||0;
+  document.getElementById('dupPop').classList.remove('open');
+  if((dst==='A'&&S.fileA)||(dst==='B'&&S.fileB)){
+    if(!confirm(`Timpa File ${dst} dengan duplikat File ${src}?`))return;
+    deleteFile(dst);
+  }
+  await loadPDF(srcFile,dst);
+  document.getElementById('rot'+dst).value=String(srcRot);
+  const dim=dst==='A'?S.dimA:S.dimB;
+  const dw=(srcRot===90||srcRot===270)?dim.h:dim.w,dh=(srcRot===90||srcRot===270)?dim.w:dim.h;
+  const pw=val('printW'),ph=val('printH');
+  const mx=(val('sheetW')-pw)/2,my=(val('sheetH')-ph)/2;
+  const a=b.dataset.d;
+  if(a==='fill'){
+    // arrange src + dst to fill print area — stack in the longer axis
+    const srcDim=src==='A'?S.dimA:S.dimB;
+    const srcDw=(srcRot===90||srcRot===270)?srcDim.h:srcDim.w, srcDh=(srcRot===90||srcRot===270)?srcDim.w:srcDim.h;
+    const vertical=(srcDh+dh)<=(srcDw+dw)?false:true;
+    if(ph>=srcDh+dh){
+      // stack vertically
+      document.getElementById('pos'+src+'x').value=(mx+(pw-srcDw)/2).toFixed(2);
+      document.getElementById('pos'+src+'y').value=(my+(ph/2-srcDh)/2+my*0).toFixed(2);
+      const gap=Math.max(0,(ph-srcDh-dh)/3);
+      document.getElementById('pos'+src+'x').value=(mx+(pw-srcDw)/2).toFixed(2);
+      document.getElementById('pos'+src+'y').value=(my+gap).toFixed(2);
+      document.getElementById('pos'+dst+'x').value=(mx+(pw-dw)/2).toFixed(2);
+      document.getElementById('pos'+dst+'y').value=(my+gap+srcDh+gap).toFixed(2);
+    } else {
+      // side by side
+      const gap=Math.max(0,(pw-srcDw-dw)/3);
+      document.getElementById('pos'+src+'x').value=(mx+gap).toFixed(2);
+      document.getElementById('pos'+src+'y').value=(my+(ph-srcDh)/2).toFixed(2);
+      document.getElementById('pos'+dst+'x').value=(mx+gap+srcDw+gap).toFixed(2);
+      document.getElementById('pos'+dst+'y').value=(my+(ph-dh)/2).toFixed(2);
+    }
+  } else {
+    const xMap={l:mx,c:mx+(pw-dw)/2,r:mx+pw-dw};
+    const yMap={t:my,m:my+(ph-dh)/2,b:my+ph-dh};
+    document.getElementById('pos'+dst+'x').value=xMap[a[1]].toFixed(2);
+    document.getElementById('pos'+dst+'y').value=yMap[a[0]].toFixed(2);
+  }
+  S.selected=dst;history.snap();renderPreview();updateObjList();updateSelDisplay();
+});
+document.getElementById('tbDel').addEventListener('click',()=>{if(S.selected)deleteFile(S.selected);});
+document.getElementById('tbFit').addEventListener('click',()=>{
+  const w=S.selected;if(!w)return;const dim=w==='A'?S.dimA:S.dimB;if(!dim)return;
+  // fit to print area: center + set rotation so bigger side matches bigger side
+  const pw=val('printW'),ph=val('printH');
+  const mx=(val('sheetW')-pw)/2,my=(val('sheetH')-ph)/2;
+  const fileHoriz=dim.w>dim.h,areaHoriz=pw>ph;
+  const rot=(fileHoriz!==areaHoriz)?90:0;
+  document.getElementById('rot'+w).value=String(rot);
+  const dw=(rot===90||rot===270)?dim.h:dim.w,dh=(rot===90||rot===270)?dim.w:dim.h;
+  document.getElementById('pos'+w+'x').value=(mx+(pw-dw)/2).toFixed(2);
+  document.getElementById('pos'+w+'y').value=(my+(ph-dh)/2).toFixed(2);
+  history.snap();renderPreview();updateObjList();
+});
+document.getElementById('tbMark').addEventListener('click',()=>{
+  const cb=document.getElementById('cutLineEnabled');cb.checked=!cb.checked;
+  document.getElementById('tbMark').classList.toggle('active',cb.checked);
+  renderPreview();
+});
+document.getElementById('tbAlign').addEventListener('click',e=>{
+  e.stopPropagation();
+  document.getElementById('dupPop').classList.remove('open');
+  document.getElementById('alignPop').classList.toggle('open');
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#alignPop')&&!e.target.closest('#tbAlign'))
+    document.getElementById('alignPop').classList.remove('open');
+  if(!e.target.closest('#dupPop')&&!e.target.closest('#tbDup'))
+    document.getElementById('dupPop').classList.remove('open');
+});
+document.getElementById('alignPop').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const w=S.selected;if(!w)return;const dim=w==='A'?S.dimA:S.dimB;if(!dim)return;
+  const rot=parseInt(document.getElementById('rot'+w).value)||0;
+  const dw=(rot===90||rot===270)?dim.h:dim.w,dh=(rot===90||rot===270)?dim.w:dim.h;
+  const pw=val('printW'),ph=val('printH');
+  const mx=(val('sheetW')-pw)/2,my=(val('sheetH')-ph)/2;
+  const a=b.dataset.a;
+  const xMap={l:mx,c:mx+(pw-dw)/2,r:mx+pw-dw};
+  const yMap={t:my,m:my+(ph-dh)/2,b:my+ph-dh};
+  document.getElementById('pos'+w+'x').value=xMap[a[1]].toFixed(2);
+  document.getElementById('pos'+w+'y').value=yMap[a[0]].toFixed(2);
+  document.getElementById('alignPop').classList.remove('open');
+  history.snap();renderPreview();updateObjList();
+});
+document.getElementById('shortcutsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('open');});
+
+/* ╔════════════════════════════════════════════════════════════╗
+   ║                    IMPOSITION MODE                         ║
+   ╚════════════════════════════════════════════════════════════╝ */
+const impState = {
+  sheetW: 297, sheetH: 420,
+  pageW: 148, pageH: 210,
+  mode: 'nup',
+  rows: 2, cols: 2,
+  twoSided: true, mirrorBack: true,
+  marginV: 10, marginH: 10, gapV: 4, gapH: 4,
+  bleedOn: false, bleedMm: 3,
+  markTrim: true, markReg: false, markNum: true, markFold: false,
+  side: 'front',
+  zoom: 1,
+  totalPages: 0,
+  pdfDoc: null,
+  pageCanvases: []
+};
+
+const $i = id => document.getElementById(id);
+
+const SHEET_PRESETS = { A4:[210,297], A3:[297,420], SRA3:[320,450], F4:[330,480] };
+
+$i('sheetPreset').addEventListener('change', e => {
+  const v = e.target.value;
+  if (v !== 'custom') {
+    const [w,h] = SHEET_PRESETS[v];
+    impState.sheetW = w; impState.sheetH = h;
+    $i('impSheetW').value = w; $i('impSheetH').value = h;
+    render();
+  }
+});
+[['impSheetW','sheetW'],['impSheetH','sheetH']].forEach(([id,key])=>{
+  $i(id).addEventListener('input', ()=>{
+    impState[key] = parseFloat($i(id).value) || 0;
+    $i('sheetPreset').value = 'custom';
+    render();
+  });
+});
+['pageW','pageH','marginV','marginH','gapV','gapH','bleedMm'].forEach(id=>{
+  $i(id).addEventListener('input', ()=>{
+    impState[id] = parseFloat($i(id).value) || 0;
+    render();
+  });
+});
+['rowsInput','colsInput'].forEach((id,i)=>{
+  const key = i===0?'rows':'cols';
+  $i(id).addEventListener('input', ()=>{
+    impState[key] = Math.max(1, parseInt($i(id).value)||1);
+    render();
+  });
+});
+document.querySelectorAll('[data-step]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const key = btn.dataset.step;
+    const dir = parseInt(btn.dataset.dir);
+    impState[key] = Math.max(1, impState[key] + dir);
+    $i(key === 'rows' ? 'rowsInput' : 'colsInput').value = impState[key];
+    render();
+  });
+});
+$i('twoSided').addEventListener('change', e=>{ impState.twoSided = e.target.checked; render(); });
+$i('mirrorBack').addEventListener('change', e=>{ impState.mirrorBack = e.target.checked; render(); });
+$i('bleedOn').addEventListener('change', e=>{
+  impState.bleedOn = e.target.checked;
+  $i('bleedField').style.display = impState.bleedOn ? 'block' : 'none';
+  render();
+});
+['markTrim','markReg','markNum','markFold'].forEach(id=>{
+  $i(id).addEventListener('change', e=>{ impState[id] = e.target.checked; render(); });
+});
+
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    impState.mode = btn.dataset.mode;
+    if (impState.mode === 'booklet') {
+      impState.rows = 1; impState.cols = 2;
+      $i('rowsInput').value = 1; $i('colsInput').value = 2;
+    }
+    render();
+  });
+});
+
+$i('autoFitBtn').addEventListener('click', ()=>{
+  const usableW = impState.sheetW - impState.marginH*2;
+  const usableH = impState.sheetH - impState.marginV*2;
+  let bestCols = Math.max(1, Math.floor((usableW+impState.gapH) / (impState.pageW+impState.gapH)));
+  let bestRows = Math.max(1, Math.floor((usableH+impState.gapV) / (impState.pageH+impState.gapV)));
+  impState.cols = bestCols; impState.rows = bestRows;
+  $i('rowsInput').value = bestRows; $i('colsInput').value = bestCols;
+  render();
+});
+
+$i('tabFront').addEventListener('click', ()=>{
+  impState.side='front';
+  $i('tabFront').classList.add('active'); $i('tabBack').classList.remove('active');
+  render();
+});
+$i('tabBack').addEventListener('click', ()=>{
+  impState.side='back';
+  $i('tabBack').classList.add('active'); $i('tabFront').classList.remove('active');
+  render();
+});
+
+$i('iZoomIn').addEventListener('click', ()=>{ impState.zoom = Math.min(3, impState.zoom+0.15); render(); });
+$i('iZoomOut').addEventListener('click', ()=>{ impState.zoom = Math.max(0.2, impState.zoom-0.15); render(); });
+
+$i('pdfInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  $i('impFileName').textContent = file.name;
+  $i('impFileName').style.color = 'var(--text)';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  impState.pdfDoc = pdf;
+  impState.totalPages = pdf.numPages;
+  impState.pageCanvases = new Array(pdf.numPages+1).fill(null);
+
+  const page1 = await pdf.getPage(1);
+  const vp = page1.getViewport({scale:1});
+  const mmW = (vp.width / 72) * 25.4;
+  const mmH = (vp.height / 72) * 25.4;
+  impState.pageW = Math.round(mmW*10)/10;
+  impState.pageH = Math.round(mmH*10)/10;
+  $i('pageW').value = impState.pageW; $i('pageH').value = impState.pageH;
+
+  $i('exportBtn').disabled = false;
+
+  for (let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const scale = 2;
+    const viewport = page.getViewport({scale});
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({canvasContext: ctx, viewport}).promise;
+    impState.pageCanvases[i] = canvas;
+  }
+  render();
+});
+
+function computePositions(sheetIndex, side){
+  const rows = impState.rows, cols = impState.cols;
+  const perSide = rows*cols;
+  const positions = [];
+
+  if (impState.mode === 'nup'){
+    let startPage = sheetIndex*perSide*(impState.twoSided?2:1) + (side==='back'?perSide:0) + 1;
+    for (let r=0;r<rows;r++){
+      for (let c=0;c<cols;c++){
+        let col = c;
+        if (side==='back' && impState.mirrorBack) col = cols-1-c;
+        const idx = r*cols+c;
+        const pageNum = startPage + idx;
+        positions.push({row:r, col:col, page: pageNum <= impState.totalPages ? pageNum : null});
+      }
+    }
+  } else if (impState.mode === 'cutstack'){
+    const sheetsNeeded = Math.max(1, Math.ceil(impState.totalPages / perSide));
+    for (let r=0;r<rows;r++){
+      for (let c=0;c<cols;c++){
+        let col = c;
+        if (side==='back' && impState.mirrorBack) col = cols-1-c;
+        const posIndex = r*cols+c;
+        const back = side==='back';
+        const blockOffset = back ? sheetsNeeded*perSide : 0;
+        const pageNum = blockOffset + posIndex*sheetsNeeded + sheetIndex + 1;
+        positions.push({row:r, col:col, page: pageNum<=impState.totalPages?pageNum:null});
+      }
+    }
+  } else if (impState.mode === 'booklet'){
+    const N = Math.ceil(impState.totalPages/4)*4;
+    const i = sheetIndex;
+    let left, right;
+    if (side === 'front'){ left = N - 2*i; right = 2*i + 1; }
+    else { left = 2*i + 2; right = N - 2*i - 1; }
+    positions.push({row:0, col:0, page: (left>=1 && left<=impState.totalPages) ? left : null});
+    positions.push({row:0, col:1, page: (right>=1 && right<=impState.totalPages) ? right : null});
+  } else if (impState.mode === 'calendar'){
+    const N = impState.totalPages;
+    const i = sheetIndex;
+    let left, right;
+    if (side === 'front'){ left = N - i; right = i+1; }
+    else { left = i+2; right = N - i - 1; }
+    positions.push({row:0, col:0, page: (left>=1 && left<=N) ? left : null});
+    positions.push({row:0, col:1, page: (right>=1 && right<=N) ? right : null});
+  }
+  return positions;
+}
+
+function totalSheetsNeeded(){
+  if (impState.totalPages === 0) return 0;
+  const perSide = impState.rows*impState.cols;
+  if (impState.mode === 'booklet' || impState.mode === 'calendar'){
+    const N = Math.ceil(impState.totalPages/4)*4;
+    return Math.max(1, N/4);
+  }
+  const perSheet = impState.twoSided ? perSide*2 : perSide;
+  return Math.max(1, Math.ceil(impState.totalPages/perSheet));
+}
+
+const MM_TO_PX = 3.4;
+
+function drawRegistrationMark(ctx, x, y, r=5){
+  ctx.save();
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x-r-4,y); ctx.lineTo(x+r+4,y);
+  ctx.moveTo(x,y-r-4); ctx.lineTo(x,y+r+4);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTrimMark(ctx, x, y, dirX, dirY, len=8, gap=3){
+  ctx.save();
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(x+dirX*gap, y+dirY*gap);
+  ctx.lineTo(x+dirX*(gap+len), y+dirY*(gap+len));
+  ctx.stroke();
+  ctx.restore();
+}
+
+function render(){
+  const scale = MM_TO_PX * impState.zoom;
+  const canvas = $i('sheetCanvas');
+  canvas.width = impState.sheetW * scale;
+  canvas.height = impState.sheetH * scale;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#f2f1ec';
+  ctx.fillRect(0,0,canvas.width, canvas.height);
+
+  const rows = impState.rows, cols = impState.cols;
+  const usableW = impState.sheetW - impState.marginH*2;
+  const usableH = impState.sheetH - impState.marginV*2;
+  const cellW = (usableW - impState.gapH*(cols-1)) / cols;
+  const cellH = (usableH - impState.gapV*(rows-1)) / rows;
+
+  const sheetIndex = 0;
+  const positions = computePositions(sheetIndex, impState.side);
+
+  positions.forEach(pos=>{
+    const px = (impState.marginH + pos.col*(cellW+impState.gapH)) * scale;
+    const py = (impState.marginV + pos.row*(cellH+impState.gapV)) * scale;
+    const pw = cellW*scale, ph = cellH*scale;
+
+    if (pos.page && impState.pageCanvases[pos.page]){
+      ctx.drawImage(impState.pageCanvases[pos.page], px, py, pw, ph);
+    } else if (pos.page){
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(px,py,pw,ph);
+      ctx.strokeStyle = '#c8c6bd';
+      ctx.strokeRect(px,py,pw,ph);
+      ctx.fillStyle = '#00b6d8';
+      ctx.font = '600 ' + Math.max(14, pw*0.14) + 'px Oswald, sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(pos.page, px+pw/2, py+ph/2);
+    } else {
+      ctx.fillStyle = '#e4e2da';
+      ctx.fillRect(px,py,pw,ph);
+      ctx.strokeStyle = '#c8c6bd';
+      ctx.setLineDash([4,4]);
+      ctx.strokeRect(px,py,pw,ph);
+      ctx.setLineDash([]);
+    }
+
+    if (impState.bleedOn){
+      ctx.strokeStyle = '#ec1e69';
+      ctx.lineWidth = 0.8;
+      const b = impState.bleedMm*scale;
+      ctx.strokeRect(px-b, py-b, pw+b*2, ph+b*2);
+    }
+
+    if (impState.markTrim){
+      drawTrimMark(ctx, px, py, -1, -1);
+      drawTrimMark(ctx, px+pw, py, 1, -1);
+      drawTrimMark(ctx, px, py+ph, -1, 1);
+      drawTrimMark(ctx, px+pw, py+ph, 1, 1);
+    }
+
+    if (impState.markFold && cols===2 && pos.col!==undefined){
+      ctx.save();
+      ctx.strokeStyle = '#8b8d96';
+      ctx.setLineDash([2,3]);
+      ctx.beginPath();
+      const midX = (impState.marginH + cellW + impState.gapH/2)*scale;
+      ctx.moveTo(midX, impState.marginV*scale*0.3);
+      ctx.lineTo(midX, canvas.height - impState.marginV*scale*0.3);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (impState.markNum && pos.page && impState.pageCanvases[pos.page]){
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(px+4, py+ph-16, 22, 13);
+      ctx.fillStyle = '#f5c400';
+      ctx.font = '600 10px JetBrains Mono, monospace';
+      ctx.textAlign='left'; ctx.textBaseline='middle';
+      ctx.fillText(pos.page, px+8, py+ph-9);
+    }
+  });
+
+  if (impState.markReg){
+    const m = 14;
+    drawRegistrationMark(ctx, m, m);
+    drawRegistrationMark(ctx, canvas.width-m, m);
+    drawRegistrationMark(ctx, m, canvas.height-m);
+    drawRegistrationMark(ctx, canvas.width-m, canvas.height-m);
+  }
+
+  ctx.strokeStyle = '#c8c6bd';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5,0.5,canvas.width-1, canvas.height-1);
+
+  updateImpFooter();
+  $i('zoomLabel').textContent = Math.round(impState.zoom*100)+'%';
+}
+
+function updateImpFooter(){
+  const modeLabel = {nup:'N-UP', cutstack:'Cut & Stack', booklet:'Booklet', calendar:'Calendar'}[impState.mode];
+  $i('statMode').textContent = 'Mode: ' + modeLabel;
+  $i('statSheet').textContent = `Lembar: ${impState.sheetW} × ${impState.sheetH} mm`;
+  $i('statPos').textContent = `Posisi: ${impState.rows}×${impState.cols} = ${impState.rows*impState.cols} / sisi`;
+  $i('statPages').textContent = `Total halaman: ${impState.totalPages}`;
+  $i('statSheets').textContent = `Jumlah lembar: ${totalSheetsNeeded()}`;
+
+  const usableW = impState.sheetW - impState.marginH*2;
+  const usableH = impState.sheetH - impState.marginV*2;
+  const cellW = (usableW - impState.gapH*(impState.cols-1)) / impState.cols;
+  const cellH = (usableH - impState.gapV*(impState.rows-1)) / impState.rows;
+  const warnEl = $i('statWarn');
+  if (cellW < impState.pageW - 0.5 || cellH < impState.pageH - 0.5){
+    warnEl.innerHTML = '<span class="warn">⚠ Sel lebih kecil dari halaman — perbesar lembar atau kurangi kolom/baris</span>';
+  } else {
+    warnEl.textContent = '';
+  }
+}
+
+$i('exportBtn').addEventListener('click', async ()=>{
+  if (!impState.pdfDoc){ return; }
+  const { jsPDF } = window.jspdf;
+  const orientation = impState.sheetW > impState.sheetH ? 'l' : 'p';
+  const doc = new jsPDF({orientation, unit:'mm', format:[impState.sheetW, impState.sheetH]});
+
+  const sheets = totalSheetsNeeded();
+  const sides = impState.twoSided ? ['front','back'] : ['front'];
+  let first = true;
+
+  for (let s=0; s<sheets; s++){
+    for (const side of sides){
+      if (!first) doc.addPage([impState.sheetW, impState.sheetH], orientation);
+      first = false;
+      await drawSheetToPdf(doc, s, side);
+    }
+  }
+  doc.save('imposa-imposition.pdf');
+});
+
+async function drawSheetToPdf(doc, sheetIndex, side){
+  const rows = impState.rows, cols = impState.cols;
+  const usableW = impState.sheetW - impState.marginH*2;
+  const usableH = impState.sheetH - impState.marginV*2;
+  const cellW = (usableW - impState.gapH*(cols-1)) / cols;
+  const cellH = (usableH - impState.gapV*(rows-1)) / rows;
+  const positions = computePositions(sheetIndex, side);
+
+  doc.setFillColor(255,255,255);
+  doc.rect(0,0,impState.sheetW,impState.sheetH,'F');
+
+  positions.forEach(pos=>{
+    const x = impState.marginH + pos.col*(cellW+impState.gapH);
+    const y = impState.marginV + pos.row*(cellH+impState.gapV);
+    if (pos.page && impState.pageCanvases[pos.page]){
+      const imgData = impState.pageCanvases[pos.page].toDataURL('image/jpeg', 0.92);
+      doc.addImage(imgData, 'JPEG', x, y, cellW, cellH);
+    }
+    if (impState.markTrim){
+      doc.setDrawColor(20,20,20);
+      doc.setLineWidth(0.15);
+      const len=2.2, gap=1;
+      const corners = [[x,y,-1,-1],[x+cellW,y,1,-1],[x,y+cellH,-1,1],[x+cellW,y+cellH,1,1]];
+      corners.forEach(([cx,cy,dx,dy])=>{
+        doc.line(cx+dx*gap, cy, cx+dx*(gap+len), cy);
+        doc.line(cx, cy+dy*gap, cx, cy+dy*(gap+len));
+      });
+    }
+    if (impState.markNum && pos.page){
+      doc.setFontSize(6);
+      doc.setTextColor(120,120,120);
+      doc.text(String(pos.page), x+1.5, y+cellH-1.5);
+    }
+  });
+
+  if (impState.markReg){
+    doc.setDrawColor(0,0,0);
+    doc.setLineWidth(0.15);
+    const m=6, r=1.5;
+    const corners = [[m,m],[impState.sheetW-m,m],[m,impState.sheetH-m],[impState.sheetW-m,impState.sheetH-m]];
+    corners.forEach(([cx,cy])=>{
+      doc.circle(cx,cy,r);
+      doc.line(cx-r-1.5,cy,cx+r+1.5,cy);
+      doc.line(cx,cy-r-1.5,cx,cy+r+1.5);
+    });
+  }
+}
+
+/* ══════════════════════ INIT ══════════════════════ */
+render();
+setAppMode('merge');
+</script>
+</body>
+</html>

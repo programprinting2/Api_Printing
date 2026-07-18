@@ -1,4 +1,5 @@
 from tasks.merge_pdf import run as merge_pdf_run
+from tasks.compose_pdf_sheet import run as compose_pdf_sheet_run
 from tasks.infojpeg import run as read_info_run
 from tasks.infopdf import run as read_pdf_info_run
 from tasks.image_processing import process_image
@@ -12,6 +13,7 @@ import threading
 
 TASK_MAP = {
     "merge_pdf": merge_pdf_run,
+    "compose_pdf_sheet": compose_pdf_sheet_run,
     "read_info": read_info_run,
     "read_pdf_info": read_pdf_info_run,
     "image_processing": process_image,

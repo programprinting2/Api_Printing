@@ -241,418 +241,459 @@ def ui_main():
 
 @app.route("/ui/merge", methods=["GET"])
 def ui_merge_page():
-    return render_template_string(
-        r"""
-        <!doctype html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Merge PDF - Printing Agent</title>
-            <style>
-                body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;min-height:100vh;padding:20px;color:#222}
-                .card{background:#fff;color:#222;border-radius:8px;padding:18px;max-width:820px;margin:0 auto}
-                .form-group{margin-bottom:12px}
-                .file-input-wrapper{display:flex;align-items:center;gap:8px}
-                .file-input-label{background:#f0f0f0;padding:8px 12px;border-radius:6px;cursor:pointer}
-                .btn{background:#0066cc;color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
-            </style>
-        </head>
-        <body>
-            <div style="max-width:820px;margin:0 auto 16px;display:flex;justify-content:space-between;align-items:center">
-                <h1 style="margin:0;color:#1a1a1a;font-size:22px;font-weight:700">📄 Merge PDF</h1>
-                <a href="/ui"><button type="button" style="background:#fff;color:#444;border:1px solid #ccc;padding:8px 16px;border-radius:5px;cursor:pointer;font-size:13px">← Kembali</button></a>
-            </div>
-            <div class="card" style="border:1px solid #e4e4e4">
-                <form id="mergeForm">
-                    <div class="form-group">
-                        <label>File PDF Pertama</label>
-                        <div class="file-input-wrapper">
-                            <input type="file" id="file1" accept=".pdf" required>
-                            <div id="fileName1" style="margin-left:8px;color:#666;display:none"></div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>File PDF Kedua</label>
-                        <div class="file-input-wrapper">
-                            <input type="file" id="file2" accept=".pdf" required>
-                            <div id="fileName2" style="margin-left:8px;color:#666;display:none"></div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="output">Nama File Output</label>
-                        <input type="text" id="output" value="merged.pdf" required style="padding:8px;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #ddd">
-                    </div>
-                    <div style="margin-top:12px">
-                        <button type="submit" class="btn">Gabungkan PDF</button>
-                    </div>
-                </form>
-                <div id="result" style="margin-top:12px"></div>
-            </div>
+    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "merge_pdf.html")
+    with open(html_path, encoding="utf-8") as handle:
+        return handle.read()
 
-            <script>
-                const file1Input = document.getElementById('file1');
-                const file2Input = document.getElementById('file2');
-                file1Input.addEventListener('change', e => { if(e.target.files[0]){ document.getElementById('fileName1').textContent = e.target.files[0].name; document.getElementById('fileName1').style.display='block'; }});
-                file2Input.addEventListener('change', e => { if(e.target.files[0]){ document.getElementById('fileName2').textContent = e.target.files[0].name; document.getElementById('fileName2').style.display='block'; }});
 
-                document.getElementById('mergeForm').addEventListener('submit', async (ev) => {
-                    ev.preventDefault();
-                    const f1 = file1Input.files[0];
-                    const f2 = file2Input.files[0];
-                    const output = document.getElementById('output').value || 'merged.pdf';
-                    if(!f1 || !f2){ alert('Pilih kedua PDF'); return; }
-                    const fd = new FormData(); fd.append('file1', f1); fd.append('file2', f2); fd.append('output', output);
-                    const resEl = document.getElementById('result'); resEl.textContent = 'Memproses...';
-                    try{
-                        const r = await fetch('/ui/merge', { method: 'POST', body: fd });
-                        const data = await r.json();
-                        if(data.status === 'success'){
-                            resEl.innerHTML = 'Berhasil: ' + (data.path || 'file disimpan di temp');
-                        } else { resEl.textContent = 'Error: ' + (data.message || 'Terjadi kesalahan'); }
-                    }catch(e){ resEl.textContent = 'Error: '+e.message; }
-                });
-            </script>
-        </body>
-        </html>
-        """
-    )
+@app.route("/ui/pdf-color-info", methods=["POST"])
+def ui_pdf_color_info():
+    try:
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"status": "error", "message": "No file"}), 400
+        import fitz as fitz_mod
+
+        data = file.read()
+        doc = fitz_mod.open(stream=data, filetype="pdf")
+        page = doc[0]
+        color_spaces = set()
+        for img in page.get_images(full=True):
+            xref = img[0]
+            try:
+                ei = doc.extract_image(xref)
+                cs_n = ei.get("colorspace", 0)
+                if cs_n == 4:
+                    color_spaces.add("CMYK")
+                elif cs_n == 3:
+                    color_spaces.add("RGB")
+                elif cs_n == 1:
+                    color_spaces.add("Grayscale")
+            except Exception:
+                cs_name = img[5] if len(img) > 5 else ""
+                if "CMYK" in cs_name.upper():
+                    color_spaces.add("CMYK")
+                elif "RGB" in cs_name.upper():
+                    color_spaces.add("RGB")
+                elif cs_name:
+                    color_spaces.add(cs_name)
+        doc.close()
+        mode = ", ".join(sorted(color_spaces)) if color_spaces else "Unknown"
+        return jsonify({"status": "success", "color_mode": mode, "spaces": list(color_spaces)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/ui/file-explorer")
 def ui_file_explorer():
     return render_template_string(
         r"""
-        <!doctype html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>File Explorer - Printing Agent</title>
-            <style>
-                body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef0f3;min-height:100vh;padding:20px;color:#222}
-                .container{max-width:1200px;margin:0 auto}
-                .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-                .card{background:#fff;color:#333;border-radius:10px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #e4e4e4}
-                .explorer{display:grid;grid-template-columns:240px 1fr;gap:12px}
-                .sidebar{padding:12px;border-right:1px solid #eee}
-                .drives{list-style:none;padding:0;margin:0}
-                .drives li{padding:8px;border-radius:6px;cursor:pointer}
-                .drives li:hover{background:#f0f4ff}
-                .pathbar{font-size:13px;color:#666;margin-bottom:8px}
-                .toolbar{display:flex;gap:8px;margin-bottom:8px}
-                .btn{background:#0066cc;color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
-                table{width:100%;border-collapse:collapse}
-                th,td{padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:13px}
-                th{color:#666;font-weight:600}
-                tr.row:hover{background:#f8fbff}
-                .muted{color:#777;font-size:12px}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Explorer — Printing Agent</title>
+<style>
+  :root{
+    --bg-base:#eef0f3;
+    --bg-panel:#ffffff;
+    --bg-inset:#f6f8fa;
+    --line:rgba(0,0,0,0.045);
+    --line-strong:#d9dee5;
+    --cyan:#0066cc;
+    --cyan-dim:#7aa7d4;
+    --text:#222222;
+    --text-dim:#667080;
+    --text-faint:#98a2ad;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg-base);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:22px 24px 16px;
+    border-bottom:1px solid var(--line-strong);
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  header .mark{
+    font-family:var(--mono); font-size:12px; color:var(--cyan);
+    border:1px solid var(--cyan-dim); padding:3px 8px; border-radius:3px; letter-spacing:0.08em;
+  }
+  header h1{ font-size:19px; margin:0; font-weight:600; }
+  header p{ margin:0; color:var(--text-dim); font-size:13px; font-family:var(--mono); }
+  header .back{
+    margin-left:auto; color:var(--text-dim); text-decoration:none; font-size:13px;
+    border:1px solid var(--line-strong); padding:6px 12px; border-radius:5px;
+  }
+  header .back:hover{border-color:var(--cyan); color:var(--cyan);}
 
-                        <h1 style="margin:0;color:#1a1a1a;font-size:22px;font-weight:700">🗂️ File Explorer</h1>
-                        <div class="muted" style="margin-top:4px">Browse files under: F:\\Pesanan</div>
-                    </div>
-                    <div><a href="/ui"><button class="btn">← Kembali</button></a></div>
-                </div>
+  .layout{ display:grid; grid-template-columns:240px 1fr; gap:0; min-height:calc(100vh - 76px); }
+  @media (max-width: 880px){ .layout{grid-template-columns:1fr;} }
 
-                <div class="card">
-                    <div class="explorer">
-                        <div class="sidebar">
-                            <div class="pathbar">Drives</div>
-                            <ul id="drives" class="drives"></ul>
-                            <div style="height:12px"></div>
-                            <div class="pathbar">Current Path</div>
-                            <div id="currentPath" class="muted">/</div>
-                        </div>
+  .sidebar{
+    background:var(--bg-panel); border-right:1px solid var(--line-strong); padding:20px; overflow-y:auto;
+  }
+  .section-label{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; color:var(--text-faint);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+  .drives{list-style:none;padding:0;margin:0 0 20px 0;}
+  .drives li{
+    padding:8px 10px; border-radius:5px; cursor:pointer; font-size:13px; color:var(--text-dim);
+    font-family:var(--mono); transition:background .12s, color .12s;
+  }
+  .drives li:hover{background:rgba(0,102,204,0.06); color:var(--cyan);}
+  .drives li.active{background:rgba(0,102,204,0.1); color:var(--cyan); font-weight:600;}
+  .current-path{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-dim);
+    word-break:break-all; line-height:1.5; padding:10px 12px;
+    background:var(--bg-inset); border:1px solid var(--line-strong); border-radius:5px;
+  }
 
-                        <div style="padding:8px">
-                            <div class="toolbar">
-                                <button class="btn" id="refreshBtn">Refresh</button>
-                                <button class="btn" id="upBtn">Up</button>
-                            </div>
+  .main-area{ padding:20px; display:flex; flex-direction:column; gap:14px; min-width:0; }
 
-                            <div id="listWrap">
-                                <table>
-                                    <thead>
-                                        <tr><th style="width:48%">Name</th><th style="width:12%">Type</th><th style="width:20%">Size</th><th style="width:20%">Modified</th></tr>
-                                    </thead>
-                                    <tbody id="fileTable"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  .toolbar{
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
+  .toolbar .path-display{
+    flex:1; font-family:var(--mono); font-size:12px; color:var(--text-dim);
+    padding:7px 12px; background:var(--bg-inset); border:1px solid var(--line-strong);
+    border-radius:5px; min-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .btn-tool{
+    background:transparent; color:var(--text-dim); border:1px solid var(--line-strong);
+    padding:7px 14px; border-radius:5px; cursor:pointer; font-size:12.5px; font-family:var(--sans);
+    transition:border-color .12s, color .12s;
+  }
+  .btn-tool:hover{border-color:var(--cyan); color:var(--cyan);}
+  .btn-tool svg{width:14px;height:14px;vertical-align:-2px;margin-right:4px;}
 
-            <script>
-                let currentPath = "";
+  .file-table-wrap{
+    background:var(--bg-panel); border:1px solid var(--line-strong); border-radius:6px;
+    overflow:hidden; flex:1;
+  }
+  table{width:100%;border-collapse:collapse;}
+  th{
+    padding:10px 14px; text-align:left; font-family:var(--mono); font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint);
+    background:var(--bg-inset); border-bottom:1px solid var(--line-strong);
+  }
+  td{
+    padding:9px 14px; font-size:13px; color:var(--text-dim); border-bottom:1px solid var(--line);
+  }
+  tr.row{cursor:pointer; transition:background .1s;}
+  tr.row:hover{background:rgba(0,102,204,0.04);}
+  tr.row .name-cell{color:var(--text); font-weight:500;}
+  tr.row .name-cell .icon{margin-right:8px; font-size:15px; vertical-align:-1px;}
+  tr.row .size-cell, tr.row .date-cell{font-family:var(--mono); font-size:12px;}
+  tr.row .type-badge{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:2px 7px; border-radius:3px; background:var(--bg-inset); border:1px solid var(--line-strong);
+  }
+  tr.row-up td{color:var(--cyan); font-weight:600; font-size:13px;}
+  tr.row-up:hover td{background:rgba(0,102,204,0.06);}
 
-                async function loadDrives(){
-                    try{
-                        const res = await fetch('/ui/drives');
-                        const data = await res.json();
-                        const el = document.getElementById('drives'); el.innerHTML='';
-                        (data.drives||[]).forEach(d=>{
-                            const li = document.createElement('li'); li.textContent=d; li.addEventListener('click', ()=>{ loadFolder(d); }); el.appendChild(li);
-                        });
-                    }catch(e){console.warn(e);} 
+  .empty-state{
+    padding:60px 20px; text-align:center; color:var(--text-faint);
+    font-family:var(--mono); font-size:13px;
+  }
+
+  /* Modal */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; z-index:9999;
+    align-items:center; justify-content:center; backdrop-filter:blur(2px);
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-box{
+    width:92%; max-width:1000px; background:var(--bg-panel); border-radius:8px;
+    box-shadow:0 12px 48px rgba(0,0,0,0.2); overflow:hidden;
+  }
+  .modal-header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 18px; border-bottom:1px solid var(--line-strong);
+  }
+  .modal-header h3{margin:0; font-size:16px; font-weight:600;}
+  .modal-close{
+    background:transparent; border:1px solid var(--line-strong); color:var(--text-dim);
+    width:32px; height:32px; border-radius:5px; cursor:pointer; font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .modal-close:hover{border-color:var(--cyan); color:var(--cyan);}
+  .modal-body{display:flex; gap:0; min-height:420px;}
+  .modal-preview{
+    flex:1; background:var(--bg-inset); display:flex; align-items:center;
+    justify-content:center; padding:16px; overflow:auto; border-right:1px solid var(--line-strong);
+  }
+  .modal-info{width:340px; max-height:520px; overflow-y:auto; padding:16px;}
+  .info-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .info-card{
+    background:var(--bg-inset); padding:10px 12px; border-radius:5px;
+    border:1px solid var(--line-strong);
+  }
+  .info-card .label{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-faint); margin-bottom:4px;
+  }
+  .info-card .value{font-size:15px; font-weight:600; color:var(--text);}
+  .pdf-header{
+    background:var(--cyan); color:#fff; padding:16px; border-radius:6px; margin-bottom:12px;
+  }
+  .pdf-header .row{
+    display:flex; justify-content:space-between; padding:6px 0;
+    border-bottom:1px solid rgba(255,255,255,0.2); font-size:12px;
+  }
+  .pdf-header .row:last-child{border-bottom:none;}
+  .pdf-header .row .k{opacity:0.8; text-transform:uppercase; font-family:var(--mono); font-size:10px; letter-spacing:0.06em;}
+  .pdf-header .row .v{font-weight:600;}
+  .pdf-page-item{
+    background:var(--bg-inset); padding:8px 10px; border-left:3px solid var(--cyan);
+    margin-bottom:6px; border-radius:0 4px 4px 0; font-size:11px; color:var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="mark">PRINTING AGENT</span>
+  <h1>File Explorer</h1>
+  <p>Browse &middot; Preview &middot; File info</p>
+  <a class="back" href="/ui">&larr; Menu</a>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="section-label">Drives</div>
+    <ul id="drives" class="drives"></ul>
+    <div class="section-label">Current Path</div>
+    <div id="currentPath" class="current-path">/</div>
+  </div>
+
+  <div class="main-area">
+    <div class="toolbar">
+      <div class="path-display" id="pathDisplay">/</div>
+      <button class="btn-tool" id="upBtn" title="Up">&#9650; Up</button>
+      <button class="btn-tool" id="refreshBtn" title="Refresh">&#8635; Refresh</button>
+    </div>
+
+    <div class="file-table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:48%">Name</th><th style="width:12%">Type</th><th style="width:20%">Size</th><th style="width:20%">Modified</th></tr>
+        </thead>
+        <tbody id="fileTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Informasi &amp; Preview</h3>
+      <button class="modal-close" id="modalCloseBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-preview" id="modalPreview"></div>
+      <div class="modal-info" id="modalInfo"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPath = "";
+let activeDrive = "";
+
+async function loadDrives(){
+    try{
+        const res = await fetch('/ui/drives');
+        const data = await res.json();
+        const el = document.getElementById('drives'); el.innerHTML='';
+        (data.drives||[]).forEach(d=>{
+            const li = document.createElement('li');
+            li.textContent = d;
+            li.addEventListener('click', ()=>{ activeDrive=d; loadFolder(d); });
+            el.appendChild(li);
+        });
+    }catch(e){console.warn(e);}
+}
+
+function fmtBytes(n){ if(n===null||n===undefined) return '-'; if(n<1024) return n+' B'; const units=['KB','MB','GB','TB']; let i=-1; do{n=n/1024;i++;}while(n>=1024&&i<units.length-1); return n.toFixed(1)+' '+units[i]; }
+
+async function loadFolder(path=''){
+    try{
+        const q = '/api/list?path='+encodeURIComponent(path||'');
+        const res = await fetch(q); if(!res.ok){ const t=await res.text(); alert(t); return; }
+        const data = await res.json();
+        currentPath = data.current_path||'';
+        const dp = (currentPath||'\\').replace(/\\\\/g,'\\');
+        document.getElementById('currentPath').textContent = dp;
+        document.getElementById('pathDisplay').textContent = dp;
+
+        // highlight active drive
+        document.querySelectorAll('#drives li').forEach(li=>{
+            li.classList.toggle('active', currentPath.startsWith(li.textContent));
+        });
+
+        const tbody = document.getElementById('fileTable'); tbody.innerHTML='';
+
+        if(currentPath){
+            const upRow = document.createElement('tr'); upRow.className='row row-up';
+            upRow.innerHTML='<td colspan="4"><span style="margin-right:6px">&#9650;</span>.. (Up)</td>';
+            upRow.addEventListener('click', ()=>{ const parts=currentPath.split('\\\\').filter(Boolean); parts.pop(); loadFolder(parts.join('\\\\')); });
+            tbody.appendChild(upRow);
+        }
+
+        (data.items||[]).forEach(it=>{
+            const tr = document.createElement('tr'); tr.className='row';
+            const nameCell = document.createElement('td'); nameCell.className='name-cell';
+            nameCell.innerHTML = '<span class="icon">'+(it.type==='folder'?'&#128193;':'&#128196;')+'</span>' + it.name;
+            const typeCell = document.createElement('td');
+            typeCell.innerHTML = '<span class="type-badge">'+it.type+'</span>';
+            const sizeCell = document.createElement('td'); sizeCell.className='size-cell'; sizeCell.textContent = fmtBytes(it.size);
+            const modCell = document.createElement('td'); modCell.className='date-cell'; modCell.textContent = it.last_modified||'-';
+
+            tr.addEventListener('dblclick', ()=>{
+                if(it.type==='folder'){
+                    loadFolder(currentPath ? currentPath+'\\\\'+it.name : it.name);
+                } else {
+                    previewModalOpen(currentPath ? currentPath+'\\\\'+it.name : it.name);
                 }
+            });
 
-                function fmtBytes(n){ if(n===null||n===undefined) return '-'; if(n<1024) return n+' B'; const units=['KB','MB','GB','TB']; let i= -1; do{ n=n/1024; i++; }while(n>=1024 && i<units.length-1); return n.toFixed(1)+' '+units[i]; }
+            tr.appendChild(nameCell); tr.appendChild(typeCell); tr.appendChild(sizeCell); tr.appendChild(modCell);
+            tbody.appendChild(tr);
+        });
 
-                function fmtDate(s){ return s||'-'; }
+        if(!data.items||data.items.length===0){
+            const tr = document.createElement('tr');
+            tr.innerHTML='<td colspan="4" class="empty-state">Folder kosong</td>';
+            tbody.appendChild(tr);
+        }
+    }catch(e){ alert(e.message); }
+}
 
-                async function loadFolder(path=''){
-                    try{
-                        const q = '/api/list?path='+encodeURIComponent(path||'');
-                        const res = await fetch(q); if(!res.ok){ const t=await res.text(); alert(t); return; }
-                        const data = await res.json();
-                        currentPath = data.current_path||'';
-                        document.getElementById('currentPath').textContent = (currentPath||'\\') ;
-                                // normalize display: collapse repeated backslashes
-                                try{ document.getElementById('currentPath').textContent = (currentPath||'\\').replace(/\\\\/g, '\\'); }catch(e){ document.getElementById('currentPath').textContent = currentPath||'\\'; }
-                        const tbody = document.getElementById('fileTable'); tbody.innerHTML='';
+document.getElementById('refreshBtn').addEventListener('click', ()=>loadFolder(currentPath));
+document.getElementById('upBtn').addEventListener('click', ()=>{ const parts=currentPath.split('\\\\').filter(Boolean); parts.pop(); loadFolder(parts.join('\\\\')); });
 
-                        if(currentPath){ const upRow = document.createElement('tr'); upRow.className='row'; upRow.innerHTML=`<td colspan="4">⬅️ <strong style="cursor:pointer">.. (Up)</strong></td>`; upRow.addEventListener('click', ()=>{ const parts=currentPath.split('\\\\').filter(Boolean); parts.pop(); loadFolder(parts.join('\\\\')); }); tbody.appendChild(upRow); }
+(async function(){ await loadDrives(); await loadFolder(''); })();
 
-                        (data.items||[]).forEach(it=>{
-                            const tr = document.createElement('tr'); tr.className='row';
-                            const nameCell = document.createElement('td'); nameCell.style.cursor='pointer';
-                            nameCell.innerHTML = (it.type === 'folder' ? '📁 ' : '📄 ') + it.name;
-                            const typeCell = document.createElement('td'); typeCell.textContent = it.type;
-                            const sizeCell = document.createElement('td'); sizeCell.textContent = fmtBytes(it.size);
-                            const modCell = document.createElement('td'); modCell.textContent = it.last_modified||'-';
+// --- pdf.js ---
+const pdfScript = document.createElement('script');
+pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+document.head.appendChild(pdfScript);
 
-                            nameCell.addEventListener('dblclick', ()=>{
-                                if(it.type==='folder'){
-                                    const newPath = currentPath ? currentPath + '\\\\' + it.name : it.name; loadFolder(newPath);
-                                } else {
-                                    const fp = (currentPath ? currentPath + '\\\\' + it.name : it.name);
-                                    previewModalOpen(fp);
+// --- Modal ---
+const modalEl = document.getElementById('previewModal');
+const modalPreview = document.getElementById('modalPreview');
+const modalInfo = document.getElementById('modalInfo');
+
+function closeModal(){ modalEl.classList.remove('show'); modalPreview.innerHTML=''; modalInfo.innerHTML=''; }
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+modalEl.addEventListener('click', ev=>{ if(ev.target===modalEl) closeModal(); });
+document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeModal(); });
+
+function previewModalOpen(filepath){
+    modalEl.classList.add('show');
+    modalPreview.innerHTML = '<div style="color:var(--text-faint);font-family:var(--mono);font-size:13px">Loading...</div>';
+    modalInfo.innerHTML = '';
+
+    (async ()=>{
+        try{
+            const ires = await fetch('/api/file-info?filepath='+encodeURIComponent(filepath));
+            let infoData = null;
+            if(ires.ok){ infoData = await ires.json(); }
+
+            const ext = filepath.split('.').pop().toLowerCase();
+            const url = '/ui/read-file?filepath='+encodeURIComponent(filepath);
+
+            if(['jpg','jpeg','png','gif','webp','bmp'].includes(ext)){
+                modalPreview.innerHTML = '';
+                const img = document.createElement('img');
+                img.src = url;
+                img.style.cssText = 'max-width:100%;max-height:400px;object-fit:contain;border-radius:4px;';
+                modalPreview.appendChild(img);
+                img.onload = ()=>{
+                    if(infoData && infoData.status === 'success'){
+                        modalInfo.innerHTML = '<div class="info-grid">'
+                          +'<div class="info-card"><div class="label">Dimensi (PX)</div><div class="value">'+(infoData.dimensions||(img.naturalWidth+'x'+img.naturalHeight))+'</div></div>'
+                          +'<div class="info-card"><div class="label">Lebar (CM)</div><div class="value">'+(infoData.width_cm||'-')+'</div></div>'
+                          +'<div class="info-card"><div class="label">Tinggi (CM)</div><div class="value">'+(infoData.height_cm||'-')+'</div></div>'
+                          +'<div class="info-card"><div class="label">DPI</div><div class="value">'+(infoData.dpi||'-')+'</div></div>'
+                          +'<div class="info-card"><div class="label">Mode Warna</div><div class="value">'+(infoData.color_mode||'-')+'</div></div>'
+                          +'<div class="info-card"><div class="label">Ukuran (Bytes)</div><div class="value">'+(infoData.size_bytes||'-')+'</div></div>'
+                          +'<div class="info-card"><div class="label">Ukuran (MB)</div><div class="value">'+(infoData.size_mb||'-')+'</div></div>'
+                          +'<div class="info-card"><div class="label">Ukuran (Mbps)</div><div class="value">'+(infoData.size_megabits||'-')+'</div></div>'
+                          +'</div>';
+                    } else {
+                        modalInfo.innerHTML = '<div class="info-grid"><div class="info-card" style="grid-column:1/3"><div class="label">Dimensi (PX)</div><div class="value">'+img.naturalWidth+'&times;'+img.naturalHeight+'</div></div></div>';
+                    }
+                };
+            } else if(ext === 'pdf'){
+                const waitPdf = () => new Promise((y,n)=>{ if(window.pdfjsLib) return y(); let i=0; const t=setInterval(()=>{ if(window.pdfjsLib){clearInterval(t);y();} if(++i>50){clearInterval(t);n('pdf.js load timeout');} },100); });
+                await waitPdf();
+                try{
+                    const pdfRes = await fetch(url);
+                    if(!pdfRes.ok) throw new Error('HTTP '+pdfRes.status);
+                    const arrayBuf = await pdfRes.arrayBuffer();
+                    if(arrayBuf.byteLength===0) throw new Error('PDF file is empty');
+                    const pdf = await window.pdfjsLib.getDocument({data:arrayBuf}).promise;
+                    const page = await pdf.getPage(1);
+                    const bv = page.getViewport({scale:1});
+                    const scale = 280/bv.width;
+                    const vp = page.getViewport({scale});
+                    const canvas = document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
+                    canvas.style.cssText='max-width:100%;height:auto;border-radius:4px;';
+                    await page.render({canvasContext:canvas.getContext('2d'), viewport:vp}).promise;
+                    modalPreview.innerHTML=''; modalPreview.appendChild(canvas);
+
+                    if(infoData && infoData.status === 'success'){
+                        const dp = (infoData.actual_file_path||filepath).replace(/\\\\/g,'\\');
+                        let html = '<div class="pdf-header">';
+                        html += '<div class="row"><span class="k">File</span><span class="v" style="font-size:10px;word-break:break-all;max-width:200px">'+dp+'</span></div>';
+                        html += '<div class="row"><span class="k">Halaman</span><span class="v">'+infoData.num_pages+'</span></div>';
+                        html += '<div class="row"><span class="k">Mode Warna</span><span class="v">'+(infoData.color_mode||'-')+'</span></div>';
+                        html += '<div class="row"><span class="k">Ukuran</span><span class="v">'+(infoData.file_size_mb||'-')+' MB</span></div>';
+                        if(infoData.size_check !== undefined){
+                            html += '<div class="row"><span class="k">Size Check</span><span class="v" style="color:'+(infoData.size_check?'#a5d6a7':'#ffcc80')+'">'+(infoData.size_check?'&#10003; TRUE':'&#10007; FALSE')+'</span></div>';
+                        }
+                        html += '</div>';
+                        if(infoData.pages && infoData.pages.length>0){
+                            html += '<div class="section-label" style="margin-top:14px">Detail Halaman</div>';
+                            infoData.pages.forEach(pg=>{
+                                if(!pg.error){
+                                    html += '<div class="pdf-page-item"><strong>Hal '+pg.page_num+'</strong> &mdash; L: '+pg.width_cm+'cm &times; T: '+pg.height_cm+'cm</div>';
                                 }
                             });
-
-                            tr.appendChild(nameCell); tr.appendChild(typeCell); tr.appendChild(sizeCell); tr.appendChild(modCell);
-                            tbody.appendChild(tr);
-                        });
-                    }catch(e){ alert(e.message); }
-                }
-
-                document.getElementById('refreshBtn').addEventListener('click', ()=>loadFolder(currentPath));
-                document.getElementById('upBtn').addEventListener('click', ()=>{ const parts=currentPath.split('\\\\').filter(Boolean); parts.pop(); loadFolder(parts.join('\\\\')); });
-
-                (async function(){ await loadDrives(); await loadFolder(''); })();
-
-                // --- Preview modal ---
-                // add pdf.js worker
-                const pdfScript = document.createElement('script');
-                pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-                document.head.appendChild(pdfScript);
-
-                function createModal(){
-                                        if(document.getElementById('previewModal')) return;
-                                        const modal = document.createElement('div'); modal.id='previewModal';
-                                        modal.style.position='fixed'; modal.style.left=0; modal.style.top=0; modal.style.right=0; modal.style.bottom=0; modal.style.background='rgba(0,0,0,0.5)'; modal.style.display='none'; modal.style.zIndex=9999; modal.style.alignItems='center'; modal.style.justifyContent='center';
-
-                                        // Build modal inner HTML for nicer styling (Informasi & Preview)
-                                        modal.innerHTML = `
-                                            <div style="width:90%;max-width:1000px;background:#fff;color:#333;border-radius:10px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
-                                                <div style="display:flex;justify-content:space-between;align-items:center;">
-                                                    <div>
-                                                        <h3 style="margin:0;font-size:18px">Informasi & Preview</h3>
-                                                    </div>
-                                                    <div style="display:flex;gap:8px;align-items:center;">
-                                                        <button id="modalCloseBtn" style="background:#0066cc;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer">Close</button>
-                                                        <button id="modalXBtn" aria-label="Close" style="background:transparent;border:none;font-size:20px;cursor:pointer">✕</button>
-                                                    </div>
-                                                </div>
-                                                <div style="display:flex;gap:12px;margin-top:12px">
-                                                    <div id="modalPreview" style="flex:1;min-height:420px;background:#f5f7ff;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:12px;overflow:auto"></div>
-                                                    <div id="modalInfo" style="width:360px;max-height:560px;overflow:auto;padding:6px"></div>
-                                                </div>
-                                            </div>
-                                        `;
-
-                                        document.body.appendChild(modal);
-                                        // wire close buttons
-                                        document.getElementById('modalCloseBtn').addEventListener('click', ()=>{ modal.style.display='none'; document.getElementById('modalPreview').innerHTML=''; document.getElementById('modalInfo').innerHTML=''; });
-                                        document.getElementById('modalXBtn').addEventListener('click', ()=>{ modal.style.display='none'; document.getElementById('modalPreview').innerHTML=''; document.getElementById('modalInfo').innerHTML=''; });
-                }
-
-                function previewModalOpen(filepath){
-                    createModal();
-                    const modal = document.getElementById('previewModal'); modal.style.display='flex';
-                    const preview = document.getElementById('modalPreview'); const info = document.getElementById('modalInfo');
-                    preview.innerHTML = '<div style="color:#666">Loading preview...</div>';
-                    info.innerHTML = '';
-
-                      // Close on ESC
-                      function escHandler(ev){ if(ev.key === 'Escape'){ modal.style.display='none'; document.removeEventListener('keydown', escHandler); document.getElementById('modalPreview').innerHTML=''; document.getElementById('modalInfo').innerHTML=''; } }
-                      document.addEventListener('keydown', escHandler);
-                      // override close button to also remove ESC handler
-                      const closeBtn = modal.querySelector('button'); if(closeBtn){ closeBtn.onclick = ()=>{ modal.style.display='none'; document.removeEventListener('keydown', escHandler); document.getElementById('modalPreview').innerHTML=''; document.getElementById('modalInfo').innerHTML=''; }; }
-
-                    (async ()=>{
-                        try{
-                            // prefer using the detailed task-based info endpoint
-                            const ires = await fetch('/api/file-info?filepath='+encodeURIComponent(filepath));
-                            let infoData = null;
-                            if(ires.ok){ infoData = await ires.json(); }
-
-                            const displayPath = filepath.replace(/\\\\/g, '\\');
-                            info.innerHTML += `<div style="display:flex;justify-content:space-between;align-items:center"><div><h3 style=\"margin:0\">Preview</h3><div style=\"font-size:12px;color:#666;word-break:break-all\">${displayPath}</div></div></div>`;
-
-                            const ext = filepath.split('.').pop().toLowerCase();
-                            const url = '/ui/read-file?filepath='+encodeURIComponent(filepath);
-
-                            if(['jpg','jpeg','png','gif','webp','bmp'].includes(ext)){
-                                // image
-                                preview.innerHTML = '';
-                                const img = document.createElement('img');
-                                img.src = url;
-                                img.style.width = 'auto';
-                                img.style.maxWidth = '100%';
-                                img.style.height = 'auto';
-                                img.style.maxHeight = '380px';
-                                img.style.objectFit = 'contain';
-                                preview.appendChild(img);
-                                img.onload = ()=>{
-                                    if(infoData && infoData.status === 'success'){
-                                        // Grid format matching requested UI
-                                        info.innerHTML = `
-                                          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Dimensi (PX)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.dimensions || (img.naturalWidth+'x'+img.naturalHeight)}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Lebar (CM)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.width_cm || '-'}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Tinggi (CM)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.height_cm || '-'}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">DPI</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.dpi || '-'}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Mode Warna</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.color_mode || 'Unknown'}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Ukuran (BYTES)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.size_bytes || '-'}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Ukuran (MB)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.size_mb || '-'}</div>
-                                            </div>
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Ukuran (MBPS)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${infoData.size_megabits || '-'}</div>
-                                            </div>
-                                          </div>
-                                        `;
-                                    } else {
-                                        info.innerHTML = `
-                                          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                                            <div style="background:#f0f4ff;padding:10px;border-radius:6px;grid-column:1/3">
-                                              <div style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px">Dimensi (PX)</div>
-                                              <div style="font-size:16px;font-weight:600;color:#333">${img.naturalWidth}×${img.naturalHeight}</div>
-                                            </div>
-                                          </div>
-                                        `;
-                                    }
-                                };
-                            } else if(ext === 'pdf'){
-                                // wait for pdfjs
-                                const waitPdf = () => new Promise((y, n)=>{ if(window.pdfjsLib) return y(); let i=0; const t=setInterval(()=>{ if(window.pdfjsLib){ clearInterval(t); y(); } if(++i>50){ clearInterval(t); n('pdf.js load timeout'); } },100); });
-                                await waitPdf();
-                                try{
-                                    const pdfRes = await fetch(url);
-                                    if(!pdfRes.ok){ throw new Error(`HTTP ${pdfRes.status}: ${await pdfRes.text()}`); }
-                                    const arrayBuf = await pdfRes.arrayBuffer();
-                                    if(arrayBuf.byteLength === 0){ throw new Error('PDF file is empty'); }
-                                    const pdf = await window.pdfjsLib.getDocument({data:arrayBuf}).promise;
-                                    const page = await pdf.getPage(1);
-                                    // Scale down to fit in modal (max 280px width)
-                                    const baseViewport = page.getViewport({scale:1});
-                                    const maxWidth = 280;
-                                    const scale = maxWidth / baseViewport.width;
-                                    const viewport = page.getViewport({scale:scale});
-                                    const canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; canvas.style.maxWidth = '100%'; canvas.style.height = 'auto'; canvas.style.borderRadius = '6px'; const ctx = canvas.getContext('2d');
-                                    await page.render({canvasContext:ctx, viewport}).promise;
-                                    preview.innerHTML = ''; preview.appendChild(canvas);
-                                    if(infoData && infoData.status === 'success'){
-                                        const displayPath = (infoData.actual_file_path || filepath).replace(/\\\\/g, '\\');
-                                        let pagesHtml = '';
-                                        if(infoData.pages && infoData.pages.length > 0){
-                                            pagesHtml = '<div style="margin-top:15px;max-height:180px;overflow-y:auto">';
-                                            pagesHtml += '<h4 style="color:#333;margin-bottom:10px;font-size:12px;font-weight:600">Detail Setiap Halaman</h4>';
-                                            infoData.pages.forEach(pg => {
-                                                if(!pg.error){
-                                                    pagesHtml += '<div style="background:#f8f9ff;padding:8px;border-left:3px solid #0066cc;margin-bottom:8px;border-radius:4px;font-size:11px">';
-                                                    pagesHtml += '<div style="font-weight:600;color:#333;margin-bottom:4px">Halaman '+pg.page_num+'</div>';
-                                                    pagesHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;color:#666">';
-                                                    pagesHtml += '<div>L: <strong>'+pg.width_cm+'</strong>cm</div>';
-                                                    pagesHtml += '<div>T: <strong>'+pg.height_cm+'</strong>cm</div>';
-                                                    pagesHtml += '</div></div>';
-                                                }
-                                            });
-                                            pagesHtml += '</div>';
-                                        }
-                                        info.innerHTML = `
-                                          <div style="background:#0066cc;color:white;padding:20px;border-radius:8px;margin-bottom:20px">
-                                            <div style="margin:10px 0;text-align:center">
-                                              <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JALUR FILE</div>
-                                              <div style="font-weight:600;font-size:10px;font-family:monospace;word-break:break-all;margin-top:5px">${displayPath}</div>
-                                            </div>
-                                            <div style="margin:10px 0;padding-top:10px;border-top:1px solid rgba(255,255,255,0.3);text-align:center">
-                                              <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JUMLAH HALAMAN</div>
-                                              <div style="font-weight:600;font-size:18px;margin-top:5px">${infoData.num_pages}</div>
-                                            </div>
-                                            <div style="margin:10px 0;text-align:center">
-                                              <div style="opacity:0.9;font-size:12px;text-transform:uppercase">MODE WARNA</div>
-                                              <div style="font-weight:600;font-size:18px;margin-top:5px">${infoData.color_mode || '-'}</div>
-                                            </div>
-                                            <div style="margin:10px 0;text-align:center">
-                                              <div style="opacity:0.9;font-size:12px;text-transform:uppercase">UKURAN FILE</div>
-                                              <div style="font-weight:600;font-size:18px;margin-top:5px">${infoData.file_size_mb || '-'} MB</div>
-                                            </div>
-                                            ${infoData.size_check !== undefined ? `<div style="margin:10px 0;padding-top:10px;border-top:1px solid rgba(255,255,255,0.3);text-align:center">
-                                              <div style="opacity:0.9;font-size:12px;text-transform:uppercase">ERROR SIZE CHECK</div>
-                                              <div style="font-weight:600;font-size:18px;margin-top:5px;color:${infoData.size_check ? '#4caf50' : '#ff9800'}">${infoData.size_check ? '✓ TRUE' : '✗ FALSE'}</div>
-                                            </div>` : ''}
-                                          </div>
-                                          ${pagesHtml}
-                                        `;
-                                    } else {
-                                        info.innerHTML = `
-                                          <div style="background:#0066cc;color:white;padding:20px;border-radius:8px">
-                                            <div style="margin:10px 0;padding-top:10px;border-top:1px solid rgba(255,255,255,0.3);text-align:center">
-                                              <div style="opacity:0.9;font-size:12px;text-transform:uppercase">JUMLAH HALAMAN</div>
-                                              <div style="font-weight:600;font-size:18px;margin-top:5px">${pdf.numPages}</div>
-                                            </div>
-                                          </div>
-                                        `;
-                                    }
-                                }catch(e){ preview.innerHTML = '<div style="color:#c33">Failed to render PDF: '+e.message+'</div>'; }
-                            } else {
-                                preview.innerHTML = '<div style="color:#666">No preview available for this file type.</div>';
-                            }
-                        }catch(e){ preview.innerHTML = '<div style="color:#c33">'+e.message+'</div>'; }
-                    })();
-                }
-            </script>
-        </body>
-        </html>
+                        }
+                        modalInfo.innerHTML = html;
+                    } else {
+                        modalInfo.innerHTML = '<div class="pdf-header"><div class="row"><span class="k">Halaman</span><span class="v">'+pdf.numPages+'</span></div></div>';
+                    }
+                }catch(e){ modalPreview.innerHTML='<div style="color:#c62828;font-family:var(--mono);font-size:12px">'+e.message+'</div>'; }
+            } else {
+                modalPreview.innerHTML = '<div style="color:var(--text-faint);font-family:var(--mono);font-size:13px">No preview for this file type</div>';
+            }
+        }catch(e){ modalPreview.innerHTML='<div style="color:#c62828;font-family:var(--mono);font-size:12px">'+e.message+'</div>'; }
+    })();
+}
+</script>
+</body>
+</html>
         """
     )
 
@@ -1525,10 +1566,39 @@ if (!window.fileDialogComponent) {
             renderList();
         });
     });
+    let typeAheadStr = '', typeAheadTimer = null;
     $('fdOverlay').addEventListener('keydown', (e) => {
-        if(e.key === 'Escape'){ closeFileDialog(); }
-        else if(e.key === 'Enter' && fd.selected){ openItem(fd.selected); }
-        else if(e.key === 'Backspace' && document.activeElement !== $('fdSearch')){ e.preventDefault(); goUp(); }
+        if(e.key === 'Escape'){ closeFileDialog(); return; }
+        if(e.key === 'Enter' && fd.selected){ openItem(fd.selected); return; }
+        if(e.key === 'Backspace' && document.activeElement !== $('fdSearch')){ e.preventDefault(); goUp(); return; }
+        if(document.activeElement === $('fdSearch')) return;
+        if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+            e.preventDefault();
+            const rows = Array.from($('fdBody').querySelectorAll('.fd-row'));
+            if(!rows.length) return;
+            const cur = rows.findIndex(r => r.classList.contains('selected'));
+            let next = e.key === 'ArrowDown' ? cur + 1 : cur - 1;
+            if(next < 0) next = rows.length - 1;
+            if(next >= rows.length) next = 0;
+            rows[next].click();
+            rows[next].scrollIntoView({block:'nearest'});
+            return;
+        }
+        if(e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey){
+            e.preventDefault();
+            clearTimeout(typeAheadTimer);
+            typeAheadStr += e.key.toLowerCase();
+            typeAheadTimer = setTimeout(() => { typeAheadStr = ''; }, 800);
+            const rows = Array.from($('fdBody').querySelectorAll('.fd-row'));
+            const match = rows.find(r => {
+                const txt = r.querySelector('.txt');
+                return txt && txt.textContent.toLowerCase().startsWith(typeAheadStr);
+            });
+            if(match){
+                match.click();
+                match.scrollIntoView({block:'nearest'});
+            }
+        }
     });
     $('fdOverlay').setAttribute('tabindex', '-1');
     $('fdOverlay').addEventListener('mousedown', (e) => { if(e.target === $('fdOverlay')) closeFileDialog(); });
@@ -2683,10 +2753,7 @@ def ui_merge():
                 400,
             )
 
-        # Create temp directory
         temp_dir = tempfile.gettempdir()
-
-        # Save uploaded files temporarily
         file1_path = os.path.join(temp_dir, file1.filename)
         file2_path = os.path.join(temp_dir, file2.filename)
         output_path = os.path.join(temp_dir, output)
@@ -2694,11 +2761,38 @@ def ui_merge():
         file1.save(file1_path)
         file2.save(file2_path)
 
-        # Execute merge
-        result = execute(
-            "merge_pdf",
-            {"file1": file1_path, "file2": file2_path, "output": output_path},
-        )
+        sheet_w = request.form.get("sheet_w")
+        if sheet_w:
+            compose_data = {
+                    "file1": file1_path,
+                    "file2": file2_path,
+                    "output": output_path,
+                    "sheet_w": sheet_w,
+                    "sheet_h": request.form.get("sheet_h", "96"),
+                    "x1": request.form.get("x1", "0"),
+                    "y1": request.form.get("y1", "0"),
+                    "x2": request.form.get("x2", "0"),
+                    "y2": request.form.get("y2", "0"),
+                    "rot1": request.form.get("rot1", "0"),
+                    "rot2": request.form.get("rot2", "0"),
+                }
+            if request.form.get("cut_line"):
+                    compose_data["cut_line"] = "1"
+                    compose_data["cut_line_width"] = request.form.get("cut_line_width", "0.5")
+                    compose_data["cut_line_color"] = request.form.get("cut_line_color", "#000000")
+                    compose_data["cut_line_style"] = request.form.get("cut_line_style", "dashed")
+                    compose_data["cut_line_dir"] = request.form.get("cut_line_dir", "auto")
+                    compose_data["cut_line_extend"] = request.form.get("cut_line_extend", "1")
+            result = execute(
+                "compose_pdf_sheet",
+                compose_data,
+                timeout_seconds=60,
+            )
+        else:
+            result = execute(
+                "merge_pdf",
+                {"file1": file1_path, "file2": file2_path, "output": output_path},
+            )
 
         return jsonify(result)
     except Exception as e:
@@ -4070,7 +4164,7 @@ def ui_finishing_editor():
   }
   .btn-secondary:hover{border-color:var(--cyan); color:var(--cyan);}
 
-  .stage{ padding:24px; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .stage{ padding:24px; display:flex; flex-direction:column; gap:16px; min-width:0; position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto; }
   .empty-state{
     flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-faint);
     font-family:var(--mono); font-size:13px; text-align:center; line-height:1.8;
@@ -4204,11 +4298,16 @@ def ui_finishing_editor():
       <div class="body-fields" id="plongFields">
         <div class="checkbox-row"><input type="checkbox" id="plongFold4" /> <label for="plongFold4">Lipat Plong 4</label></div>
         <div class="control-hint">Jumlah lubang plong per sisi (terdistribusi rata). Isi 0 untuk sisi tanpa plong.</div>
-        <div class="field-row">
-          <div class="control"><label>Atas (jml)</label><input id="jml_plong_atas" type="number" min="0" step="1" value="2" /></div>
-          <div class="control"><label>Bawah (jml)</label><input id="jml_plong_bawah" type="number" min="0" step="1" value="2" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:4px 8px;align-items:center;margin:8px 0;">
+          <div></div>
+          <div class="control" style="text-align:center"><label>Atas (jml)</label><input id="jml_plong_atas" type="number" min="0" step="1" value="2" /></div>
+          <div></div>
           <div class="control"><label>Kiri (jml)</label><input id="jml_plong_kiri" type="number" min="0" step="1" value="2" /></div>
+          <div style="display:flex;align-items:center;justify-content:center;"><svg width="40" height="40" viewBox="0 0 40 40"><line x1="20" y1="4" x2="20" y2="36" stroke="#999" stroke-width="1.5"/><line x1="4" y1="20" x2="36" y2="20" stroke="#999" stroke-width="1.5"/></svg></div>
           <div class="control"><label>Kanan (jml)</label><input id="jml_plong_kanan" type="number" min="0" step="1" value="2" /></div>
+          <div></div>
+          <div class="control" style="text-align:center"><label>Bawah (jml)</label><input id="jml_plong_bawah" type="number" min="0" step="1" value="2" /></div>
+          <div></div>
         </div>
         <div class="control"><label>Jarak dari tepi (cm)</label><input id="plongInset" type="number" step="0.1" value="2" /></div>
         <div class="color-row">
@@ -4256,6 +4355,7 @@ def ui_finishing_editor():
           <div class="control"><label>Warna Garis</label></div>
         </div>
         <div class="control"><label>Ukuran Garis (cm)</label><input id="lebLineSize" type="number" step="0.05" value="0.1" /></div>
+        <div class="control"><label>Garis bingkai objek</label><select id="lebBingkaiObjek"><option value="auto" selected>Auto (kontras)</option><option value="on">Selalu aktif</option><option value="off">Mati</option></select></div>
         <div class="control"><label>Kualitas Expot (%)</label><input id="lebQuality" type="number" min="1" max="100" value="80" /></div>
       </div>
     </div>
@@ -4661,18 +4761,6 @@ def ui_finishing_editor():
     distribute(cint('jml_plong_kiri', 0), ay + inset, ay + ah - inset).forEach(y => shape(ax + inset, y));
     distribute(cint('jml_plong_kanan', 0), ay + inset, ay + ah - inset).forEach(y => shape(ax + aw - inset, y));
 
-    if(document.getElementById('plongFold4').checked){
-      const tick = Math.max(1 * c, 4);
-      const lw = Math.max(0.03 * c, 2);
-      const cx = ax + aw/2, cy = ay + ah/2;
-      ctx.strokeStyle = '#000'; ctx.lineWidth = lw; ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(cx, ay); ctx.lineTo(cx, ay + tick);
-      ctx.moveTo(cx, ay + ah - tick); ctx.lineTo(cx, ay + ah);
-      ctx.moveTo(ax, cy); ctx.lineTo(ax + tick, cy);
-      ctx.moveTo(ax + aw - tick, cy); ctx.lineTo(ax + aw, cy);
-      ctx.stroke();
-    }
   }
 
   function drawLebGaris(ctx, W, H, c){
@@ -4752,7 +4840,27 @@ def ui_finishing_editor():
     ctx.restore();
 
     if(document.getElementById('plongEnable').checked) drawPlong(ctx, ax, ay, aw, ah, c);
-    if(lay.lebOn) drawLebGaris(ctx, W, H, c);
+    if(lay.lebOn){
+      drawLebGaris(ctx, W, H, c);
+      const bingkaiMode = document.getElementById('lebBingkaiObjek').value;
+      let drawBingkai = bingkaiMode === 'on';
+      if(bingkaiMode === 'auto'){
+        const bgHex = document.getElementById('lebBackground').value;
+        const br = parseInt(bgHex.slice(1,3),16), bg = parseInt(bgHex.slice(3,5),16), bb = parseInt(bgHex.slice(5,7),16);
+        const edge = ctx.getImageData(Math.round(ax+1), Math.round(ay+1), Math.max(Math.round(aw-2),1), 1).data;
+        let er=0, eg=0, eb=0, n=0;
+        for(let i=0; i<edge.length; i+=16){ er+=edge[i]; eg+=edge[i+1]; eb+=edge[i+2]; n++; }
+        if(n){ er/=n; eg/=n; eb/=n; }
+        const diff = Math.abs(er-br)+Math.abs(eg-bg)+Math.abs(eb-bb);
+        drawBingkai = diff < 80;
+      }
+      if(drawBingkai){
+        const bColor = document.getElementById('lebLineColor').value;
+        const bLw = Math.max(cnum('lebLineSize', 0.1) * c, 1);
+        ctx.strokeStyle = bColor; ctx.lineWidth = bLw; ctx.setLineDash([]);
+        ctx.strokeRect(ax + bLw/2, ay + bLw/2, aw - bLw, ah - bLw);
+      }
+    }
     if(document.getElementById('pesanEnable').checked) drawPesan(ctx, W, H, c);
 
     sizeLabel.textContent = lay.finalWcm.toFixed(1) + '×' + lay.finalHcm.toFixed(1) + ' cm  ·  ' + Math.round(state.dpi) + ' DPI';
@@ -4874,6 +4982,7 @@ def ui_finishing_editor():
         warna_background: document.getElementById('lebBackground').value,
         warna_garis: document.getElementById('lebLineColor').value,
         ukuran_garis: document.getElementById('lebLineSize').value,
+        bingkai_objek: document.getElementById('lebBingkaiObjek').value,
         quality: document.getElementById('lebQuality').value,
       },
       pesan: {
@@ -5538,6 +5647,38 @@ const modeColors = {
     varnish: [0,   200, 255],  // cyan — pelapis kilap
 };
 
+// ─── Baca DPI dari metadata file (pHYs PNG / JFIF JPEG) ─────────────────────
+async function readFileDpi(file){
+    try{
+        const buf = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+        // PNG: cari chunk pHYs
+        if(buf[0]===0x89 && buf[1]===0x50){
+            let o = 8;
+            while(o + 8 < buf.length){
+                const len  = (buf[o]<<24)|(buf[o+1]<<16)|(buf[o+2]<<8)|buf[o+3];
+                const type = String.fromCharCode(buf[o+4],buf[o+5],buf[o+6],buf[o+7]);
+                if(type === 'pHYs' && len >= 9){
+                    const p = o+8;
+                    const ppux = (buf[p]<<24)|(buf[p+1]<<16)|(buf[p+2]<<8)|buf[p+3];
+                    if(buf[p+8] === 1 && ppux > 0)          // unit = meter
+                        return Math.round(ppux * 0.0254);
+                    return null;
+                }
+                if(type === 'IDAT') break;                   // pHYs selalu sebelum IDAT
+                o += 12 + len;
+            }
+        }
+        // JPEG: JFIF APP0 density
+        if(buf[0]===0xFF && buf[1]===0xD8 && buf[6]===0x4A && buf[7]===0x46){
+            const unit = buf[13];
+            const xd = (buf[14]<<8)|buf[15];
+            if(unit===1 && xd>1) return xd;                  // dpi
+            if(unit===2 && xd>1) return Math.round(xd*2.54); // dpcm
+        }
+    }catch(_){}
+    return null;
+}
+
 // ─── Upload Gambar ──────────────────────────────────────────────────────────
 function loadImageFile(file){
     return new Promise((resolve, reject)=>{
@@ -5579,7 +5720,14 @@ document.getElementById('imgInput').addEventListener('change', async function(e)
     const file = e.target.files[0];
     if(!file) return;
     await loadImageFile(file);
-    document.getElementById('statusBox').textContent = 'Gambar dimuat. Pilih channel lalu gambar / seleksi areanya.';
+    // set DPI dari metadata file (perilaku Photoshop) — ruler & ukuran fisik jadi benar
+    const fdpi = await readFileDpi(file);
+    if(fdpi){
+        document.getElementById('dpiInput').value = fdpi;
+        drawRulers(); drawGrid();
+    }
+    document.getElementById('statusBox').textContent =
+        'Gambar dimuat' + (fdpi ? ` (${fdpi} DPI dari file)` : '') + '. Pilih channel lalu gambar / seleksi areanya.';
     document.getElementById('statusBox').className = 'status-box';
 });
 
@@ -7981,6 +8129,192 @@ const SECTIONS = [
   },
  ]
 },
+{
+ id:'finishing-editor', title:'Finishing Editor', color:'#6a1b9a',
+ intro:'Memproses gambar JPG dengan indikator produksi cetak: plong (lubang die-cut), lebihan (bleed margin), dan pesan (label teks). Mendukung rotasi, auto-kontras warna, dan bingkai objek.',
+ eps:[
+  {method:'POST', path:'/ui/finishing-process', ctype:'application/json',
+   desc:'Proses gambar finishing: tambahkan plong, lebihan, dan pesan. Output disimpan sebagai <nama>_finishing.jpg di samping file asli.',
+   params:[
+    ['filepath','string','wajib','Path absolut ke file gambar JPG sumber'],
+    ['dpi','number','opsional','DPI gambar. Default: baca dari metadata file, fallback 300'],
+    ['image_scale','number','opsional','Skala gambar (%). Default: 100'],
+    ['rotation','number','opsional','Rotasi searah jarum jam (0/90/180/270). Default: 0'],
+    ['plong','object','opsional','Konfigurasi plong (die-cut holes)'],
+    ['plong.enable','boolean','wajib*','Aktifkan plong. Harus true agar plong diproses'],
+    ['plong.fold4','boolean','opsional','Jika true, set jumlah tiap sisi = 2 (shortcut Lipat Plong 4)'],
+    ['plong.jml_atas','number','opsional','Jumlah lubang sisi atas. Default: 0'],
+    ['plong.jml_bawah','number','opsional','Jumlah lubang sisi bawah. Default: 0'],
+    ['plong.jml_kiri','number','opsional','Jumlah lubang sisi kiri. Default: 0'],
+    ['plong.jml_kanan','number','opsional','Jumlah lubang sisi kanan. Default: 0'],
+    ['plong.inset','number','opsional','Jarak lubang dari tepi gambar (cm). Default: 2'],
+    ['plong.warna_plong','string','opsional','Warna lubang (hex/nama). Default: White'],
+    ['plong.auto_contrast','boolean','opsional','Otomatis pilih hitam/putih berdasarkan background. Default: false'],
+    ['plong.bentuk_plong','string','opsional','"circle" atau "square". Default: circle'],
+    ['plong.diameter_lebar','number','opsional','Diameter/lebar lubang (cm). Default: 1'],
+    ['plong.diameter_panjang','number','opsional','Tinggi lubang kotak (cm). Default: sama diameter_lebar'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/finishing-process \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "filepath": "F:\\\\PESANAN\\\\2026\\\\desain.jpg",
+    "dpi": 300,
+    "rotation": 0,
+    "plong": {
+      "enable": true,
+      "jml_atas": 6, "jml_bawah": 6,
+      "jml_kiri": 2, "jml_kanan": 2,
+      "inset": 2,
+      "warna_plong": "#ffffff",
+      "auto_contrast": true,
+      "bentuk_plong": "circle",
+      "diameter_lebar": 1
+    },
+    "lebihan": {
+      "enable": true,
+      "all": 2.5,
+      "warna_background": "#ffffff",
+      "warna_garis": "#d3d3d3",
+      "ukuran_garis": 0.1,
+      "bingkai_objek": false,
+      "quality": 80
+    },
+    "pesan": {
+      "enable": true,
+      "text": "PASAR BUAH - 700x100cm",
+      "ukuran": 0.8,
+      "warna": "#000000",
+      "auto_contrast": true,
+      "pos_x": 3, "pos_y": 1,
+      "posisi": "horizontal",
+      "satu_kiri": false
+    }
+  }'`,
+   resp:`{
+  "status": "success",
+  "output_path": "F:\\\\PESANAN\\\\2026\\\\desain_finishing.jpg",
+  "output_url": "/ui/thumbnail?filepath=F%3A%5CPESANAN%5C2026%5Cdesain_finishing.jpg"
+}`,
+   tester:{kind:'jsonraw', path:'/ui/finishing-process',
+     example:`{
+  "filepath": "",
+  "dpi": 300,
+  "rotation": 0,
+  "plong": {
+    "enable": true,
+    "jml_atas": 2, "jml_bawah": 2,
+    "jml_kiri": 2, "jml_kanan": 2,
+    "inset": 2,
+    "auto_contrast": true,
+    "bentuk_plong": "circle",
+    "diameter_lebar": 1
+  },
+  "lebihan": {
+    "enable": true,
+    "all": 2.5,
+    "warna_background": "#ffffff",
+    "warna_garis": "#d3d3d3",
+    "ukuran_garis": 0.1,
+    "bingkai_objek": false,
+    "quality": 80
+  },
+  "pesan": {
+    "enable": true,
+    "text": "Contoh Pesan",
+    "ukuran": 0.8,
+    "auto_contrast": true,
+    "pos_x": 3, "pos_y": 1,
+    "posisi": "horizontal"
+  }
+}`
+   }
+  },
+ ]
+},
+{
+ id:'finishing-editor-lebihan', title:'Finishing — Lebihan (Bleed)', color:'#6a1b9a',
+ intro:'Detail parameter lebihan (bleed margin) pada Finishing Editor.',
+ eps:[
+  {method:'POST', path:'/ui/finishing-process', ctype:'application/json',
+   desc:'Parameter bagian lebihan — menambahkan margin di sekeliling gambar dengan garis putus-putus dan opsional bingkai objek.',
+   params:[
+    ['lebihan.enable','boolean','wajib*','Aktifkan lebihan. Harus true agar lebihan diproses'],
+    ['lebihan.all','number','opsional','Lebihan keliling semua sisi (cm). Default: 2.5'],
+    ['lebihan.top','number','opsional','Override sisi atas (cm). Default: sama dengan all'],
+    ['lebihan.bottom','number','opsional','Override sisi bawah (cm). Default: sama dengan all'],
+    ['lebihan.left','number','opsional','Override sisi kiri (cm). Default: sama dengan all'],
+    ['lebihan.right','number','opsional','Override sisi kanan (cm). Default: sama dengan all'],
+    ['lebihan.warna_background','string','opsional','Warna background margin (hex/nama). Default: White'],
+    ['lebihan.warna_garis','string','opsional','Warna garis putus-putus tepi luar (hex/nama). Default: lightgrey'],
+    ['lebihan.ukuran_garis','number','opsional','Tebal garis (cm). Default: 0.1'],
+    ['lebihan.bingkai_objek','boolean','opsional','Gambar border di tepi gambar asli (dalam margin). Default: false'],
+    ['lebihan.quality','number','opsional','Kualitas JPEG output (1-100). Default: 80'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/finishing-process \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "filepath": "F:\\\\PESANAN\\\\2026\\\\desain.jpg",
+    "lebihan": {
+      "enable": true,
+      "all": 2.5,
+      "top": 3, "bottom": 3, "left": 2, "right": 2,
+      "warna_background": "#ffffff",
+      "warna_garis": "#d3d3d3",
+      "ukuran_garis": 0.1,
+      "bingkai_objek": true,
+      "quality": 90
+    }
+  }'`,
+   resp:`{
+  "status": "success",
+  "output_path": "F:\\\\PESANAN\\\\2026\\\\desain_finishing.jpg",
+  "output_url": "/ui/thumbnail?filepath=..."
+}`,
+   tester:null
+  },
+ ]
+},
+{
+ id:'finishing-editor-pesan', title:'Finishing — Pesan (Label)', color:'#6a1b9a',
+ intro:'Detail parameter pesan (label teks) pada Finishing Editor.',
+ eps:[
+  {method:'POST', path:'/ui/finishing-process', ctype:'application/json',
+   desc:'Parameter bagian pesan — menambahkan teks label di dua posisi (kiri-atas & kanan-bawah). Auto-kontras memilih warna teks berdasarkan background di posisi teks.',
+   params:[
+    ['pesan.enable','boolean','wajib*','Aktifkan pesan. Harus true agar teks ditambahkan'],
+    ['pesan.text','string','wajib*','Isi teks pesan'],
+    ['pesan.ukuran','number','opsional','Ukuran font (cm). Default: 0.8'],
+    ['pesan.warna','string','opsional','Warna teks (hex/nama). Default: Black. Diabaikan jika auto_contrast=true'],
+    ['pesan.auto_contrast','boolean','opsional','Otomatis pilih hitam/putih per posisi. Default: false'],
+    ['pesan.pos_x','number','opsional','Offset X dari tepi (cm). Default: 3 (horizontal) / 1 (vertical)'],
+    ['pesan.pos_y','number','opsional','Offset Y dari tepi (cm). Default: 1 (horizontal) / 3 (vertical)'],
+    ['pesan.posisi','string','opsional','"horizontal" atau "vertical". Default: horizontal'],
+    ['pesan.satu_kiri','boolean','opsional','Hanya tampilkan teks di kiri-atas saja (tanpa mirror). Default: false'],
+   ],
+   curl:`curl -X POST ${HOST}/ui/finishing-process \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "filepath": "F:\\\\PESANAN\\\\2026\\\\desain.jpg",
+    "pesan": {
+      "enable": true,
+      "text": "PASAR BUAH - 700x100cm",
+      "ukuran": 0.8,
+      "warna": "#000000",
+      "auto_contrast": true,
+      "pos_x": 3, "pos_y": 1,
+      "posisi": "horizontal",
+      "satu_kiri": false
+    }
+  }'`,
+   resp:`{
+  "status": "success",
+  "output_path": "F:\\\\PESANAN\\\\2026\\\\desain_finishing.jpg",
+  "output_url": "/ui/thumbnail?filepath=..."
+}`,
+   tester:null
+  },
+ ]
+},
 ];
 
 // ─── Render ────────────────────────────────────────────────────────────────
@@ -8014,12 +8348,12 @@ SECTIONS.forEach(sec=>{
         <div class="lbl">Contoh Request</div>
         <pre>${esc(ep.curl||'')}</pre>
         ${ep.resp?`<div class="lbl">Contoh Response</div><pre>${esc(ep.resp)}</pre>`:''}
-        <div class="tester" data-sec="${sec.id}" data-idx="${i}">
+        ${ep.tester?`<div class="tester" data-sec="${sec.id}" data-idx="${i}">
           <div class="t-t">⚡ Test API</div>
           <div class="t-fields"></div>
           <button class="run">▶ Kirim Request</button>
           <div class="t-out"><div class="t-meta"></div><pre class="t-json"></pre><div class="arts"></div></div>
-        </div>
+        </div>`:''}
       </div>
     </div>`;
   });

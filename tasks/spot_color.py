@@ -105,12 +105,34 @@ def _despeckle_main(img: Image.Image) -> Image.Image:
     return Image.fromarray(arr)
 
 
+def _image_dpi(img: Image.Image):
+    """DPI dari metadata gambar (pHYs PNG / JFIF), None bila tidak ada."""
+    d = img.info.get("dpi")
+    if isinstance(d, (tuple, list)) and d:
+        try:
+            v = float(d[0])
+            # PIL sering mengembalikan 599.9988 dst dari konversi meter → bulatkan
+            if v > 1:
+                return int(round(v))
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
 def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str):
     """
     image_path : path gambar utama
     channels   : list of dict {name, mode, mask_np}
+    dpi        : fallback bila gambar tidak punya metadata DPI
+
+    PENTING: DPI asli dari metadata file DIUTAMAKAN (perilaku Photoshop) —
+    kalau dipaksa 300 sementara file 600 dpi, ukuran fisik PDF jadi 2x
+    kebesaran dan hasil tampak pecah saat ditempatkan pada ukuran cetak.
     """
     main_img = Image.open(image_path)
+    file_dpi = _image_dpi(main_img)
+    if file_dpi:
+        dpi = file_dpi
     if main_img.mode != "RGB":
         # PNG transparan: composite ke putih, jangan biarkan alpha jadi hitam
         if main_img.mode in ("RGBA", "LA", "PA") or "transparency" in main_img.info:
@@ -130,10 +152,9 @@ def _build_spot_pdf(image_path: str, channels: list, dpi: int, output_path: str)
     page = doc.new_page(width=w_pt, height=h_pt)
     pxref = page.xref
 
-    # Urutan stacking: channel pertama (White) harus di ATAS. Di PDF, XObject
-    # yang digambar TERAKHIR tampil paling atas → proses secara terbalik supaya
-    # White (input pertama) digambar terakhir / jadi layer teratas.
-    channels = list(reversed(channels))
+    # Urutan stacking UV: Varnish di atas, White di bawah.
+    # Input masuk [White, Varnish] → tidak di-reverse supaya White digambar
+    # pertama (bawah), Varnish digambar terakhir (atas).
 
     spot_entries = []  # list of (name, im_name, xref_spot_img)
 

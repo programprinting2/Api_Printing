@@ -316,6 +316,7 @@ def run_auto(data: dict) -> dict:
     preset      = data.get("preset", "dtf")
     contract_px = max(0, int(data.get("contract_px", 2)))
     dpi         = int(data.get("dpi", 300))
+    orient      = data.get("orient", "auto")
 
     if not path or not os.path.exists(path):
         return {"status": "error", "message": f"Path tidak ditemukan: {path}"}
@@ -332,25 +333,70 @@ def run_auto(data: dict) -> dict:
             return {"status": "error", "message": "Auto mode butuh file .png (perlu alpha channel)"}
         files = [path]
 
-    results = []
-    for fp in files:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _process_one(fp):
         base = os.path.basename(fp)
         try:
-            m = _auto_object_mask(fp, contract_px)
-            if int(m.sum()) == 0:
-                results.append({"file": base, "status": "error",
-                                "message": "tidak ada object (alpha kosong)"})
-                continue
-            chans = [{"name": "White", "mode": "white", "mask_np": m}]
-            if preset == "uv":
-                chans.append({"name": "Varnish", "mode": "varnish", "mask_np": m.copy()})
-            out_pdf = os.path.splitext(fp)[0] + ".pdf"
-            _build_spot_pdf(fp, chans, dpi, out_pdf)
-            results.append({"file": base, "status": "success",
-                            "output": os.path.basename(out_pdf)})
-        except Exception as e:
-            results.append({"file": base, "status": "error", "message": str(e)})
+            from PIL import Image as _Img
+            need_rotate = False
+            if orient != "auto":
+                with _Img.open(fp) as _im:
+                    w, h = _im.size
+                if orient == "vertical" and w > h:
+                    need_rotate = True
+                elif orient == "horizontal" and h > w:
+                    need_rotate = True
 
+            src = fp
+            if need_rotate:
+                with _Img.open(fp) as _im:
+                    rotated = _im.rotate(90, expand=True)
+                    src = os.path.splitext(fp)[0] + "_rot_tmp.png"
+                    rotated.save(src)
+
+            m = _auto_object_mask(src, contract_px)
+            if int(m.sum()) == 0:
+                if need_rotate and os.path.exists(src):
+                    os.remove(src)
+                return {"file": base, "status": "error",
+                        "message": "tidak ada object (alpha kosong)"}
+            if preset == "uv":
+                chans = [
+                    {"name": "Varnish", "mode": "varnish", "mask_np": m.copy()},
+                    {"name": "White",   "mode": "white",   "mask_np": m},
+                ]
+            else:
+                chans = [{"name": "White", "mode": "white", "mask_np": m}]
+            out_pdf = os.path.splitext(fp)[0] + ".pdf"
+            _build_spot_pdf(src, chans, dpi, out_pdf)
+            # read final dimensions for UI update
+            result_info = {"file": base, "status": "success",
+                           "output": os.path.basename(out_pdf), "rotated": need_rotate}
+            try:
+                with _Img.open(src) as _fim:
+                    fw, fh = _fim.size
+                    fd = _image_dpi(_fim) or dpi
+                result_info["w_cm"] = round(fw / fd * 2.54, 1)
+                result_info["h_cm"] = round(fh / fd * 2.54, 1)
+                result_info["dpi"] = fd
+                result_info["orient"] = "Horizontal" if fw >= fh else "Vertical"
+            except Exception:
+                pass
+            if need_rotate and os.path.exists(src):
+                os.remove(src)
+            return result_info
+        except Exception as e:
+            return {"file": base, "status": "error", "message": str(e)}
+
+    max_workers = min(len(files), os.cpu_count() or 4)
+    results_map = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_process_one, fp): fp for fp in files}
+        for fut in as_completed(futures):
+            results_map[futures[fut]] = fut.result()
+
+    results = [results_map[fp] for fp in files]
     n_ok = sum(1 for r in results if r["status"] == "success")
     return {"status": "success", "preset": preset, "n_files": len(files),
             "n_success": n_ok, "results": results}

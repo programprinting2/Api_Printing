@@ -5240,7 +5240,7 @@ def ui_spot_color():
         .batch-btn-top:hover{background:#00695c}
         #batchModal{position:fixed;inset:0;background:rgba(15,20,30,.45);display:none;align-items:center;justify-content:center;z-index:3000}
         #batchModal.open{display:flex}
-        .bm-box{background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(860px,94vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+        .bm-box{background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(1100px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
         .bm-head{padding:13px 16px;border-bottom:1px solid #e6e6e6;display:flex;align-items:baseline;gap:9px}
         .bm-head b{font-size:14px;color:#1a1a1a}
         .bm-sub{font-size:10.5px;color:#999}
@@ -5265,24 +5265,36 @@ def ui_spot_color():
         .bm-addmenu button:hover{background:#eaf3ff;color:#0066cc}
         .bm-clr{background:#fff;color:#c62828;border:1px solid #f0c4c4;padding:7px 18px;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;margin-right:auto}
         .bm-clr:hover{background:#c62828;color:#fff;border-color:#a02020}
-        .bm-list{flex:1;overflow-y:auto;min-height:190px;max-height:44vh;background:#fff}
+        .bm-list{flex:1;overflow-y:scroll;min-height:190px;max-height:44vh;background:#fff}
         .bm-empty{padding:40px 16px;text-align:center;color:#bbb;font-size:12px}
-        .bm-row{display:flex;align-items:center;gap:9px;padding:6px 16px;border-bottom:1px solid #f4f4f4;font-size:11.5px}
+        .bm-row{display:grid;grid-template-columns:22px 180px 1fr 100px 40px 72px 62px 80px 72px;gap:0 8px;align-items:center;padding:6px 16px;border-bottom:1px solid #f4f4f4;font-size:11.5px}
+        .bm-colhead{background:#f5f7fa;border-bottom:1px solid #dde2e8;padding-top:5px;padding-bottom:5px;font-size:9.5px;color:#999;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+        .bm-colhead:hover{background:#f5f7fa}
         .bm-row:hover{background:#f8fbff}
         .bm-row.done{background:#f4fdf6}
         .bm-row.err{background:#fff6f6}
-        .bm-row input[type=checkbox]{margin:0;flex-shrink:0}
-        .bm-nm{font-weight:600;color:#222;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 190px}
-        .bm-dir{color:#999;font-size:10px;font-family:Consolas,monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
-        .bm-sz{color:#777;font-size:10px;width:62px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
-        .bm-pbar{width:78px;height:6px;background:#e9edf2;border-radius:3px;overflow:hidden;flex-shrink:0}
+        .bm-row input[type=checkbox]{margin:0}
+        .bm-nm{font-weight:600;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .bm-dir{color:#999;font-size:10px;font-family:Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+        .bm-sz{color:#777;font-size:10px;text-align:right;font-variant-numeric:tabular-nums}
+        .bm-dim{color:#555;font-size:10px;text-align:right;font-family:Consolas,monospace;font-variant-numeric:tabular-nums}
+        .bm-dpi{color:#555;font-size:10px;text-align:right;font-family:Consolas,monospace;font-variant-numeric:tabular-nums}
+        .bm-ori{text-align:center;font-size:16px;line-height:1;white-space:nowrap}
+        .bm-pbar{height:6px;background:#e9edf2;border-radius:3px;overflow:hidden}
         .bm-pbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0066cc,#3d9bff);transition:width .18s}
         .bm-row.done .bm-pbar>i{background:#27ae60}
         .bm-row.err  .bm-pbar>i{background:#c62828}
-        .bm-st{width:118px;flex-shrink:0;font-size:10px;color:#888;text-align:right;font-variant-numeric:tabular-nums}
+        .bm-st{font-size:10px;color:#888;text-align:right;font-variant-numeric:tabular-nums}
         .bm-row.done .bm-st{color:#27ae60;font-weight:700}
         .bm-row.err  .bm-st{color:#c62828;font-weight:700}
         .bm-spin{display:inline-block;width:9px;height:9px;border:1.5px solid #cfe0f5;border-top-color:#0066cc;border-radius:50%;animation:selspin .7s linear infinite;vertical-align:-1px;margin-right:4px}
+        .bm-ori-btn{display:flex;align-items:center;gap:4px;padding:5px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;font-size:11.5px;cursor:pointer;min-width:100px}
+        .bm-ori-btn:hover{border-color:#0066cc}
+        .bm-ori-menu{position:absolute;top:100%;left:28px;z-index:70;background:#fff;border:1px solid #ccd5de;border-radius:5px;box-shadow:0 6px 20px rgba(0,0,0,.15);display:none;min-width:130px;margin-top:2px}
+        .bm-ori-menu.open{display:block}
+        .bm-ori-opt{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#333}
+        .bm-ori-opt:hover{background:#eaf3ff;color:#0066cc}
+        .bm-ori-opt.active{background:#f0f7ff;font-weight:600}
         .bm-opts{display:flex;align-items:center;gap:18px;padding:11px 16px;border-top:1px solid #eee;background:#fafbfc;flex-wrap:wrap}
         .bm-seg{display:flex;border:1px solid #ccd5de;border-radius:5px;overflow:hidden}
         .bm-seg-b{background:#fff;border:none;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:700;color:#555;display:flex;flex-direction:column;align-items:center;line-height:1.25}
@@ -5570,6 +5582,17 @@ def ui_spot_color():
         <label class="bm-chk"><input type="checkbox" id="bmAll" onchange="bmToggleAll(this.checked)">Pilih semua</label>
         <span id="bmCount" class="bm-count">belum ada file</span>
     </div>
+    <div class="bm-row bm-colhead">
+        <span></span>
+        <span>Nama</span>
+        <span>Path</span>
+        <span class="bm-dim">Ukuran (cm)</span>
+        <span class="bm-dpi">DPI</span>
+        <span style="text-align:center">Ori</span>
+        <span class="bm-sz">Size</span>
+        <span style="text-align:center">Progress</span>
+        <span class="bm-st" style="color:#999">Status</span>
+    </div>
     <div class="bm-list" id="bmList">
         <div class="bm-empty">Masukkan path folder lalu klik <b>Cari PNG</b>, atau tekan <b>+</b> untuk memilih file</div>
     </div>
@@ -5587,9 +5610,25 @@ def ui_spot_color():
             <label>DPI</label>
             <input type="number" id="bmDpi" value="300" min="72" max="1200">
         </div>
+        <div class="bm-num">
+            <label>Paralel</label>
+            <input type="number" id="bmParallel" value="3" min="1" max="8">
+        </div>
+        <div class="bm-num" style="position:relative">
+            <label>Orientasi</label>
+            <input type="hidden" id="bmOrient" value="auto">
+            <button type="button" id="bmOriBtn" class="bm-ori-btn" onclick="document.getElementById('bmOriMenu').classList.toggle('open')">
+                <span id="bmOriBtnIcon">Auto</span> <span style="font-size:8px;margin-left:2px">▼</span>
+            </button>
+            <div id="bmOriMenu" class="bm-ori-menu">
+                <div class="bm-ori-opt" data-val="auto" onclick="bmSetOrient('auto')">Auto</div>
+                <div class="bm-ori-opt" data-val="vertical" onclick="bmSetOrient('vertical')"><svg width="12" height="16" viewBox="0 0 14 18" fill="none"><rect x="1" y="0.5" width="12" height="17" rx="1.5" stroke="#0066cc" stroke-width="1.5" fill="rgba(0,102,204,0.08)"/></svg> Vertical</div>
+                <div class="bm-ori-opt" data-val="horizontal" onclick="bmSetOrient('horizontal')"><svg width="16" height="12" viewBox="0 0 18 14" fill="none"><rect x="0.5" y="1" width="17" height="12" rx="1.5" stroke="#27ae60" stroke-width="1.5" fill="rgba(39,174,96,0.08)"/></svg> Horizontal</div>
+            </div>
+        </div>
     </div>
 
-    <div class="bm-total">
+    <div class="bm-total" id="bmTotalWrap" style="display:none">
         <div class="bm-tbar"><i id="bmTotalBar"></i></div>
         <span id="bmTotalTxt">Siap</span>
     </div>
@@ -5898,7 +5937,7 @@ function _expandSelectionImpl(){
 // ─── Jenis Produk & Channel ─────────────────────────────────────────────────
 const TYPE_CHANNELS = {
     dtf: [['White','white']],
-    uv:  [['White','white'], ['Varnish','varnish']],
+    uv:  [['Varnish','varnish'], ['White','white']],
 };
 
 function _initChannels(){
@@ -7477,6 +7516,11 @@ function bmResetProgress(){
     document.getElementById('bmTotalTxt').textContent = 'Siap';
 }
 
+function _oriIcon(o){
+    if(o==='Vertical') return '<svg width="14" height="18" viewBox="0 0 14 18" fill="none"><rect x="1" y="0.5" width="12" height="17" rx="1.5" stroke="#0066cc" stroke-width="1.5" fill="rgba(0,102,204,0.08)"/></svg>';
+    if(o==='Horizontal') return '<svg width="18" height="14" viewBox="0 0 18 14" fill="none"><rect x="0.5" y="1" width="17" height="12" rx="1.5" stroke="#27ae60" stroke-width="1.5" fill="rgba(39,174,96,0.08)"/></svg>';
+    return '-';
+}
 function bmRenderList(){
     const list = document.getElementById('bmList');
     if(!bmFiles.length){
@@ -7485,21 +7529,68 @@ function bmRenderList(){
         document.getElementById('bmGoBtn').disabled = true;
         return;
     }
+    // sort by file size ascending
+    bmFiles.sort((a,b)=>(a.size||0)-(b.size||0));
     list.innerHTML = bmFiles.map((f,i)=>`
         <div class="bm-row" id="bmRow${i}">
-            <input type="checkbox" id="bmCb${i}" checked onchange="bmUpdateCount()">
+            <input type="checkbox" id="bmCb${i}" ${f.has_pdf?'':'checked'} onchange="bmUpdateCount()">
             <span class="bm-nm" title="${f.name}">${f.name}</span>
             <span class="bm-dir" title="${f.dir}">${f.dir}</span>
+            <span class="bm-dim" id="bmDim${i}">${f.w_cm && f.h_cm ? f.w_cm+' × '+f.h_cm : '-'}</span>
+            <span class="bm-dpi"${f.dpi && f.dpi < 72 ? ' style="color:#c62828;font-weight:700" title="DPI terlalu rendah"' : ''}>${f.dpi ? (f.dpi < 72 ? '<span style="color:#c62828">⚠</span> '+f.dpi : f.dpi) : '-'}</span>
+            <span class="bm-ori" id="bmOri${i}" title="${f.orient || '-'}">${_oriIcon(f.orient)}</span>
             <span class="bm-sz">${_fmtSize(f.size)}</span>
             <span class="bm-pbar"><i id="bmBar${i}"></i></span>
-            <span class="bm-st" id="bmSt${i}">${f.has_pdf ? 'sudah ada .pdf' : 'siap'}</span>
+            <span class="bm-st" id="bmSt${i}">${f.has_pdf ? '<span style="color:#27ae60;font-size:14px" title="sudah ada .pdf">✔</span>' : ''}</span>
         </div>`).join('');
-    document.getElementById('bmAll').checked = true;
+    document.getElementById('bmAll').checked = !bmFiles.some(f=>f.has_pdf);
     bmUpdateCount();
 }
 
+// --- Orientasi dropdown ---
+function bmSetOrient(val){
+    document.getElementById('bmOrient').value = val;
+    const labels = {auto:'Auto', vertical:'<svg width="12" height="16" viewBox="0 0 14 18" fill="none"><rect x="1" y="0.5" width="12" height="17" rx="1.5" stroke="#0066cc" stroke-width="1.5" fill="rgba(0,102,204,0.08)"/></svg> Vertical', horizontal:'<svg width="16" height="12" viewBox="0 0 18 14" fill="none"><rect x="0.5" y="1" width="17" height="12" rx="1.5" stroke="#27ae60" stroke-width="1.5" fill="rgba(39,174,96,0.08)"/></svg> Horizontal'};
+    document.getElementById('bmOriBtnIcon').innerHTML = labels[val]||val;
+    document.querySelectorAll('.bm-ori-opt').forEach(el=>el.classList.toggle('active', el.dataset.val===val));
+    document.getElementById('bmOriMenu').classList.remove('open');
+}
+document.addEventListener('click', e=>{ if(!e.target.closest('.bm-num')) document.getElementById('bmOriMenu')?.classList.remove('open'); });
+
+// --- Drag-select checkboxes ---
+(function(){
+    const list = document.getElementById('bmList');
+    let dragging=false, dragVal=false, visited=new Set();
+    function cbFromEvent(e){
+        const row = e.target.closest('.bm-row');
+        if(!row) return null;
+        return row.querySelector('input[type=checkbox]');
+    }
+    list.addEventListener('mousedown', e=>{
+        const cb = cbFromEvent(e);
+        if(!cb) return;
+        e.preventDefault();
+        dragging=true; visited.clear();
+        dragVal = !cb.checked;
+        cb.checked = dragVal;
+        visited.add(cb.id);
+        bmUpdateCount();
+    });
+    list.addEventListener('mouseover', e=>{
+        if(!dragging) return;
+        const cb = cbFromEvent(e);
+        if(!cb || visited.has(cb.id)) return;
+        cb.checked = dragVal;
+        visited.add(cb.id);
+        bmUpdateCount();
+    });
+    window.addEventListener('mouseup', ()=>{
+        if(dragging){ dragging=false; visited.clear(); }
+    });
+})();
+
 function bmToggleAll(on){
-    bmFiles.forEach((_,i)=>{ const cb=document.getElementById('bmCb'+i); if(cb) cb.checked=on; });
+    bmFiles.forEach((f,i)=>{ const cb=document.getElementById('bmCb'+i); if(cb) cb.checked = on && !f.has_pdf; });
     bmUpdateCount();
 }
 function _bmSelected(){
@@ -7532,16 +7623,19 @@ async function bmProcess(){
     const sel = _bmSelected();
     if(!sel.length || bmRunning) return;
     bmRunning = true; bmCancelled = false;
+    document.getElementById('bmTotalWrap').style.display = '';
     const goBtn = document.getElementById('bmGoBtn');
     const cancelBtn = document.getElementById('bmCancelBtn');
     goBtn.disabled = true; cancelBtn.textContent = 'Stop';
     const totalBar = document.getElementById('bmTotalBar');
     const totalTxt = document.getElementById('bmTotalTxt');
 
-    const contract = parseInt(document.getElementById('bmContract').value) || 0;
-    const dpi      = parseInt(document.getElementById('bmDpi').value) || 300;
-    const startAt  = new Date();
-    const tStart   = performance.now();
+    const contract  = parseInt(document.getElementById('bmContract').value) || 0;
+    const dpi       = parseInt(document.getElementById('bmDpi').value) || 300;
+    const parallel  = Math.max(1, Math.min(8, parseInt(document.getElementById('bmParallel').value) || 3));
+    const orient    = document.getElementById('bmOrient').value;
+    const startAt   = new Date();
+    const tStart    = performance.now();
     let done=0, okN=0, failN=0, estMs=2500;
 
     const tick = setInterval(()=>{
@@ -7549,10 +7643,10 @@ async function bmProcess(){
         totalTxt.textContent = `${done}/${sel.length} · mulai ${_fmtClock(startAt)} · berjalan ${_fmtDur(el)}`;
     }, 200);
 
-    for(const {f,i} of sel){
+    async function _processOne({f,i}){
         if(bmCancelled){
             document.getElementById('bmSt'+i).textContent = 'dibatalkan';
-            continue;
+            return;
         }
         const row = document.getElementById('bmRow'+i);
         row.classList.remove('done','err');
@@ -7562,17 +7656,33 @@ async function bmProcess(){
         try{
             const r = await fetch('/api/spot-color-auto', {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({path:f.path, preset:bmPreset, contract_px:contract, dpi})
+                body: JSON.stringify({path:f.path, preset:bmPreset, contract_px:contract, dpi, orient})
             });
             const d = await r.json();
             clearInterval(iv);
             const dur = performance.now()-fT0;
-            estMs = estMs*0.6 + dur*0.4;          // adaptif untuk estimasi berikutnya
+            estMs = estMs*0.6 + dur*0.4;
             const first = (d.results||[])[0] || {};
             if(d.status==='success' && first.status==='success'){
                 row.classList.add('done');
                 document.getElementById('bmBar'+i).style.width='100%';
-                document.getElementById('bmSt'+i).textContent = `✔ Selesai · ${_fmtDur(dur)}`;
+                document.getElementById('bmSt'+i).innerHTML = `<span style="color:#27ae60;font-size:13px">✔</span> ${_fmtDur(dur)}`;
+                // update columns if rotated: show original → new
+                if(first.rotated && first.w_cm && first.h_cm){
+                    const dimEl = document.getElementById('bmDim'+i);
+                    const oriEl = document.getElementById('bmOri'+i);
+                    if(dimEl) dimEl.textContent = first.w_cm+' × '+first.h_cm;
+                    if(oriEl){
+                        const oldOri = bmFiles[i].orient;
+                        oriEl.innerHTML = _oriIcon(oldOri)
+                            + '<span style="color:#c62828;font-size:10px;margin:0 2px">→</span>'
+                            + _oriIcon(first.orient);
+                        oriEl.title = (oldOri||'') + ' → ' + (first.orient||'');
+                    }
+                    bmFiles[i].w_cm = first.w_cm;
+                    bmFiles[i].h_cm = first.h_cm;
+                    bmFiles[i].orient = first.orient;
+                }
                 okN++;
             } else {
                 throw new Error(first.message || d.message || 'gagal');
@@ -7587,6 +7697,16 @@ async function bmProcess(){
         done++;
         totalBar.style.width = (done/sel.length*100).toFixed(1)+'%';
     }
+
+    // proses paralel: N file sekaligus
+    const queue = [...sel];
+    async function worker(){
+        while(queue.length && !bmCancelled){
+            const item = queue.shift();
+            await _processOne(item);
+        }
+    }
+    await Promise.all(Array.from({length: Math.min(parallel, sel.length)}, ()=>worker()));
 
     clearInterval(tick);
     const total = performance.now()-tStart;
@@ -7700,12 +7820,42 @@ def _png_info(fp):
         sz = os.path.getsize(fp)
     except Exception:
         sz = 0
+    w_px = h_px = dpi = 0
+    w_cm = h_cm = 0.0
+    orient = "-"
+    try:
+        from PIL import Image as _Img
+        with _Img.open(fp) as im:
+            w_px, h_px = im.size
+            info = im.info or {}
+            d = info.get("dpi")
+            if d and d[0] > 0:
+                dpi = int(round(d[0]))
+            else:
+                phys = info.get("pHYs")
+                if not phys:
+                    import struct
+                    with open(fp, "rb") as f:
+                        raw = f.read(8192)
+                    idx = raw.find(b"pHYs")
+                    if idx >= 0:
+                        ppu_x, ppu_y, unit = struct.unpack(">IIB", raw[idx+4:idx+13])
+                        if unit == 1 and ppu_x > 0:
+                            dpi = int(round(ppu_x / 39.3701))
+                if not dpi:
+                    dpi = 72
+            w_cm = round(w_px / dpi * 2.54, 1)
+            h_cm = round(h_px / dpi * 2.54, 1)
+            orient = "Horizontal" if w_px >= h_px else "Vertical"
+    except Exception:
+        pass
     return {
         "path": fp,
         "name": os.path.basename(fp),
         "dir":  os.path.dirname(fp),
         "size": sz,
         "has_pdf": os.path.exists(os.path.splitext(fp)[0] + ".pdf"),
+        "w_cm": w_cm, "h_cm": h_cm, "dpi": dpi, "orient": orient,
     }
 
 
@@ -7808,6 +7958,7 @@ def api_spot_color_auto():
             "preset":      data.get("preset", "dtf"),
             "contract_px": int(data.get("contract_px", 2)),
             "dpi":         int(data.get("dpi", 300)),
+            "orient":      data.get("orient", "auto"),
         }, timeout_seconds=600)
         return jsonify(result)
     except Exception as e:
